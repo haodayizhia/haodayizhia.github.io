@@ -1,6 +1,6 @@
 +++
 date = '2025-02-24T23:41:17+08:00'
-draft = true
+draft = false
 title = 'My First Post'
 +++
 # 自动部署TLS/Xray教程简洁版
