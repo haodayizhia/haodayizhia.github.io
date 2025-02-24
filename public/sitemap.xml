@@ -2,10 +2,14 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>http://localhost:1313/haodayizhia/haodayizhia.github.io/categories/</loc>
+    <loc>https://example.org/</loc>
+    <lastmod>2025-02-24T23:41:17+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/haodayizhia/haodayizhia.github.io/</loc>
+    <loc>https://example.org/posts/</loc>
+    <lastmod>2025-02-24T23:41:17+08:00</lastmod>
   </url><url>
-    <loc>http://localhost:1313/haodayizhia/haodayizhia.github.io/tags/</loc>
+    <loc>https://example.org/categories/</loc>
+  </url><url>
+    <loc>https://example.org/tags/</loc>
   </url>
 </urlset>
