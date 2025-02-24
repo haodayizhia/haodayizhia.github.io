@@ -2,6 +2,7 @@
 date = '2025-02-24T23:41:17+08:00'
 draft = false
 title = 'My First Post'
+description = "自动部署TLS/Xray教程简洁版"
 +++
 # 自动部署TLS/Xray教程简洁版
 - [自动部署TLS/Xray教程简洁版](#自动部署tlsxray教程简洁版)

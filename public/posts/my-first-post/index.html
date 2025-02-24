@@ -1,75 +1,13 @@
 <!DOCTYPE html>
-<html><head lang="en">
+<html><head lang="en"><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
 	<meta charset="utf-8" />
 	<meta http-equiv="X-UA-Compatible" content="IE=edge"><title>My First Post - My New Hugo Site</title><meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="description" content="自动部署TLS/Xray教程简洁版
-
-自动部署TLS/Xray教程简洁版
-
-Step 1 准备工作
-Step 2 配置部分
-Step 3 启动服务
-Appendix 附加说明
-
-一、certbot 证书续签
-
-手动续签
-自动续签
-
-
-二、其他问题
-三、参考链接
-
-
-
-
-
-
-Step 1 准备工作
-
-自行购买境外VPS，推荐 AWS EC2，首次注册绑定 VISA 信用卡可免费使用一年。
-
-
-什么是 AWS Free Tier？
-AWS Free Tier 使客户能够在各服务的指定限制内免费探索和试用 AWS 服务。免费套餐包含三种不同类型的产品、12 个月免费试用、永久免费和短期免费试用。12 个月免费服务允许客户自账户激活之日起一年内在指定限制内免费使用该产品。永久免费服务允许 AWS 客户在指定限制内免费使用该产品。根据所选服务，短期试用服务可以在指定的时间段内免费使用，或者免费使用一次。有关免费提供的服务和相应的限制，在 Free Tier 页面的每张卡片中有详细说明。如果您的应用程序使用量超过了 Free Tier 限制，您只需支付标准的按需付费服务费率（请参阅服务页面获取完整的定价信息）。存在限制条件；有关更多详细信息，请参阅优惠条款。
-
-
-准备一个域名（推荐腾讯云、阿里云等），示例使用 example.com。
-
-
-将域名托管到 cloudflare，然后解析到服务器 IP。
-
-
-
-Step 2 配置部分
-在服务器终端上逐条运行以下命令，请自行sudo：
-# 更新软件包列表
-apt update
-# 安装Xray-core
-bash -c &#34;$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)&#34; @ install
-# 覆盖Xray-core配置
-vim /usr/local/etc/xray/config.json
-# 安装certbot和nginx
-apt install certbot
-apt install nginx
-# certbot申请证书
-certbot certonly
-# 覆盖nginx配置
-vim /etc/nginx/conf.d/v2ray.conf
-# 替换配置中的域名
-# echo -n &#34;新域名：&#34;
-# read newDomain
-# sed -i &#34;s/example.com/$newDomain/g&#34; /etc/nginx/conf.d/v2ray.conf
-其中，config.json文件内容如下：" />
+	<meta name="description" content="自动部署TLS/Xray教程简洁版" />
 	<meta property="og:image" content=""/>
-	<meta property="og:url" content="https://haodayizhia.github.io/posts/my-first-post/">
+	<meta property="og:url" content="http://localhost:1313/posts/my-first-post/">
   <meta property="og:site_name" content="My New Hugo Site">
   <meta property="og:title" content="My First Post">
-  <meta property="og:description" content="自动部署TLS/Xray教程简洁版 自动部署TLS/Xray教程简洁版 Step 1 准备工作 Step 2 配置部分 Step 3 启动服务 Appendix 附加说明 一、certbot 证书续签 手动续签 自动续签 二、其他问题 三、参考链接 Step 1 准备工作 自行购买境外VPS，推荐 AWS EC2，首次注册绑定 VISA 信用卡可免费使用一年。 什么是 AWS Free Tier？ AWS Free Tier 使客户能够在各服务的指定限制内免费探索和试用 AWS 服务。免费套餐包含三种不同类型的产品、12 个月免费试用、永久免费和短期免费试用。12 个月免费服务允许客户自账户激活之日起一年内在指定限制内免费使用该产品。永久免费服务允许 AWS 客户在指定限制内免费使用该产品。根据所选服务，短期试用服务可以在指定的时间段内免费使用，或者免费使用一次。有关免费提供的服务和相应的限制，在 Free Tier 页面的每张卡片中有详细说明。如果您的应用程序使用量超过了 Free Tier 限制，您只需支付标准的按需付费服务费率（请参阅服务页面获取完整的定价信息）。存在限制条件；有关更多详细信息，请参阅优惠条款。
-准备一个域名（推荐腾讯云、阿里云等），示例使用 example.com。
-将域名托管到 cloudflare，然后解析到服务器 IP。
-Step 2 配置部分 在服务器终端上逐条运行以下命令，请自行sudo：
-# 更新软件包列表 apt update # 安装Xray-core bash -c &#34;$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)&#34; @ install # 覆盖Xray-core配置 vim /usr/local/etc/xray/config.json # 安装certbot和nginx apt install certbot apt install nginx # certbot申请证书 certbot certonly # 覆盖nginx配置 vim /etc/nginx/conf.d/v2ray.conf # 替换配置中的域名 # echo -n &#34;新域名：&#34; # read newDomain # sed -i &#34;s/example.com/$newDomain/g&#34; /etc/nginx/conf.d/v2ray.conf 其中，config.json文件内容如下：">
+  <meta property="og:description" content="自动部署TLS/Xray教程简洁版">
   <meta property="og:locale" content="en_us">
   <meta property="og:type" content="article">
     <meta property="article:section" content="posts">
@@ -78,22 +16,18 @@ Step 2 配置部分 在服务器终端上逐条运行以下命令，请自行sud
 
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="My First Post">
-  <meta name="twitter:description" content="自动部署TLS/Xray教程简洁版 自动部署TLS/Xray教程简洁版 Step 1 准备工作 Step 2 配置部分 Step 3 启动服务 Appendix 附加说明 一、certbot 证书续签 手动续签 自动续签 二、其他问题 三、参考链接 Step 1 准备工作 自行购买境外VPS，推荐 AWS EC2，首次注册绑定 VISA 信用卡可免费使用一年。 什么是 AWS Free Tier？ AWS Free Tier 使客户能够在各服务的指定限制内免费探索和试用 AWS 服务。免费套餐包含三种不同类型的产品、12 个月免费试用、永久免费和短期免费试用。12 个月免费服务允许客户自账户激活之日起一年内在指定限制内免费使用该产品。永久免费服务允许 AWS 客户在指定限制内免费使用该产品。根据所选服务，短期试用服务可以在指定的时间段内免费使用，或者免费使用一次。有关免费提供的服务和相应的限制，在 Free Tier 页面的每张卡片中有详细说明。如果您的应用程序使用量超过了 Free Tier 限制，您只需支付标准的按需付费服务费率（请参阅服务页面获取完整的定价信息）。存在限制条件；有关更多详细信息，请参阅优惠条款。
-准备一个域名（推荐腾讯云、阿里云等），示例使用 example.com。
-将域名托管到 cloudflare，然后解析到服务器 IP。
-Step 2 配置部分 在服务器终端上逐条运行以下命令，请自行sudo：
-# 更新软件包列表 apt update # 安装Xray-core bash -c &#34;$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)&#34; @ install # 覆盖Xray-core配置 vim /usr/local/etc/xray/config.json # 安装certbot和nginx apt install certbot apt install nginx # certbot申请证书 certbot certonly # 覆盖nginx配置 vim /etc/nginx/conf.d/v2ray.conf # 替换配置中的域名 # echo -n &#34;新域名：&#34; # read newDomain # sed -i &#34;s/example.com/$newDomain/g&#34; /etc/nginx/conf.d/v2ray.conf 其中，config.json文件内容如下：">
+  <meta name="twitter:description" content="自动部署TLS/Xray教程简洁版">
 
-        <link href="https://haodayizhia.github.io/css/fonts.11a1877508139eac0b5b4852ceb110c35641b3533321e66e39149e901ed5756b.css" rel="stylesheet">
+        <link href="http://localhost:1313/css/fonts.11a1877508139eac0b5b4852ceb110c35641b3533321e66e39149e901ed5756b.css" rel="stylesheet">
 	
 
 	
-	<link rel="stylesheet" type="text/css" media="screen" href="https://haodayizhia.github.io/css/main.e08e3d47ef734c0d298ed0fb46ed50640341570139eb362f34ac2720f01a4f58.css" />
+	<link rel="stylesheet" type="text/css" media="screen" href="http://localhost:1313/css/main.e08e3d47ef734c0d298ed0fb46ed50640341570139eb362f34ac2720f01a4f58.css" />
 </head>
 <body>
         <div class="content"><header>
 	<div class="main">
-		<a href="https://haodayizhia.github.io/">My New Hugo Site</a>
+		<a href="http://localhost:1313/">My New Hugo Site</a>
 	</div>
 	<nav>
 		
@@ -358,8 +292,6 @@ AWS Free Tier 使客户能够在各服务的指定限制内免费探索和试用
       href="https://github.com/athul/archie">Archie Theme</a> | Built with <a href="https://gohugo.io">Hugo</a>
   </div>
 </footer>
-
-
 
 </div>
     </body>

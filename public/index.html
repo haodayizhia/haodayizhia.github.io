@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html>
-	<head lang="en">
+	<head lang="en"><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
 	<meta charset="utf-8" />
 	<meta http-equiv="X-UA-Compatible" content="IE=edge"><title>My New Hugo Site | Home </title><meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="description" content="" />
 	<meta property="og:image" content=""/>
-	<link rel="alternate" type="application/rss+xml" href="https://haodayizhia.github.io/index.xml" title="My New Hugo Site" />
-	<meta property="og:url" content="https://haodayizhia.github.io/">
+	<link rel="alternate" type="application/rss+xml" href="http://localhost:1313/index.xml" title="My New Hugo Site" />
+	<meta property="og:url" content="http://localhost:1313/">
   <meta property="og:site_name" content="My New Hugo Site">
   <meta property="og:title" content="My New Hugo Site">
   <meta property="og:locale" content="en_us">
@@ -15,18 +15,18 @@
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="My New Hugo Site">
 
-        <link href="https://haodayizhia.github.io/css/fonts.11a1877508139eac0b5b4852ceb110c35641b3533321e66e39149e901ed5756b.css" rel="stylesheet">
+        <link href="http://localhost:1313/css/fonts.11a1877508139eac0b5b4852ceb110c35641b3533321e66e39149e901ed5756b.css" rel="stylesheet">
 	
 
 	
-	<link rel="stylesheet" type="text/css" media="screen" href="https://haodayizhia.github.io/css/main.e08e3d47ef734c0d298ed0fb46ed50640341570139eb362f34ac2720f01a4f58.css" />
+	<link rel="stylesheet" type="text/css" media="screen" href="http://localhost:1313/css/main.e08e3d47ef734c0d298ed0fb46ed50640341570139eb362f34ac2720f01a4f58.css" />
 </head>
 
 	<body>
 		<div class="content">
 			<header>
 	<div class="main">
-		<a href="https://haodayizhia.github.io/">My New Hugo Site</a>
+		<a href="http://localhost:1313/">My New Hugo Site</a>
 	</div>
 	<nav>
 		
@@ -45,65 +45,7 @@
 					<time>Feb 24, 2025</time>
 					<br><div class="description">
 	
-	<h1 id="自动部署tlsxray教程简洁版">自动部署TLS/Xray教程简洁版</h1>
-<ul>
-<li><a href="#%E8%87%AA%E5%8A%A8%E9%83%A8%E7%BD%B2tlsxray%E6%95%99%E7%A8%8B%E7%AE%80%E6%B4%81%E7%89%88">自动部署TLS/Xray教程简洁版</a>
-<ul>
-<li><a href="#step-1-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C">Step 1 准备工作</a></li>
-<li><a href="#step-2-%E9%85%8D%E7%BD%AE%E9%83%A8%E5%88%86">Step 2 配置部分</a></li>
-<li><a href="#step-3-%E5%90%AF%E5%8A%A8%E6%9C%8D%E5%8A%A1">Step 3 启动服务</a></li>
-<li><a href="#appendix-%E9%99%84%E5%8A%A0%E8%AF%B4%E6%98%8E">Appendix 附加说明</a>
-<ul>
-<li><a href="#%E4%B8%80certbot-%E8%AF%81%E4%B9%A6%E7%BB%AD%E7%AD%BE">一、certbot 证书续签</a>
-<ul>
-<li><a href="#%E6%89%8B%E5%8A%A8%E7%BB%AD%E7%AD%BE">手动续签</a></li>
-<li><a href="#%E8%87%AA%E5%8A%A8%E7%BB%AD%E7%AD%BE">自动续签</a></li>
-</ul>
-</li>
-<li><a href="#%E4%BA%8C%E5%85%B6%E4%BB%96%E9%97%AE%E9%A2%98">二、其他问题</a></li>
-<li><a href="#%E4%B8%89%E5%8F%82%E8%80%83%E9%93%BE%E6%8E%A5">三、参考链接</a></li>
-</ul>
-</li>
-</ul>
-</li>
-</ul>
-<hr>
-<h2 id="step-1-准备工作">Step 1 准备工作</h2>
-<ul>
-<li>自行购买境外VPS，推荐 <strong>AWS EC2</strong>，首次注册绑定 VISA 信用卡可免费使用一年。</li>
-</ul>
-<blockquote>
-<p><strong>什么是 AWS Free Tier？</strong>
-AWS Free Tier 使客户能够在各服务的指定限制内免费探索和试用 AWS 服务。免费套餐包含三种不同类型的产品、12 个月免费试用、永久免费和短期免费试用。12 个月免费服务允许客户自账户激活之日起一年内在指定限制内免费使用该产品。永久免费服务允许 AWS 客户在指定限制内免费使用该产品。根据所选服务，短期试用服务可以在指定的时间段内免费使用，或者免费使用一次。有关免费提供的服务和相应的限制，在 Free Tier 页面的每张卡片中有详细说明。如果您的应用程序使用量超过了 Free Tier 限制，您只需支付标准的按需付费服务费率（请参阅服务页面获取完整的定价信息）。存在限制条件；有关更多详细信息，请参阅优惠条款。</p></blockquote>
-<ul>
-<li>
-<p>准备一个域名（推荐腾讯云、阿里云等），示例使用 <code>example.com</code>。</p>
-</li>
-<li>
-<p>将域名托管到 <a href="https://dash.cloudflare.com/">cloudflare</a>，然后解析到服务器 IP。</p>
-</li>
-</ul>
-<hr>
-<h2 id="step-2-配置部分">Step 2 配置部分</h2>
-<p>在服务器终端上逐条运行以下命令，请自行<code>sudo</code>：</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># 更新软件包列表</span>
-</span></span><span style="display:flex;"><span>apt update
-</span></span><span style="display:flex;"><span><span style="color:#75715e"># 安装Xray-core</span>
-</span></span><span style="display:flex;"><span>bash -c <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span> @ install
-</span></span><span style="display:flex;"><span><span style="color:#75715e"># 覆盖Xray-core配置</span>
-</span></span><span style="display:flex;"><span>vim /usr/local/etc/xray/config.json
-</span></span><span style="display:flex;"><span><span style="color:#75715e"># 安装certbot和nginx</span>
-</span></span><span style="display:flex;"><span>apt install certbot
-</span></span><span style="display:flex;"><span>apt install nginx
-</span></span><span style="display:flex;"><span><span style="color:#75715e"># certbot申请证书</span>
-</span></span><span style="display:flex;"><span>certbot certonly
-</span></span><span style="display:flex;"><span><span style="color:#75715e"># 覆盖nginx配置</span>
-</span></span><span style="display:flex;"><span>vim /etc/nginx/conf.d/v2ray.conf
-</span></span><span style="display:flex;"><span><span style="color:#75715e"># 替换配置中的域名</span>
-</span></span><span style="display:flex;"><span><span style="color:#75715e"># echo -n &#34;新域名：&#34;</span>
-</span></span><span style="display:flex;"><span><span style="color:#75715e"># read newDomain</span>
-</span></span><span style="display:flex;"><span><span style="color:#75715e"># sed -i &#34;s/example.com/$newDomain/g&#34; /etc/nginx/conf.d/v2ray.conf</span>
-</span></span></code></pre></div><p>其中，<code>config.json</code>文件内容如下：</p>&hellip;
+	自动部署TLS/Xray教程简洁版
 	
 </div>
 					<a class="readmore" href="/posts/my-first-post/">Read more ⟶</a>
@@ -120,8 +62,6 @@ AWS Free Tier 使客户能够在各服务的指定限制内免费探索和试用
       href="https://github.com/athul/archie">Archie Theme</a> | Built with <a href="https://gohugo.io">Hugo</a>
   </div>
 </footer>
-
-
 
 
 		</div>
