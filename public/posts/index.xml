@@ -9,11 +9,64 @@
     <lastBuildDate>Mon, 24 Feb 2025 23:41:17 +0800</lastBuildDate>
     <atom:link href="http://localhost:1313/posts/index.xml" rel="self" type="application/rss+xml" />
     <item>
-      <title>My 1st post</title>
+      <title>自动部署TLS/Xray教程简洁版</title>
       <link>http://localhost:1313/posts/my-first-post/</link>
       <pubDate>Mon, 24 Feb 2025 23:41:17 +0800</pubDate>
       <guid>http://localhost:1313/posts/my-first-post/</guid>
-      <description>梯子</description>
+      <description>&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;#step-1-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C&#34;&gt;Step 1 准备工作&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;#step-2-%E9%85%8D%E7%BD%AE%E9%83%A8%E5%88%86&#34;&gt;Step 2 配置部分&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;#step-3-%E5%90%AF%E5%8A%A8%E6%9C%8D%E5%8A%A1&#34;&gt;Step 3 启动服务&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;#appendix-%E9%99%84%E5%8A%A0%E8%AF%B4%E6%98%8E&#34;&gt;Appendix 附加说明&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;#%E4%B8%80certbot-%E8%AF%81%E4%B9%A6%E7%BB%AD%E7%AD%BE&#34;&gt;一、certbot 证书续签&lt;/a&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;#%E6%89%8B%E5%8A%A8%E7%BB%AD%E7%AD%BE&#34;&gt;手动续签&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;#%E8%87%AA%E5%8A%A8%E7%BB%AD%E7%AD%BE&#34;&gt;自动续签&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;#%E4%BA%8C%E5%85%B6%E4%BB%96%E9%97%AE%E9%A2%98&#34;&gt;二、其他问题&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;#%E4%B8%89%E5%8F%82%E8%80%83%E9%93%BE%E6%8E%A5&#34;&gt;三、参考链接&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;step-1-准备工作&#34;&gt;Step 1 准备工作&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;自行购买境外VPS，推荐 &lt;strong&gt;AWS EC2&lt;/strong&gt;，首次注册绑定 VISA 信用卡可免费使用一年。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;什么是 AWS Free Tier？&lt;/strong&gt;
+AWS Free Tier 使客户能够在各服务的指定限制内免费探索和试用 AWS 服务。免费套餐包含三种不同类型的产品、12 个月免费试用、永久免费和短期免费试用。12 个月免费服务允许客户自账户激活之日起一年内在指定限制内免费使用该产品。永久免费服务允许 AWS 客户在指定限制内免费使用该产品。根据所选服务，短期试用服务可以在指定的时间段内免费使用，或者免费使用一次。有关免费提供的服务和相应的限制，在 Free Tier 页面的每张卡片中有详细说明。如果您的应用程序使用量超过了 Free Tier 限制，您只需支付标准的按需付费服务费率（请参阅服务页面获取完整的定价信息）。存在限制条件；有关更多详细信息，请参阅优惠条款。&lt;/p&gt;&lt;/blockquote&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;准备一个域名（推荐腾讯云、阿里云等），示例使用 &lt;code&gt;example.com&lt;/code&gt;。&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;将域名托管到 &lt;a href=&#34;https://dash.cloudflare.com/&#34;&gt;cloudflare&lt;/a&gt;，然后解析到服务器 IP。&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;step-2-配置部分&#34;&gt;Step 2 配置部分&lt;/h2&gt;
+&lt;p&gt;在服务器终端上逐条运行以下命令，请自行&lt;code&gt;sudo&lt;/code&gt;：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# 更新软件包列表&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;apt update
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# 安装Xray-core&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;bash -c &lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;$(&lt;/span&gt;curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh&lt;span style=&#34;color:#66d9ef&#34;&gt;)&lt;/span&gt;&lt;span style=&#34;color:#e6db74&#34;&gt;&amp;#34;&lt;/span&gt; @ install
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# 覆盖Xray-core配置&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;vim /usr/local/etc/xray/config.json
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# 安装certbot和nginx&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;apt install certbot
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;apt install nginx
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# certbot申请证书&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;certbot certonly
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# 覆盖nginx配置&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;vim /etc/nginx/conf.d/v2ray.conf
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# 替换配置中的域名&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# echo -n &amp;#34;新域名：&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# read newDomain&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# sed -i &amp;#34;s/example.com/$newDomain/g&amp;#34; /etc/nginx/conf.d/v2ray.conf&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;其中，&lt;code&gt;config.json&lt;/code&gt;文件内容如下：&lt;/p&gt;</description>
     </item>
   </channel>
 </rss>
