@@ -1,4 +1,7 @@
 baseURL = 'https://haodayizhia.github.io/'
 languageCode = 'en-us'
 title = 'My New Hugo Site'
-theme="PaperMod"
+theme = 'PaperMod'
+[params.homeInfoParams]
+Title = "Hi there"
+Content = "Welcome to my blog"
