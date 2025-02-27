@@ -2,7 +2,7 @@
 date = '2025-02-24T23:41:17+08:00'
 draft = false
 title = '自动部署TLS/Xray教程简洁版'
-categories = ['网络工具']
+tags = ['网络工具']
 +++
 - [Step 1 准备工作](#step-1-准备工作)
 - [Step 2 配置部分](#step-2-配置部分)
