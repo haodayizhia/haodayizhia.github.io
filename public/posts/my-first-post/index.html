@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en-us" dir="ltr">
+<head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+  <meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>自动部署TLS/Xray教程简洁版 | My New Hugo Site</title>
+
+    <link rel="stylesheet" href="/css/main.css">
+
+
+      <script src="/js/main.js"></script>
+
+
+</head>
+<body>
+  <header>
+    <h1>My New Hugo Site</h1>
+
+  <nav>
+    <ul>
+    <li>
+      <a href="/">Home</a>
+    </li>
+    <li>
+      <a aria-current="true" class="ancestor" href="/posts/">Posts</a>
+    </li>
+    <li>
+      <a href="/tags/">Tags</a>
+    </li>
+    </ul>
+  </nav>
+
+
+  </header>
+  <main>
+    
+  <h1>自动部署TLS/Xray教程简洁版</h1>
+
+  
+  
+  <time datetime="2025-02-24T23:41:17&#43;08:00">February 24, 2025</time>
+
+  <ul>
+<li><a href="#step-1-%E5%87%86%E5%A4%87%E5%B7%A5%E4%BD%9C">Step 1 准备工作</a></li>
+<li><a href="#step-2-%E9%85%8D%E7%BD%AE%E9%83%A8%E5%88%86">Step 2 配置部分</a></li>
+<li><a href="#step-3-%E5%90%AF%E5%8A%A8%E6%9C%8D%E5%8A%A1">Step 3 启动服务</a></li>
+<li><a href="#appendix-%E9%99%84%E5%8A%A0%E8%AF%B4%E6%98%8E">Appendix 附加说明</a>
+<ul>
+<li><a href="#%E4%B8%80certbot-%E8%AF%81%E4%B9%A6%E7%BB%AD%E7%AD%BE">一、certbot 证书续签</a>
+<ul>
+<li><a href="#%E6%89%8B%E5%8A%A8%E7%BB%AD%E7%AD%BE">手动续签</a></li>
+<li><a href="#%E8%87%AA%E5%8A%A8%E7%BB%AD%E7%AD%BE">自动续签</a></li>
+</ul>
+</li>
+<li><a href="#%E4%BA%8C%E5%85%B6%E4%BB%96%E9%97%AE%E9%A2%98">二、其他问题</a></li>
+<li><a href="#%E4%B8%89%E5%8F%82%E8%80%83%E9%93%BE%E6%8E%A5">三、参考链接</a></li>
+</ul>
+</li>
+</ul>
+<hr>
+<h2 id="step-1-准备工作">Step 1 准备工作</h2>
+<ul>
+<li>自行购买境外VPS，推荐 <strong>AWS EC2</strong>，首次注册绑定 VISA 信用卡可免费使用一年。</li>
+</ul>
+<blockquote>
+<p><strong>什么是 AWS Free Tier？</strong>
+AWS Free Tier 使客户能够在各服务的指定限制内免费探索和试用 AWS 服务。免费套餐包含三种不同类型的产品、12 个月免费试用、永久免费和短期免费试用。12 个月免费服务允许客户自账户激活之日起一年内在指定限制内免费使用该产品。永久免费服务允许 AWS 客户在指定限制内免费使用该产品。根据所选服务，短期试用服务可以在指定的时间段内免费使用，或者免费使用一次。有关免费提供的服务和相应的限制，在 Free Tier 页面的每张卡片中有详细说明。如果您的应用程序使用量超过了 Free Tier 限制，您只需支付标准的按需付费服务费率（请参阅服务页面获取完整的定价信息）。存在限制条件；有关更多详细信息，请参阅优惠条款。</p></blockquote>
+<ul>
+<li>
+<p>准备一个域名（推荐腾讯云、阿里云等），示例使用 <code>example.com</code>。</p>
+</li>
+<li>
+<p>将域名托管到 <a href="https://dash.cloudflare.com/">cloudflare</a>，然后解析到服务器 IP。</p>
+</li>
+</ul>
+<hr>
+<h2 id="step-2-配置部分">Step 2 配置部分</h2>
+<p>在服务器终端上逐条运行以下命令，请自行<code>sudo</code>：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># 更新软件包列表</span>
+</span></span><span style="display:flex;"><span>apt update
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 安装Xray-core</span>
+</span></span><span style="display:flex;"><span>bash -c <span style="color:#e6db74">&#34;</span><span style="color:#66d9ef">$(</span>curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh<span style="color:#66d9ef">)</span><span style="color:#e6db74">&#34;</span> @ install
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 覆盖Xray-core配置</span>
+</span></span><span style="display:flex;"><span>vim /usr/local/etc/xray/config.json
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 安装certbot和nginx</span>
+</span></span><span style="display:flex;"><span>apt install certbot
+</span></span><span style="display:flex;"><span>apt install nginx
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># certbot申请证书</span>
+</span></span><span style="display:flex;"><span>certbot certonly
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 覆盖nginx配置</span>
+</span></span><span style="display:flex;"><span>vim /etc/nginx/conf.d/v2ray.conf
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 替换配置中的域名</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># echo -n &#34;新域名：&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># read newDomain</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># sed -i &#34;s/example.com/$newDomain/g&#34; /etc/nginx/conf.d/v2ray.conf</span>
+</span></span></code></pre></div><p>其中，<code>config.json</code>文件内容如下：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-json" data-lang="json"><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;inbounds&#34;</span>: [{
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;port&#34;</span>: <span style="color:#ae81ff">10086</span>,           <span style="color:#75715e">//端口范围0至65535，请确保和nginx的端口号一致
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">&#34;listen&#34;</span>:<span style="color:#e6db74">&#34;127.0.0.1&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;protocol&#34;</span>: <span style="color:#e6db74">&#34;vmess&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;settings&#34;</span>: {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;clients&#34;</span>: [
+</span></span><span style="display:flex;"><span>        {
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">&#34;id&#34;</span>: <span style="color:#e6db74">&#34;41747268-f36b-416f-b68b-2f8e69fa472b&#34;</span>, <span style="color:#75715e">//此处为安装时生成的id
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>          <span style="color:#f92672">&#34;level&#34;</span>: <span style="color:#ae81ff">1</span>,
+</span></span><span style="display:flex;"><span>          <span style="color:#f92672">&#34;alterId&#34;</span>: <span style="color:#ae81ff">0</span>      <span style="color:#75715e">//此处为安装时生成的alterId
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        }
+</span></span><span style="display:flex;"><span>      ]
+</span></span><span style="display:flex;"><span>    },
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;streamSettings&#34;</span>: {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;network&#34;</span>: <span style="color:#e6db74">&#34;ws&#34;</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">&#34;wsSettings&#34;</span>: {
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;path&#34;</span>: <span style="color:#e6db74">&#34;/ray&#34;</span>   <span style="color:#75715e">//此处为路径，需要和下面NGINX上面的路径配置一样
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>      }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }],
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;outbounds&#34;</span>: [{
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;protocol&#34;</span>: <span style="color:#e6db74">&#34;freedom&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;settings&#34;</span>: {}
+</span></span><span style="display:flex;"><span>  },{
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;protocol&#34;</span>: <span style="color:#e6db74">&#34;blackhole&#34;</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;settings&#34;</span>: {},
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;tag&#34;</span>: <span style="color:#e6db74">&#34;blocked&#34;</span>
+</span></span><span style="display:flex;"><span>  }],
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">&#34;routing&#34;</span>: {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">&#34;rules&#34;</span>: [
+</span></span><span style="display:flex;"><span>      {
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;type&#34;</span>: <span style="color:#e6db74">&#34;field&#34;</span>,
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;ip&#34;</span>: [<span style="color:#e6db74">&#34;geoip:private&#34;</span>],
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">&#34;outboundTag&#34;</span>: <span style="color:#e6db74">&#34;blocked&#34;</span>
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    ]
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>v2ray.conf</code>文件内容</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-nginx" data-lang="nginx"><span style="display:flex;"><span><span style="color:#66d9ef">server</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">listen</span>       <span style="color:#ae81ff">443</span> <span style="color:#e6db74">ssl</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">server_name</span>  <span style="color:#e6db74">example.com</span>;                  <span style="color:#75715e"># 修改为自己的域名
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">ssl_certificate</span>      <span style="color:#e6db74">/etc/letsencrypt/live/example.com/fullchain.pem</span>;  <span style="color:#75715e"># 将example.com修改为自己的域名
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#f92672">ssl_certificate_key</span>  <span style="color:#e6db74">/etc/letsencrypt/live/example.com/privkey.pem</span>;    <span style="color:#75715e"># 将example.com修改为自己的域名
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">location</span> <span style="color:#e6db74">/ray</span> {                        <span style="color:#75715e"># 修改为你自己的路径，需要和V2RAY里面的路径一样
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">proxy_redirect</span> <span style="color:#66d9ef">off</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">proxy_pass</span> <span style="color:#e6db74">http://127.0.0.1:10086</span>; <span style="color:#75715e"># 修改为你自己的v2ray服务器端口，就是这里需要和上面V2RAY配置文件里面的端口号相同。
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        <span style="color:#f92672">proxy_http_version</span> <span style="color:#ae81ff">1</span><span style="color:#e6db74">.1</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">proxy_set_header</span> <span style="color:#e6db74">Upgrade</span> $http_upgrade;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">proxy_set_header</span> <span style="color:#e6db74">Connection</span> <span style="color:#e6db74">&#34;upgrade&#34;</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">proxy_set_header</span> <span style="color:#e6db74">Host</span> $http_host;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">proxy_set_header</span> <span style="color:#e6db74">X-Real-IP</span> $remote_addr;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">proxy_set_header</span> <span style="color:#e6db74">X-Forwarded-For</span> $proxy_add_x_forwarded_for;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">proxy_connect_timeout</span> <span style="color:#e6db74">60s</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">proxy_read_timeout</span> <span style="color:#e6db74">86400s</span>;
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">proxy_send_timeout</span> <span style="color:#e6db74">60s</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><hr>
+<h2 id="step-3-启动服务">Step 3 启动服务</h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># 启动/停止/查看v2ray服务</span>
+</span></span><span style="display:flex;"><span>systemctl start/stop/status v2ray
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 检测nginx配置是否正确</span>
+</span></span><span style="display:flex;"><span>nginx -t
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 启动/停止/查询nginx服务</span>
+</span></span><span style="display:flex;"><span>systemctl start/stop/status nginx
+</span></span></code></pre></div><hr>
+<h2 id="appendix-附加说明">Appendix 附加说明</h2>
+<h3 id="一certbot-证书续签">一、certbot 证书续签</h3>
+<p>certbot证书可以手动续签和自动续签，自动续签方式有两种：系统服务 systemd 或创建 crontab 周期任务。</p>
+<h4 id="手动续签">手动续签</h4>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo certbot certificates	<span style="color:#75715e"># 证书有效期查询</span>
+</span></span><span style="display:flex;"><span>sudo systemctl stop nginx	<span style="color:#75715e"># 关闭nginx，解除占用端口</span>
+</span></span><span style="display:flex;"><span>sudo certbot renew			<span style="color:#75715e"># 续签证书</span>
+</span></span><span style="display:flex;"><span>sudo systemctl restart nginx	<span style="color:#75715e"># 重启nginx</span>
+</span></span></code></pre></div><h4 id="自动续签">自动续签</h4>
+<ol>
+<li><code>systemd</code>服务单元文件</li>
+</ol>
+<p>前面提到certbot默认不会在运行了<code>systemd</code>的系统上通过<code>crontab</code>自动续签，通过<code>systemctl</code>管理。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># 启动/查看服务</span>
+</span></span><span style="display:flex;"><span>sudo systemctl start/status certbot.service     <span style="color:#75715e"># 查看certbot服务</span>
+</span></span><span style="display:flex;"><span>sudo systemctl start/status certbot.timer   <span style="color:#75715e"># 查看certbot的定时器</span>
+</span></span></code></pre></div><p>这两个服务的配置文件路径通常在：<code>/lib/systemd/system/certbot.service</code>和<code>/lib/systemd/system/certbot.timer</code>。</p>
+<p>如果启用了服务却没有自动续签，查看系统日志：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>sudo journalctl -u certbot
+</span></span></code></pre></div><p>报错显示我是因为开启nginx占用了端口导致的，有三种修改方法：</p>
+<ul>
+<li>使用<code>/etc/sysconfig/certbot</code>设置 Hook（推荐）</li>
+</ul>
+<p>如果<code>/etc/sysconfig/certbot</code>文件已在<code>certbot-renew.service</code>中定义为<code>EnvironmentFile</code>，可以直接在该文件中添加 <code>PRE_HOOK</code>和<code>POST_HOOK</code>变量。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>vim /etc/sysconfig/certbot
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># 添加以下内容</span>
+</span></span><span style="display:flex;"><span>PRE_HOOK<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;--pre-hook &#39;systemctl stop nginx&#39;&#34;</span>
+</span></span><span style="display:flex;"><span>POST_HOOK<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;--post-hook &#39;systemctl start nginx&#39;&#34;</span>
+</span></span></code></pre></div><ul>
+<li><code>certbot-renew.service</code>中手动添加</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#f92672">[</span>Unit<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>Description<span style="color:#f92672">=</span>Certbot
+</span></span><span style="display:flex;"><span>Documentation<span style="color:#f92672">=</span>file:///usr/share/doc/python-certbot-doc/html/index.html
+</span></span><span style="display:flex;"><span>Documentation<span style="color:#f92672">=</span>https://certbot.eff.org/docs
+</span></span><span style="display:flex;"><span><span style="color:#f92672">[</span>Service<span style="color:#f92672">]</span>
+</span></span><span style="display:flex;"><span>Type<span style="color:#f92672">=</span>oneshot
+</span></span><span style="display:flex;"><span>ExecStart<span style="color:#f92672">=</span>certbot renew --pre-hook <span style="color:#e6db74">&#34;systemctl stop nginx&#34;</span> --post-hook <span style="color:#e6db74">&#34;systemctl restart nginx&#34;</span>
+</span></span><span style="display:flex;"><span>PrivateTmp<span style="color:#f92672">=</span>true
+</span></span></code></pre></div><ul>
+<li>使用<code>certbot renew</code>自带的<code>Hook</code>目录（自行搜索）</li>
+</ul>
+<p>然后重新加载<code>systemd</code>并生效：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>systemctl daemon-reload
+</span></span><span style="display:flex;"><span>systemctl start certbot.service
+</span></span></code></pre></div><blockquote>
+<p><em>或者使用python3-certbot-nginx插件，见 <a href="https://www.f5.com/company/blog/nginx/using-free-ssltls-certificates-from-lets-encrypt-with-nginx">https://www.f5.com/company/blog/nginx/using-free-ssltls-certificates-from-lets-encrypt-with-nginx</a></em>。</p></blockquote>
+<ol start="2">
+<li><code>crontab</code>建立周期任务</li>
+</ol>
+<p>certbot 默认配置：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span><span style="color:#75715e"># /etc/cron.d/certbot: crontab entries for the certbot package</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Upstream recommends attempting renewal twice a day</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Eventually, this will be an opportunity to validate certificates</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># haven&#39;t been revoked, etc.  Renewal will only occur if expiration</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># is within 30 days.</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Important Note!  This cronjob will NOT be executed if you are</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># running systemd as your init system.  If you are running systemd,</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># the cronjob.timer function takes precedence over this cronjob.  For</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># more details, see the systemd.timer manpage, or use systemctl show</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># certbot.timer.</span>
+</span></span><span style="display:flex;"><span>SHELL<span style="color:#f92672">=</span>/bin/sh
+</span></span><span style="display:flex;"><span>PATH<span style="color:#f92672">=</span>/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">0</span> */12 * * * root test -x /usr/bin/certbot -a <span style="color:#ae81ff">\!</span> -d /run/systemd/system <span style="color:#f92672">&amp;&amp;</span> perl -e <span style="color:#e6db74">&#39;sleep int(rand(43200))&#39;</span> <span style="color:#f92672">&amp;&amp;</span> certbot -q renew
+</span></span></code></pre></div><p><strong>如果系统运行了systemd，这里crontab不会执行！</strong></p>
+<p>手动添加crontab任务：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>crontab -e
+</span></span><span style="display:flex;"><span><span style="color:#ae81ff">0</span> <span style="color:#ae81ff">0</span>  <span style="color:#ae81ff">1</span> */3 * sudo systemctl stop nginx <span style="color:#f92672">&amp;&amp;</span> certbot -q renew --renew-hook <span style="color:#e6db74">&#34;systemctl restart nginx&#34;</span> //每隔3个月的当月第一天0分0秒执行一次
+</span></span></code></pre></div><p>前5位表示分(0-60)、时(0-24)、天(1-30)、月(1-12)、周(0-6)。
+<code>- q</code>表示不输出执行结果日志。</p>
+<p><strong>补充：</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>crontab -l //查看当前用户周期任务
+</span></span><span style="display:flex;"><span>crontab -l -u root //查看root用户周期任务
+</span></span><span style="display:flex;"><span>cat /etc/passwd | cut -f <span style="color:#ae81ff">1</span> -d : | xargs -I <span style="color:#f92672">{}</span> crontab -l -u <span style="color:#f92672">{}</span> //以root用户执行，查看所有周期任务
+</span></span></code></pre></div><ul>
+<li><code>/var/spool/cron/crontabs/</code> 路径下有所有用户的任务。</li>
+<li><code>/etc/crontab</code> 负责调度各种管理和维护任务。</li>
+<li><code>/etc/cron.d/</code> 存放着要执行的crontab任务。</li>
+</ul>
+<h3 id="二其他问题">二、其他问题</h3>
+<p><strong>为什么部署完成还是用不了？</strong></p>
+<ul>
+<li>cloudflare 的 SSL/TLS 等级要改为 Full。</li>
+<li>&hellip;</li>
+</ul>
+<h3 id="三参考链接">三、参考链接</h3>
+<ul>
+<li><a href="https://xtls.github.io/">Xray 官方文档</a></li>
+<li><a href="https://certbot.eff.org/">Certbot 官方教程</a></li>
+<li><a href="https://www.f5.com/company/blog/nginx/using-free-ssltls-certificates-from-lets-encrypt-with-nginx">Let&rsquo;s Encrypt 与 Nginx</a></li>
+</ul>
+
+  
+  <div>
+    <div>Tags:</div>
+    <ul>
+        <li><a href="/tags/%E7%BD%91%E7%BB%9C%E5%B7%A5%E5%85%B7/">网络工具</a></li>
+    </ul>
+  </div>
+
+
+  </main>
+  <footer>
+    <p>Copyright 2025. All rights reserved.</p>
+
+  </footer>
+</body>
+</html>
