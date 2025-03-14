@@ -25,3 +25,11 @@ a {
   color: #007AFF;
   text-decoration: none;
 }
+
+/* 行内代码样式 */
+code {
+  background-color: #ECECF0; /* 灰蓝背景 */
+  color: #1D1D1F;
+  border-radius: 4px;
+  font-family: "SF Mono", "Menlo", "Monaco", Consolas, "Courier New", monospace;
+}
