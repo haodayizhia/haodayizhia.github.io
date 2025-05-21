@@ -33,3 +33,10 @@ code {
   border-radius: 4px;
   font-family: "SF Mono", "Menlo", "Monaco", Consolas, "Courier New", monospace;
 }
+
+main .center-image {
+  display: block;
+  margin: 0 auto !important; /* 强制居中 */
+  max-width: 100%;
+  height: auto;
+}
