@@ -2,6 +2,6 @@
   {{ .Content }}
   {{ range site.RegularPages }}
     <h2><a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a></h2>
-    {{ .Summary | plainify | truncate 30 }}
+    {{ .Summary | plainify | truncate 100 }}
   {{ end }}
 {{ end }}
