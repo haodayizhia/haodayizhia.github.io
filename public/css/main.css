@@ -13,7 +13,7 @@ body {
 .site-header {
   display: flex;
   justify-content: flex-start; /* 在主轴上分配空间 */
-  gap: 10px; /* 在标题和菜单之间添加间距 */
+  /* gap: 10px; 在标题和菜单之间添加间距 */
   align-items: center;
   padding: 10px 20px;
   background-color: #F5F5F7;
@@ -30,6 +30,7 @@ body {
 .site-header h1 {
   margin: 0; /* 移除 h1 默认的外边距，防止影响布局 */
   flex-shrink: 0; /* 防止 h1 在空间不足时被压缩 */
+  font-size: 1.5rem; /* 设置标题字体大小 */
 }
 
 .site-header nav {
