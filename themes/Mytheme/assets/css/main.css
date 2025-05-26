@@ -10,6 +10,46 @@ body {
   flex-direction: column; /* 让子元素垂直排列 */
 }
 
+.site-header {
+  display: flex;
+  justify-content: flex-start; /* 在主轴上分配空间 */
+  gap: 10px; /* 在标题和菜单之间添加间距 */
+  align-items: center;
+  padding: 10px 20px;
+  background-color: #F5F5F7;
+/*   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+  border-bottom: 1px solid #ddd; */
+}
+
+.site-header a {
+  text-decoration: none;
+  color: #333; /* 链接颜色 */
+}
+
+.site-header h1 {
+  margin: 0; /* 移除 h1 默认的外边距，防止影响布局 */
+  flex-shrink: 0; /* 防止 h1 在空间不足时被压缩 */
+}
+
+.site-header nav {
+  overflow-x: auto;         /* 允许横向滚动 */
+  max-width: 100%;          /* 不超过视口 */
+  -webkit-overflow-scrolling: touch; /* iOS 惯性滚动支持 */
+}
+
+/* 确保菜单（nav）本身也是水平的 */
+.site-header nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex; /* 启用 Flexbox 让菜单项水平排列 */
+}
+
+.site-header nav ul li {
+  margin-left: 20px; /* 菜单项之间的间距 */
+}
+
 main {
   flex-grow: 1; /* 让 main 元素占据剩余空间 */
   max-width: 800px;
@@ -46,36 +86,3 @@ code {
   max-width: 100%;
   height: auto;
 } */
-
-.site-header {
-  display: flex;
-  justify-content: flex-start; /* 在主轴上分配空间 */
-  gap: 20px; /* 在标题和菜单之间添加间距 */
-  align-items: center;
-  padding: 10px 20px;
-  background-color: #F5F5F7;
-/*   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  border-radius: 10px;
-  border-bottom: 1px solid #ddd; */
-}
-
-.site-header a {
-  text-decoration: none;
-  color: #333; /* 链接颜色 */
-}
-
-.site-header h1 {
-  margin: 0; /* 移除 h1 默认的外边距，防止影响布局 */
-  flex-shrink: 0; /* 防止 h1 在空间不足时被压缩 */
-}
-/* 确保菜单（nav）本身也是水平的 */
-.site-header nav ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex; /* 启用 Flexbox 让菜单项水平排列 */
-}
-
-.site-header nav ul li {
-  margin-left: 20px; /* 菜单项之间的间距 */
-}
