@@ -7,11 +7,24 @@
   const lightboxImg = document.getElementById('lightbox-img');
   const lightboxStage = document.getElementById('lightbox-stage');
   const zoomToggleBtn = document.getElementById('lightbox-zoom-toggle');
-  let page = 'home', turns = 0;
 
   const siteData = window.BRO_DATA || { articles: [], resources: [] };
   const articles = siteData.articles || [];
   const resources = siteData.resources || [];
+
+  // 解析地址栏 #hash，实现浏览器「后退 / 前进」、页面刷新保持原位、以及文章直链分享
+  function pageFromHash() {
+    const raw = decodeURIComponent(window.location.hash.replace(/^#\/?/, '')).trim();
+    if (!raw || raw === 'home') return 'home';
+    if (raw === 'articles' || raw === 'resources' || raw === 'about') return raw;
+    if (raw.startsWith('a:') && articles.some(x => x.id === raw.slice(2))) return raw;
+    if (raw.startsWith('r:') && resources.some(x => x.id === raw.slice(2))) return raw;
+    return 'home';
+  }
+
+  let page = pageFromHash();
+  let lastListPage = 'home';
+  let turns = 0;
 
   const escapeHTML = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const articleRow = a => `<button class="article-row" data-open="a:${a.id}"><span class="row-left"><span class="name">${escapeHTML(a.title)}</span><span class="tag-badge">${escapeHTML(a.tag)}</span></span><span class="date">${escapeHTML(a.date)}</span></button>`;
@@ -60,11 +73,15 @@
       const a = articles.find(x => x.id === page.slice(2));
       if (!a) return;
       const yearPrefix = a.year ? `${a.year}.` : '2026.';
-      html = `<section class="page"><button class="back" data-page="articles">← 返回文章列表</button><h1>${escapeHTML(a.title)}</h1><p class="description"><span>${escapeHTML(yearPrefix + a.date)}</span><span class="tag-badge">${escapeHTML(a.tag)}</span></p><article class="prose">${a.body}</article></section>`;
+      const backTarget = lastListPage === 'home' ? 'home' : 'articles';
+      const backLabel = lastListPage === 'home' ? '← 返回首页' : '← 返回文章列表';
+      html = `<section class="page"><button class="back" data-back="${backTarget}">${backLabel}</button><h1>${escapeHTML(a.title)}</h1><p class="description"><span>${escapeHTML(yearPrefix + a.date)}</span><span class="tag-badge">${escapeHTML(a.tag)}</span></p><article class="prose">${a.body}</article></section>`;
     } else if (page.startsWith('r:')) {
       const r = resources.find(x => x.id === page.slice(2));
       if (!r) return;
-      html = `<section class="page"><button class="back" data-page="resources">← 返回资源</button><div class="detail-cover">${cover(r)}</div><h1>${escapeHTML(r.title)}</h1><div class="prose"><p>${escapeHTML(r.desc)}</p></div><button class="primary" data-action="${r.id}">${r.type === 'free' ? '获取资源' : '前往购买'}</button>${r.type === 'free' ? sponsor() : '<p class="hint">具体价格以购买页面为准。</p>'}<div id="notice"></div></section>`;
+      const backTarget = lastListPage === 'home' ? 'home' : 'resources';
+      const backLabel = lastListPage === 'home' ? '← 返回首页' : '← 返回资源列表';
+      html = `<section class="page"><button class="back" data-back="${backTarget}">${backLabel}</button><div class="detail-cover">${cover(r)}</div><h1>${escapeHTML(r.title)}</h1><div class="prose"><p>${escapeHTML(r.desc)}</p></div><button class="primary" data-action="${r.id}">${r.type === 'free' ? '获取资源' : '前往购买'}</button>${r.type === 'free' ? sponsor() : '<p class="hint">具体价格以购买页面为准。</p>'}<div id="notice"></div></section>`;
     }
     view.innerHTML = html;
     root.querySelectorAll('nav button').forEach(b => {
@@ -74,7 +91,47 @@
     });
   }
 
-  const go = p => { page = p; search.value = ''; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  // 路由跳转：同步写入浏览器历史记录栈（History API），让浏览器后退/前进键生效
+  function go(p, pushHistory = true) {
+    if (page === 'home' || page === 'articles' || page === 'resources') {
+      lastListPage = page;
+    }
+    page = p;
+    search.value = '';
+    if (pushHistory) {
+      const targetHash = p === 'home' ? '#home' : `#${p}`;
+      if (window.location.hash !== targetHash) {
+        try {
+          window.history.pushState({ page: p }, '', targetHash);
+        } catch (e) {
+          window.location.hash = targetHash;
+        }
+      }
+    }
+    render();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // 监听浏览器原生「后退 / 前进」按钮、鼠标侧键或手机侧滑返回
+  window.addEventListener('popstate', event => {
+    if (lightbox.classList.contains('open')) {
+      lightbox.classList.remove('open');
+    }
+    const targetPage = (event.state && event.state.page) ? event.state.page : pageFromHash();
+    go(targetPage, false);
+  });
+
+  window.addEventListener('hashchange', () => {
+    const targetPage = pageFromHash();
+    if (targetPage !== page) {
+      go(targetPage, false);
+    }
+  });
+
+  // 初始化当前历史记录状态
+  try {
+    window.history.replaceState({ page }, '', page === 'home' ? window.location.pathname + window.location.search : `#${page}`);
+  } catch (e) {}
 
   root.addEventListener('click', event => {
     const zoomTarget = event.target.closest('[data-zoom]');
@@ -106,9 +163,17 @@
       button.setAttribute('aria-pressed', String(dark));
       button.setAttribute('aria-label', dark ? '切换日间模式' : '切换夜间模式');
       document.querySelector('meta[name="theme-color"]').content = dark ? '#0b1120' : '#f8fafc';
-    } else if (button.dataset.page) go(button.dataset.page);
-    else if (button.dataset.open) go(button.dataset.open);
-    else if (button.dataset.action) {
+    } else if (button.dataset.back) {
+      if (window.history.state && window.history.length > 1) {
+        window.history.back();
+      } else {
+        go(button.dataset.back);
+      }
+    } else if (button.dataset.page) {
+      go(button.dataset.page);
+    } else if (button.dataset.open) {
+      go(button.dataset.open);
+    } else if (button.dataset.action) {
       const r = resources.find(x => x.id === button.dataset.action);
       if (r && r.url && /^https?:\/\//i.test(r.url)) window.open(r.url, '_blank', 'noopener,noreferrer');
       else {
