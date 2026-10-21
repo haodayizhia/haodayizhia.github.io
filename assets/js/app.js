@@ -12,11 +12,32 @@
   const articles = siteData.articles || [];
   const resources = siteData.resources || [];
 
-  // 解析地址栏 #hash，实现浏览器「后退 / 前进」、页面刷新保持原位、以及文章直链分享
+  // 将内部状态转换为干净、标准的地址栏路径：
+  // 首页 -> 无后缀 (https://haodayizhia.github.io/)
+  // 栏目页 -> #articles / #resources / #about
+  // 文章详情 -> #articles/linux-readline
+  // 资源详情 -> #resources/r1
+  function pageToUrl(p) {
+    const base = window.location.pathname + window.location.search;
+    if (!p || p === 'home') return base;
+    if (p.startsWith('a:')) return `${base}#articles/${p.slice(2)}`;
+    if (p.startsWith('r:')) return `${base}#resources/${p.slice(2)}`;
+    return `${base}#${p}`;
+  }
+
   function pageFromHash() {
     const raw = decodeURIComponent(window.location.hash.replace(/^#\/?/, '')).trim();
     if (!raw || raw === 'home') return 'home';
     if (raw === 'articles' || raw === 'resources' || raw === 'about') return raw;
+    if (raw.startsWith('articles/')) {
+      const id = raw.slice('articles/'.length);
+      if (articles.some(x => x.id === id)) return `a:${id}`;
+    }
+    if (raw.startsWith('resources/')) {
+      const id = raw.slice('resources/'.length);
+      if (resources.some(x => x.id === id)) return `r:${id}`;
+    }
+    // 兼容旧格式
     if (raw.startsWith('a:') && articles.some(x => x.id === raw.slice(2))) return raw;
     if (raw.startsWith('r:') && resources.some(x => x.id === raw.slice(2))) return raw;
     return 'home';
@@ -91,7 +112,6 @@
     });
   }
 
-  // 路由跳转：同步写入浏览器历史记录栈（History API），让浏览器后退/前进键生效
   function go(p, pushHistory = true) {
     if (page === 'home' || page === 'articles' || page === 'resources') {
       lastListPage = page;
@@ -99,20 +119,17 @@
     page = p;
     search.value = '';
     if (pushHistory) {
-      const targetHash = p === 'home' ? '#home' : `#${p}`;
-      if (window.location.hash !== targetHash) {
-        try {
-          window.history.pushState({ page: p }, '', targetHash);
-        } catch (e) {
-          window.location.hash = targetHash;
-        }
+      const targetUrl = pageToUrl(p);
+      try {
+        window.history.pushState({ page: p }, '', targetUrl);
+      } catch (e) {
+        window.location.hash = p === 'home' ? '' : targetUrl.split('#')[1] || '';
       }
     }
     render();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // 监听浏览器原生「后退 / 前进」按钮、鼠标侧键或手机侧滑返回
   window.addEventListener('popstate', event => {
     if (lightbox.classList.contains('open')) {
       lightbox.classList.remove('open');
@@ -128,9 +145,8 @@
     }
   });
 
-  // 初始化当前历史记录状态
   try {
-    window.history.replaceState({ page }, '', page === 'home' ? window.location.pathname + window.location.search : `#${page}`);
+    window.history.replaceState({ page }, '', pageToUrl(page));
   } catch (e) {}
 
   root.addEventListener('click', event => {
