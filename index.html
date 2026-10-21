@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="BRO — 文章与资源。世间有价，星空无主">
+  <meta name="theme-color" content="#f8fafc">
+  <title>BRO · 文章与资源</title>
+  <link rel="stylesheet" href="./assets/css/style.css">
+</head>
+<body>
+  <div id="bro">
+    <div class="shell">
+      <header>
+        <button class="brand" data-page="home" aria-label="返回首页">BRO</button>
+        <nav aria-label="网站导航">
+          <button data-page="articles">文章</button>
+          <button data-page="resources">资源</button>
+          <button data-page="about">关于</button>
+        </nav>
+        <input id="search" class="search" type="search" placeholder="搜索文章和资源" aria-label="搜索文章和资源">
+        <button class="theme" data-theme aria-label="切换夜间模式" aria-pressed="false" title="昼夜模式">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <ellipse cx="12" cy="12" rx="10" ry="5" transform="rotate(-35 12 12)" stroke="currentColor" stroke-width="1.1"/>
+            <circle class="sun" cx="12" cy="12" r="4" fill="currentColor"/>
+            <path class="moon" d="M15 7a5.4 5.4 0 1 0 2.2 8.4A5.5 5.5 0 0 1 15 7Z" fill="currentColor"/>
+            <g class="rotor" id="rotor"><circle cx="20.5" cy="6.8" r="1.75" fill="currentColor"/></g>
+          </svg>
+        </button>
+      </header>
+      <main id="view"></main>
+      <footer><span>© BRO</span><span>好东西一起用。</span></footer>
+    </div>
+
+    <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="速查图高清预览">
+      <div class="lightbox-toolbar">
+        <button type="button" class="lightbox-btn" id="lightbox-zoom-toggle" data-toggle-actual>🔍 1:1 原始超清尺寸 (1920px)</button>
+        <button type="button" class="lightbox-btn" data-close-lightbox>✕ 关闭预览 (Esc)</button>
+      </div>
+      <div class="lightbox-stage" id="lightbox-stage">
+        <img id="lightbox-img" src="./assets/images/linux-readline-cheatsheet.svg" alt="LINUX 终端 (Bash / Readline) 完整一页速查图">
+      </div>
+    </div>
+  </div>
+
+  <script src="./assets/js/data.js"></script>
+  <script src="./assets/js/app.js"></script>
+</body>
+</html>
