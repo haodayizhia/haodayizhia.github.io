@@ -21,7 +21,7 @@ body { margin: 0; background: #f8fafc; }
   background: radial-gradient(120% 60% at 50% 0%, rgba(56, 189, 248, 0.07), transparent 70%), var(--bg);
   color: var(--ink);
   font: 13.5px/1.75 system-ui, -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  border-top: 2px solid var(--accent);
+  /* border-top: 2px solid var(--accent); */
   color-scheme: light;
   min-height: 100vh;
   transition: background-color .25s ease, color .25s ease, border-color .25s ease;
@@ -57,7 +57,6 @@ body { margin: 0; background: #f8fafc; }
 #bro .shell { max-width: 760px; width: calc(100% - 44px); margin: auto; }
 #bro header { min-height: 64px; display: flex; align-items: center; gap: 20px; border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); }
 #bro .brand { border: 0; background: none; color: var(--ink); font-size: 22px; font-weight: 800; letter-spacing: -1px; padding: 0; display: inline-flex; align-items: center; gap: 6px; transition: color .2s; }
-#bro .brand::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; }
 #bro .brand:hover { color: var(--accent); }
 
 #bro nav { display: flex; gap: 20px; }

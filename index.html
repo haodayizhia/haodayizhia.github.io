@@ -20,12 +20,7 @@
         </nav>
         <input id="search" class="search" type="search" placeholder="搜索文章和资源" aria-label="搜索文章和资源">
         <button class="theme" data-theme aria-label="切换夜间模式" aria-pressed="false" title="昼夜模式">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <ellipse cx="12" cy="12" rx="10" ry="5" transform="rotate(-35 12 12)" stroke="currentColor" stroke-width="1.1"/>
-            <circle class="sun" cx="12" cy="12" r="4" fill="currentColor"/>
-            <path class="moon" d="M15 7a5.4 5.4 0 1 0 2.2 8.4A5.5 5.5 0 0 1 15 7Z" fill="currentColor"/>
-            <g class="rotor" id="rotor"><circle cx="20.5" cy="6.8" r="1.75" fill="currentColor"/></g>
-          </svg>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" id="theme-globe-svg" style="width:26px;height:26px"><g id="rotor"></g></svg>
         </button>
       </header>
       <main id="view"></main>
