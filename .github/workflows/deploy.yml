@@ -27,7 +27,12 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Compile posts/*.md and resources into assets/js/data.js
+      - name: Set up Node.js for static rendering
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Compile content and prerender pages
         run: python3 scripts/build.py
 
       - name: Prepare static site artifact

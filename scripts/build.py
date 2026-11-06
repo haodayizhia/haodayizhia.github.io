@@ -9,6 +9,10 @@ import html
 import json
 import os
 import re
+import subprocess
+import shutil
+import xml.etree.ElementTree as ET
+from urllib.parse import unquote, urlsplit
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 POSTS_DIR = os.path.join(ROOT_DIR, "posts")
@@ -40,6 +44,29 @@ def format_inline(text):
     # Links [text](url)
     s = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2" target="_blank" rel="noopener">\1</a>', s)
     return s
+
+
+def image_dimensions(src):
+    # Give local illustrations their intrinsic ratio before the image downloads.
+    parsed = urlsplit(src)
+    if parsed.scheme or parsed.netloc:
+        return ""
+    path = os.path.realpath(os.path.join(ROOT_DIR, unquote(parsed.path)))
+    if os.path.commonpath([ROOT_DIR, path]) != ROOT_DIR or not os.path.isfile(path):
+        return ""
+    if path.lower().endswith(".svg"):
+        try:
+            svg = ET.parse(path).getroot()
+            bounds = re.split(r"[\s,]+", svg.get("viewBox", "").strip())
+            if len(bounds) == 4:
+                width, height = float(bounds[2]), float(bounds[3])
+            else:
+                width, height = float(svg.get("width", "0")), float(svg.get("height", "0"))
+            if width > 0 and height > 0:
+                return f' width="{width:g}" height="{height:g}"'
+        except (ET.ParseError, ValueError):
+            pass
+    return ""
 
 
 def md_to_html(md_text):
@@ -94,9 +121,10 @@ def md_to_html(md_text):
             flush_ul()
             flush_quote()
             alt, src = html.escape(img_match.group(1)), html.escape(img_match.group(2))
+            dimensions = image_dimensions(img_match.group(2))
             out.append(
                 f'<div class="figure-card">'
-                f'<img src="{src}" alt="{alt}" data-zoom="true">'
+                f'<img src="{src}" alt="{alt}"{dimensions} data-zoom="true">'
                 f'<div class="figure-bar">'
                 f'<span>▲ {alt}（点击图片可全屏放大）</span>'
                 f'<button type="button" class="zoom-btn" data-zoom="true">🔍 放大查看高清全图</button>'
@@ -146,6 +174,8 @@ def md_to_html(md_text):
 
 
 def main():
+    if not shutil.which("node"):
+        raise RuntimeError("Node.js is required to prerender the site. Install Node.js 22 or newer.")
     articles = []
     md_files = sorted(glob.glob(os.path.join(POSTS_DIR, "*.md")), reverse=True)
     for path in md_files:
@@ -171,6 +201,7 @@ def main():
     with open(OUT_DATA_JS, "w", encoding="utf-8") as f:
         f.write("// 该文件由 scripts/build.py 自动生成，请勿直接手改，直接编辑 posts/*.md 即可\n")
         f.write("window.BRO_DATA = " + json.dumps(payload, ensure_ascii=False, indent=2) + ";\n")
+    subprocess.run(["node", os.path.join(ROOT_DIR, "scripts", "prerender.cjs")], check=True)
     print(f"Built {len(articles)} article(s) and {len(resources)} resource(s) -> {OUT_DATA_JS}")
 
 
