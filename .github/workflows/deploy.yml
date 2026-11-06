@@ -33,8 +33,10 @@ jobs:
       - name: Prepare static site artifact
         run: |
           mkdir -p _site
-          cp index.html _site/
+          cp ./*.html _site/
+          cp .nojekyll _site/
           cp -r assets _site/
+          cp -r resources _site/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
