@@ -32,6 +32,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Verify theme persistence and history restoration
+        run: node --test scripts/theme.test.cjs
+
       - name: Compile content and prerender pages
         run: python3 scripts/build.py
 
