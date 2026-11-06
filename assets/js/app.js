@@ -3,11 +3,13 @@
   const params = new URLSearchParams(location.search);
   const searchToggle=document.querySelector('.search-toggle'),searchPanel=document.getElementById('search-panel'),searchInput=document.getElementById('search');
   const menuToggle=document.querySelector('.menu-toggle'),menu=document.getElementById('mobile-nav');
-  function closeSearch(){searchPanel.hidden=true;searchToggle.setAttribute('aria-expanded','false');}
-  function closeMenu(){menu.hidden=true;menuToggle.setAttribute('aria-expanded','false');menuToggle.setAttribute('aria-label','展开导航');}
+  const panelBackdrop=document.querySelector('.panel-backdrop');
+  function syncPanels(){panelBackdrop.hidden=searchPanel.hidden&&menu.hidden;}
+  function closeSearch(){searchPanel.hidden=true;searchToggle.setAttribute('aria-expanded','false');syncPanels();}
+  function closeMenu(){menu.hidden=true;menuToggle.setAttribute('aria-expanded','false');menuToggle.setAttribute('aria-label','展开导航');syncPanels();}
   searchInput.value=params.get('q')||'';
-  searchToggle.addEventListener('click',()=>{const open=searchPanel.hidden;closeMenu();searchPanel.hidden=!open;searchToggle.setAttribute('aria-expanded',String(open));if(open)searchInput.focus();});
-  menuToggle.addEventListener('click',()=>{const open=menu.hidden;closeSearch();menu.hidden=!open;menuToggle.setAttribute('aria-expanded',String(open));menuToggle.setAttribute('aria-label',open?'收起导航':'展开导航');});
+  searchToggle.addEventListener('click',()=>{const open=searchPanel.hidden;closeMenu();searchPanel.hidden=!open;searchToggle.setAttribute('aria-expanded',String(open));syncPanels();if(open)searchInput.focus();});
+  menuToggle.addEventListener('click',()=>{const open=menu.hidden;closeSearch();menu.hidden=!open;menuToggle.setAttribute('aria-expanded',String(open));menuToggle.setAttribute('aria-label',open?'收起导航':'展开导航');syncPanels();if(open)menu.querySelector('a').focus();});
   document.addEventListener('click',e=>{if(!e.target.closest('.search-panel,.search-toggle'))closeSearch();if(!e.target.closest('.mobile-nav,.menu-toggle'))closeMenu();});
   const mobileMedia=matchMedia('(max-width:600px)');
   if(mobileMedia.addEventListener)mobileMedia.addEventListener('change',e=>{if(!e.matches)closeMenu();});

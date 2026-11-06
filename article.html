@@ -8,7 +8,7 @@
 <title>文章未找到 · BRO</title>
 <script src="./assets/js/theme-init.js?v=ae27d2b63b38"></script>
 <link rel="icon" href="./assets/images/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="./assets/css/style.css?v=541715f13fc1">
+<link rel="stylesheet" href="./assets/css/style.css?v=b0a0cf58ae63">
 
 </head>
 <body class="page-article" data-page="article">
@@ -17,24 +17,27 @@
 <a class="brand" href="./index.html" aria-label="BRO 首页"><svg viewBox="0 0 126 28" role="img" aria-label="BRO" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M2 3H25Q34 3 34 9Q34 14 25 14H2V25H26Q35 25 35 19Q35 14 25 14"/><path d="M49 3H70Q79 3 79 9Q79 15 70 15H49V25M67 15L80 25"/><rect x="95" y="3" width="29" height="22" rx="8"/></svg></a>
 <nav class="desktop-nav" aria-label="网站导航"><a href="./articles.html" data-nav="articles" aria-current="page">文章</a><a href="./resources.html" data-nav="resources">资源</a><a href="./about.html" data-nav="about">关于</a></nav>
 <div class="header-tools">
-<button class="search-toggle icon-button" type="button" aria-label="打开搜索" aria-expanded="false" aria-controls="search-panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.5 15.5 4.2 4.2"/></svg></button>
+<button class="search-toggle icon-button" type="button" aria-label="打开搜索" aria-expanded="false" aria-controls="search-panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><g class="toggle-open"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.5 15.5 4.2 4.2"/></g><path class="toggle-close" d="m5 5 14 14M5 19 19 5"/></svg></button>
 <button class="theme icon-button" type="button" data-theme aria-label="切换昼夜模式" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" id="theme-globe-svg"></svg></button>
-<button class="menu-toggle icon-button" type="button" aria-label="展开导航" aria-expanded="false" aria-controls="mobile-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 7h18M3 17h18"/></svg></button>
+<button class="menu-toggle icon-button" type="button" aria-label="展开导航" aria-expanded="false" aria-controls="mobile-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path class="toggle-open" d="M3 7h18M3 17h18"/><path class="toggle-close" d="m5 5 14 14M5 19 19 5"/></svg></button>
 </div>
-<form class="search-panel" id="search-panel" action="./search.html" method="get" role="search" hidden>
-<label for="search">搜索文章与资源</label><div class="search-input-row"><input id="search" name="q" type="search" placeholder="输入关键词" required autocomplete="off"><button type="submit">搜索 →</button></div>
+<form class="search-panel header-panel" id="search-panel" action="./search.html" method="get" role="search" hidden>
+<div class="panel-heading"><label for="search">搜索</label><span>文章与资源</span></div>
+<div class="search-input-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.5 15.5 4.2 4.2"/></svg><input id="search" name="q" type="search" placeholder="输入关键词…" required autocomplete="off"><button type="submit" aria-label="搜索"><span aria-hidden="true">→</span></button></div>
+<div class="search-hint"><span>按 Enter 搜索</span><span>Esc 关闭</span></div>
 </form>
-<nav class="mobile-nav" id="mobile-nav" aria-label="手机导航" hidden><a href="./articles.html" data-nav="articles" aria-current="page">文章</a><a href="./resources.html" data-nav="resources">资源</a><a href="./about.html" data-nav="about">关于</a></nav>
+<nav class="mobile-nav header-panel" id="mobile-nav" aria-label="手机导航" hidden><div class="panel-heading"><span>导航</span><span>BRO</span></div><a href="./articles.html" data-nav="articles" aria-current="page">文章</a><a href="./resources.html" data-nav="resources">资源</a><a href="./about.html" data-nav="about">关于</a></nav>
 </header>
-<main id="view" tabindex="-1" data-render-key="article:"><section class="page"><div class="page-heading"><h1>未找到这篇文章</h1></div><a class="primary-link" href="./articles.html">返回文章列表 →</a></section></main>
+<div class="panel-backdrop" aria-hidden="true" hidden></div>
+<main id="view" tabindex="-1" data-render-key="article:"><section class="page"><header class="page-heading"><nav class="page-context" aria-label="面包屑"><a class="back" href="./index.html">首页</a><span aria-hidden="true">/</span><span>未找到这篇文章</span></nav><h1>未找到这篇文章</h1><div class="page-summary"></div></header><a class="primary-link" href="./articles.html">返回文章列表 →</a></section></main>
 <script src="./assets/js/data.js?v=0dd382a7e966"></script>
-<script src="./assets/js/render.js?v=7457fca8a0f1"></script>
+<script src="./assets/js/render.js?v=48c8ed137e67"></script>
 <script src="./assets/js/page-init.js?v=5df86bab6ff4"></script>
 <noscript><div class="no-script">请启用 JavaScript 以浏览文章和资源。</div></noscript>
 <footer class="site-footer"><div class="footer-ideas"><span><b>B</b> Build · 创造</span><span><b>R</b> Reason · 理性</span><span><b>O</b> Open · 开放</span></div><div class="footer-side"><span>© BRO</span></div></footer>
 <dialog class="lightbox" id="lightbox" aria-label="图片放大预览"><div class="lightbox-toolbar"><button type="button" data-toggle-actual aria-pressed="false">查看原始尺寸</button><button type="button" data-close-lightbox>关闭 · Esc</button></div><div class="lightbox-stage" id="lightbox-stage"><img id="lightbox-img" alt="放大图片"></div></dialog>
 <script src="./assets/js/globe.js?v=aa16cb30bb7c"></script>
 <script src="./assets/js/theme.js?v=956e2fbbc747"></script>
-<script src="./assets/js/app.js?v=265c2a79765a"></script>
+<script src="./assets/js/app.js?v=3f1fa18ead3f"></script>
 </body>
 </html>
