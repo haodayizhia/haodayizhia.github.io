@@ -11,6 +11,7 @@ import os
 import re
 import subprocess
 import shutil
+import sys
 import xml.etree.ElementTree as ET
 from urllib.parse import unquote, urlsplit
 
@@ -176,6 +177,7 @@ def md_to_html(md_text):
 def main():
     if not shutil.which("node"):
         raise RuntimeError("Node.js is required to prerender the site. Install Node.js 22 or newer.")
+    subprocess.run([sys.executable, os.path.join(ROOT_DIR, 'scripts', 'market_atlas', 'package.py')], check=True)
     articles = []
     md_files = sorted(glob.glob(os.path.join(POSTS_DIR, "*.md")), reverse=True)
     for path in md_files:

@@ -32,8 +32,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Verify theme persistence and history restoration
-        run: node --test scripts/theme.test.cjs
+      - name: Verify theme persistence and MarketAtlas calculations
+        run: node --test scripts/theme.test.cjs scripts/market_atlas/engine.test.cjs scripts/market_atlas/publish.test.cjs
+
+      - name: Verify MarketAtlas data packaging and failure retention
+        run: python3 scripts/market_atlas/package_test.py
 
       - name: Compile content and prerender pages
         run: python3 scripts/build.py

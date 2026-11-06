@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": "market-atlas",
+    "title": "股市图谱",
+    "mark": "MARKET ATLAS · 可视化",
+    "desc": "沿时间探索行业走势、相对强弱与市场轮动，展开个股日线量价。支持导入本地 CSV，公开行情定期更新。",
+    "type": "free",
+    "url": "./market-atlas.html",
+    "actionLabel": "打开股市图谱"
+  }
+]

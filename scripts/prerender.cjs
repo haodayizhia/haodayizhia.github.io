@@ -52,3 +52,15 @@ for (const file of fs.readdirSync(root)) {
   if (/^(article|resource)-[a-zA-Z0-9_-]+\.html$/.test(file) && !details.has(file) && fs.readFileSync(path.join(root,file),'utf8').includes('data-generated-detail="true"')) fs.unlinkSync(path.join(root,file));
 }
 console.log(`Prerendered ${count} pages.`);
+// The workbench shares site chrome but owns its chart DOM and data lifecycle.
+const atlasPath=path.join(root,'market-atlas.html');
+if(fs.existsSync(atlasPath)){
+  const folder=path.join(root,'resources/market-atlas');
+  const release=createHash('sha256').update(fs.readdirSync(folder).filter(n=>/\.(js|css)$/.test(n)).sort().map(n=>fs.readFileSync(path.join(folder,n),'utf8')).join('\n')).digest('hex').slice(0,16);
+  let source=fs.readFileSync(atlasPath,'utf8').replace(/<div class="atlas-app"[^>]*>/,`<div class="atlas-app" data-build="${release}">`);
+  source=source.replace(/((?:src|href)=")(\.\/(?:assets\/(?:js|css)|resources\/market-atlas)\/[^"?]+)(?:\?v=[^"]*)?"/g,(_,prefix,url)=>{
+    const version=createHash('sha256').update(fs.readFileSync(path.join(root,url))).digest('hex').slice(0,12);
+    return `${prefix}${url}?v=${version}"`;
+  });
+  fs.writeFileSync(atlasPath,source);
+}

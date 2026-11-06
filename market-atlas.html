@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="行业走势、市场轮动与个股量价，沿时间探索你的股票池。">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; connect-src 'self' https://api.github.com; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="theme-color" content="#03070d">
+<title>股市图谱 · BRO</title>
+<script src="./assets/js/theme-init.js?v=54ef706958b9"></script>
+<link rel="icon" href="./assets/images/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./assets/css/style.css?v=af7e27c09457">
+
+<link rel="stylesheet" href="./resources/market-atlas/workbench.css?v=cc79adc63f44">
+<link rel="stylesheet" href="./resources/market-atlas/multiple-industries.css?v=100b8ffda176">
+<link rel="stylesheet" href="./resources/market-atlas/workspace.css?v=7d697e5175d4">
+<link rel="stylesheet" href="./resources/market-atlas/chart-upgrades.css?v=586d37697495">
+<link rel="stylesheet" href="./resources/market-atlas/bro-atlas.css?v=fca96d7863ca">
+</head>
+<body class="page-atlas" data-page="atlas">
+<a class="skip-link" href="#view">跳转到正文</a>
+<header class="site-header">
+<a class="brand" href="./index.html" aria-label="BRO 首页"><svg viewBox="0 0 126 28" role="img" aria-label="BRO" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"><path d="M2 3H25Q34 3 34 9Q34 14 25 14H2V25H26Q35 25 35 19Q35 14 25 14"/><path d="M49 3H70Q79 3 79 9Q79 15 70 15H49V25M67 15L80 25"/><rect x="95" y="3" width="29" height="22" rx="8"/></svg></a>
+<nav class="desktop-nav" aria-label="网站导航"><a href="./articles.html" data-nav="articles">文章</a><a href="./resources.html" data-nav="resources" aria-current="page">资源</a><a href="./about.html" data-nav="about">关于</a></nav>
+<div class="header-tools">
+<button class="search-toggle icon-button" type="button" aria-label="打开搜索" aria-expanded="false" aria-controls="search-panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><g class="toggle-open"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.5 15.5 4.2 4.2"/></g><path class="toggle-close" d="m5 5 14 14M5 19 19 5"/></svg></button>
+<button class="theme icon-button" type="button" data-theme aria-label="切换昼夜模式" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true" id="theme-globe-svg"></svg></button>
+<button class="menu-toggle icon-button" type="button" aria-label="展开导航" aria-expanded="false" aria-controls="mobile-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path class="toggle-open" d="M3 7h18M3 17h18"/><path class="toggle-close" d="m5 5 14 14M5 19 19 5"/></svg></button>
+</div>
+<form class="search-panel header-panel" id="search-panel" action="./search.html" method="get" role="search" hidden>
+<div class="panel-heading"><label for="search">搜索</label><span>文章与资源</span></div>
+<div class="search-input-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.3"/><path d="m15.5 15.5 4.2 4.2"/></svg><input id="search" name="q" type="search" placeholder="输入关键词…" required autocomplete="off"><button type="submit" aria-label="搜索"><span aria-hidden="true">→</span></button></div>
+<div class="search-hint"><span>按 Enter 搜索</span><span>Esc 关闭</span></div>
+</form>
+<nav class="mobile-nav header-panel" id="mobile-nav" aria-label="手机导航" hidden><div class="panel-heading"><span>导航</span><span>BRO</span></div><a href="./articles.html" data-nav="articles">文章</a><a href="./resources.html" data-nav="resources" aria-current="page">资源</a><a href="./about.html" data-nav="about">关于</a></nav>
+</header>
+<div class="panel-backdrop" aria-hidden="true" hidden></div>
+<main id="view" tabindex="-1"><section class="page atlas-intro"><header class="page-heading"><nav class="page-context" aria-label="面包屑"><a href="./resources.html">资源</a><span aria-hidden="true">/</span><span>可视化</span></nav><div class="atlas-title-row"><div><h1>股市图谱</h1><p class="description">沿着时间，读懂行业与股票的关系。</p></div><span class="atlas-kicker">MARKET ATLAS</span></div></header></section><div class="atlas-app" data-build="fcb212206f99f6fa">
+<header class="app-header"><div class="global-search"><span>⌕</span><input id="globalSearch" placeholder="找行业、股票名称或代码" aria-label="查找行业或股票" autocomplete="off"><div id="searchResults" class="search-results" hidden></div></div><button class="quiet" id="openPublish">上传并发布</button><button class="quiet" id="openData">数据与口径</button><button class="quiet" id="helpToggle" aria-expanded="false">交互规则</button><span id="dataSourceStatus" class="source-state">读取已发布数据…</span></header>
+<div id="help" class="help" hidden><div><b>悬停</b><span>按日期显示基准数值，靠近曲线辨认对象</span></div><div><b>单击曲线或名称</b><span>固定／取消关注，其他曲线保留</span></div><div><b>双击行业名称／热力行</b><span>直接展开；也可点击名称旁的箭头</span></div><div><b>拖动框选／双击</b><span>缩放当前图／恢复视图，不改变计算区间</span></div><div class="label-preferences"><label for="labelPolicy">末端名称</label><select id="labelPolicy"><option value="extremes">关注与基准＋末值高低各2项</option><option value="focus">仅关注、悬停与基准</option></select><span>全量名称始终在右栏；自动标签不代表固定关注。</span></div></div>
+<div class="atlas-main">
+ <section class="research-controls" aria-label="研究设置"><div class="range-control"><label>研究区间</label><input type="date" id="startDate" aria-label="研究开始日期"><span>—</span><input type="date" id="endDate" aria-label="研究结束日期"><button class="apply" id="applyRange">应用</button></div><div class="periods"><button data-period="63">近3月</button><button data-period="252" class="active">近1年</button><button data-period="all">全部</button></div><div class="window-control"><label for="window">强弱周期</label><select id="window"><option value="1" selected>当日</option><option value="5">5日</option><option value="20">20日</option><option value="60">60日</option></select></div><div class="window-control"><label for="scale">收益尺度</label><select id="scale"><option value="linear">线性</option><option value="log">对数（仅累计）</option></select></div><div class="window-control"><label for="cohort">样本</label><select id="cohort"><option value="dynamic">每日有效</option><option value="complete">区间完整</option></select></div><div id="globalSummary" class="global-summary"></div></section>
+ <div id="error" class="error" role="alert" hidden></div>
+ <section class="research-panel market-panel" id="marketPanel">
+  <div class="panel-heading"><div class="heading-main"><span class="section-index">01</span><h2>股票池与全部行业</h2><span id="marketCount" class="count"></span></div><label class="chart-metric">观察指标 <select id="marketMetric" aria-label="行业主图指标"><option value="path">累计收益</option><option value="relative">窗口超额</option><option value="momentum">窗口收益</option><option value="breadth">MA20广度</option><option value="drawdown">数据内峰值回撤</option><option value="vol">20日年化波动</option><option value="dispersion">当日个股分化</option></select></label><button id="expandMarket" class="expand" aria-label="展开市场图">⤢</button></div>
+  <div class="context-strip"><div class="focus-strip" id="industryPins"></div><span id="marketHoverValue" class="hover-value">全部曲线均已显示</span></div>
+  <div class="metric-explanation" id="metricExplanation"></div><div class="plot-and-index"><div class="plot-column"><div class="plot" id="marketPlot"><canvas aria-label="全部行业及股票池等权走势"></canvas><div class="plot-tooltip" hidden></div></div><div class="plot-caption"><button class="baseline-lock" data-lock-series="__pool" aria-pressed="false" title="锁定股票池基准，左右移动查看历史数值"><i class="baseline-swatch"></i>股票池等权</button><span id="marketViewport"></span></div></div><aside class="name-index"><div class="index-search"><input id="industrySearch" placeholder="定位行业名称" aria-label="定位行业名称"><span id="industryMatches"></span></div><div class="index-head"><span>单击关注 · 双击展开</span><span>指标 / 展开</span></div><div class="name-list" id="industryList"></div></aside></div>
+ </section>
+ <section class="research-panel lower-panel" id="lowerPanel">
+  <div class="panel-heading"><div class="heading-main"><span class="section-index">02</span><div class="lower-tabs"><button id="showHeat" class="active">行业时间地图</button><button id="showRotation">轮动轨迹</button><button id="showState">市场状态</button><button id="showStocks" hidden>行业内部</button></div></div><div id="heatControls" class="heat-controls"><label for="heatMetric">色彩</label><select id="heatMetric"><option value="relative">窗口超额</option><option value="momentum">窗口收益</option><option value="breadth">MA20广度</option></select><select id="heatSort" aria-label="行业地图排序"><option value="value">按观察日强弱</option><option value="asc">按观察日由弱到强</option><option value="size">按行业样本数</option><option value="name">按行业名称</option></select></div><button id="expandLower" class="expand" aria-label="展开下方研究图">⤢</button></div>
+  <div id="heatSection"><div class="heat-summary"><span id="heatOrderNote"></span><span class="heat-legend">落后 <i></i> 领先 <em>灰色：无有效观察</em></span></div><div class="heat-scroll"><div class="heat-stage" id="heatStage"><canvas aria-label="全部行业随时间连续变化的热力图"></canvas><div class="plot-tooltip" hidden></div></div></div></div>
+  <div id="rotationSection" hidden><div class="rotation-caption"><span>相对强弱与变化（百分点）</span><span id="rotationAxisNote"></span></div><div class="rotation-plot" id="rotationPlot"><canvas aria-label="全部行业的相对强弱位置与关注行业的历史轨迹"></canvas><div class="plot-tooltip" hidden></div></div></div>
+  <div id="stateSection" hidden><div class="context-grid"><article><h3>趋势的参与面 <small>趋势参与与当日上涨 · 分开观察</small></h3><div class="context-plot" id="breadthContext"><canvas></canvas><div class="plot-tooltip" hidden></div></div></article><article><h3>市场的起伏 <small>股票池等权 · 20日年化波动</small></h3><div class="context-plot" id="volContext"><canvas></canvas><div class="plot-tooltip" hidden></div></div></article><article><h3>成交的温度 <small>有效成交额合计 · 亿元</small></h3><div class="context-plot" id="amountContext"><canvas></canvas><div class="plot-tooltip" hidden></div></div></article></div></div>
+  <div id="stocksSection" hidden data-pane-count="0">
+   <div class="multi-industry-controls"><div><span id="multiIndustrySummary"></span><div id="openIndustries" class="opened-industries"></div></div><button id="closeAllIndustries" class="quiet" hidden>关闭所有行业图</button></div>
+   <div id="stockGrid" class="stock-grid single-pane"></div>
+  </div>
+ </section>
+ <footer><span>股票池等权 ≠ 全A指数 · 价格收益来自前复权现价 · 行业取文件最新分类</span><span id="rangeNote"></span></footer>
+</div>
+<div class="time-control"><button id="play" aria-label="播放或暂停回放">▶</button><button id="previousDay" class="day-step" aria-label="上一个交易日">‹</button><div class="observation"><small>观察至</small><strong id="observationDate">—</strong></div><div class="timeline"><input id="timeline" type="range" min="0" max="1" value="1" aria-label="观察日期"><div><span id="timelineStart"></span><span id="timelineEnd"></span></div></div><button id="nextDay" class="day-step" aria-label="下一个交易日">›</button><button id="latest" class="quiet">末日</button><span id="timePosition" class="time-position"></span></div>
+<dialog id="dataDialog" aria-labelledby="dataTitle"><header><div><h2 id="dataTitle">数据与研究口径</h2><p>看清样本，再理解曲线</p></div><button id="closeData" aria-label="关闭数据与口径">×</button></header><nav class="data-tabs"><button data-data-tab="source" class="active">数据源与导入</button><button data-data-tab="quality">数据检查</button><button data-data-tab="methods">计算与交互</button></nav>
+<section data-data-section="source"><div id="sourceOverview" class="source-overview"></div><div id="sourceChoices" class="source-choices"></div><div hidden><input id="sourceDirectory"><button id="switchSource" data-source-action>切换</button></div><p class="muted">公开数据由维护者更新；数据截至日期以行情交易日为准。</p><button class="quiet data-button" id="reloadData" data-source-action>↻ 检查最新公开数据</button><hr><h3>导入本地行情 · 仅自己可见</h3><p class="muted">文件只在此浏览器中解析，不会上传到服务器；关闭页面后需重新导入。验证成功后才切换，失败时保留当前数据。</p><div class="import-actions"><button id="chooseFolder" data-source-action>选择文件夹</button><button id="chooseFiles" data-source-action>选择逐股CSV</button><button id="chooseMerged" data-source-action>选择合并CSV</button><button id="importFiles" class="apply" data-source-action disabled>导入并启用</button><input type="file" id="folderFiles" webkitdirectory multiple hidden><input type="file" id="csvFiles" accept=".csv" multiple hidden><input type="file" id="mergedFile" accept=".csv" hidden></div><p class="muted" id="folderSummary">逐股CSV每股一个文件；合并CSV可包含全部股票，支持股票池或全市场数据。</p><progress id="importProgress" hidden></progress><p id="sourceStatus" role="status" class="source-feedback"></p><details><summary>支持的数据格式</summary><p>支持全部股票合并在一个CSV，或每股一个CSV的目录。逐股文件名为六位代码.SH／.SZ／.BJ.csv；合并表按“代码＋交易日期”识别记录。必需字段：代码、名称、交易日期、所属行业、现价、涨幅%、成交额(亿元)、换手率、MA20。日期为YYYYMMDD，支持UTF-8与GB18030；其余字段可保留。新数据的价格复权方式须保持一致。</p></details><details class="owner-publish" id="ownerPublish"><summary>上传并发布本地行情 · 站点维护者</summary><p>选择CSV后点击“上传并发布”，校验通过即更新网站公开数据。此操作需要 GitHub 仓库写权限。</p><label class="field-label" for="publishToken">GitHub 访问令牌</label><input type="password" id="publishToken" required autocomplete="off" spellcheck="false" placeholder="对此网站仓库有 Contents 读写权限的令牌"><p class="muted">令牌仅用于本次向 GitHub 发布，不保存到浏览器或网站。<a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">创建令牌 ↗</a>，仓库选择 haodayizhia.github.io，Contents 设为 Read and write。</p><div class="import-actions"><button id="choosePublishMerged" data-source-action>选择合并CSV</button><button id="choosePublishFolder" data-source-action>选择逐股目录</button><button id="publishSubmit" class="apply" disabled data-source-action>上传并发布</button></div><input type="file" id="publishMerged" accept=".csv" hidden><input type="file" id="publishFolder" webkitdirectory multiple hidden><p id="publishSelection" class="muted">尚未选择数据</p><p id="publishStatus" role="status" class="source-feedback"></p></details></section>
+<section data-data-section="quality" hidden><div id="qualityStats" class="quality-grid"></div><h3>历史覆盖情况</h3><div id="coverageGraphic"></div><p class="muted">每个交易日有有效价格的股票数。上市、停牌、缺行和数据源选择都会改变覆盖。</p><div id="qualityIssues"></div><details><summary>完整检查记录</summary><pre id="qualityDetails"></pre></details><button id="downloadQuality" class="quiet data-button">下载检查报告</button></section>
+<section data-data-section="methods" hidden><div id="methodNotes" class="method-notes"></div><hr><h3>工作台记忆</h3><p class="muted">本浏览器按数据源记住研究区间、观察日、指标、关注对象、已展开行业及各图视窗。切换数据源分别保存。</p><button id="resetWorkspace" class="quiet data-button">恢复默认工作台</button><p class="muted" id="storageStatus"></p></section></dialog>
+<div id="panelShade" class="panel-shade" hidden></div><div class="loading" id="loading" role="status"><span class="loading-dot"></span><strong>正在展开市场脉络</strong><p>准备行业与股票的连续路径…</p></div>
+</div></main>
+<script src="./resources/market-atlas/appearance.js?v=5e0da74c0f58"></script>
+<script src="./resources/market-atlas/data-client.js?v=35647c39a630"></script>
+<script src="./resources/market-atlas/chart_math.js?v=61a9cf5e35f5"></script>
+<script src="./resources/market-atlas/pathplot.js?v=069267a69a1e"></script>
+<script src="./resources/market-atlas/workbench.js?v=bf2db46035aa"></script>
+<script src="./resources/market-atlas/stockheat.js?v=319322c1ef49"></script>
+<script src="./resources/market-atlas/panes.js?v=d26edbc0b1aa"></script>
+<script src="./resources/market-atlas/workspace.js?v=3e224f980ac8"></script>
+<script src="./resources/market-atlas/context.js?v=53edb8d57160"></script>
+<script src="./resources/market-atlas/stockdetail.js?v=8531e7f0f2bc"></script>
+<script src="./resources/market-atlas/rotation.js?v=ba9482d54e4e"></script>
+<script src="./resources/market-atlas/publish-client.js?v=71895b52d3b4"></script>
+<script src="./resources/market-atlas/upload.js?v=9076ba2c9d69"></script>
+<script src="./resources/market-atlas/entry.js?v=81feb8b8f85d"></script>
+<footer class="site-footer"><div class="footer-ideas"><span><b>B</b> Build · 创造</span><span><b>R</b> Reason · 理性</span><span><b>O</b> Open · 开放</span></div><div class="footer-side"><span>© BRO</span></div></footer>
+<dialog class="lightbox" id="lightbox" aria-label="图片放大预览"><div class="lightbox-toolbar"><button type="button" data-toggle-actual aria-pressed="false">查看原始尺寸</button><button type="button" data-close-lightbox>关闭 · Esc</button></div><div class="lightbox-stage" id="lightbox-stage"><img id="lightbox-img" alt="放大图片"></div></dialog>
+<script src="./assets/js/globe.js?v=aa16cb30bb7c"></script>
+<script src="./assets/js/theme.js?v=f6b984000c66"></script>
+<script src="./assets/js/app.js?v=b337be14e0a0"></script>
+</body>
+</html>

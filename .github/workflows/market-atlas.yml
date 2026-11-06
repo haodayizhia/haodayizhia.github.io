@@ -1,0 +1,88 @@
+name: Update MarketAtlas cloud data
+
+on:
+  schedule:
+    - cron: '30 10 * * *' # 18:30 Asia/Shanghai; Actions scheduling can be delayed.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: market-atlas-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      TZ: Asia/Shanghai
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: scripts/market_atlas/cloud-requirements.txt
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Install fetch dependencies
+        run: python -m pip install -r scripts/market_atlas/cloud-requirements.txt
+
+      - name: Restore historical CSV cache
+        id: history
+        uses: actions/cache/restore@v5
+        with:
+          path: .market-atlas/raw/stock_data
+          key: market-atlas-history-v1-${{ github.run_id }}
+          restore-keys: market-atlas-history-v1-
+
+      - name: Bootstrap historical data if cache is empty
+        if: steps.history.outputs.cache-matched-key == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download market-atlas-seed --repo "$GITHUB_REPOSITORY" --pattern 'stock-data.tar.*' --dir "$RUNNER_TEMP/atlas-seed"
+          python scripts/market_atlas/restore_seed.py "$RUNNER_TEMP/atlas-seed/stock-data.tar.gz" --checksum "$RUNNER_TEMP/atlas-seed/stock-data.tar.json"
+
+      - name: Fetch market data and prepare validated snapshot
+        env:
+          TUSHARE_TOKEN: ${{ secrets.TUSHARE_TOKEN }}
+        run: python scripts/market_atlas/cloud.py
+
+      - name: Build website and verify calculations
+        run: |
+          node --test scripts/theme.test.cjs scripts/market_atlas/engine.test.cjs scripts/market_atlas/publish.test.cjs
+          python scripts/market_atlas/package_test.py
+          python scripts/build.py
+
+      - name: Save validated historical CSV cache
+        uses: actions/cache/save@v5
+        with:
+          path: .market-atlas/raw/stock_data
+          key: market-atlas-history-v1-${{ github.run_id }}
+
+      - name: Publish data and trigger Pages deployment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- data-source/market-atlas
+          if git diff --cached --quiet; then
+            echo 'No market data changes; no commit or deployment needed.'
+            exit 0
+          fi
+          git commit -m "Update MarketAtlas cloud data"
+          git push origin HEAD:main
+          # Pushes made with GITHUB_TOKEN do not trigger push workflows.
+          gh workflow run deploy.yml --ref main --repo "$GITHUB_REPOSITORY"

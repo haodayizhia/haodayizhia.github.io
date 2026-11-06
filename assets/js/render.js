@@ -20,7 +20,7 @@
     return url;
   };
   const articleRow = a => `<a class="article-row" href="${escape(articleUrl(a.id))}"><h3 class="row-title">${escape(a.title)}</h3><div class="row-meta"><span class="row-date">${escape(date(a))}</span>${a.tag?`<span class="row-tag">${escape(a.tag)}</span>`:''}</div><span class="row-arrow" aria-hidden="true">↗</span></a>`;
-  const resourceCard = r => `<a class="resource-card" href="${escape(resourceUrl(r.id))}">${r.mark?`<span class="resource-mark">${escape(r.mark)}</span>`:''}<h2>${escape(r.title)}</h2><p>${escape(r.desc)}</p><span class="resource-type">${r.type==='free'?'免费获取':'查看资源'} <span aria-hidden="true">↗</span></span></a>`;
+  const resourceCard = r => `<a class="resource-card" href="${escape(resourceUrl(r.id))}">${r.mark?`<span class="resource-mark">${escape(r.mark)}</span>`:''}<h2>${escape(r.title)}</h2><p>${escape(r.desc)}</p><span class="resource-type">${escape(r.actionLabel||(r.type==='free'?'免费获取':'查看资源'))} <span aria-hidden="true">↗</span></span></a>`;
   const empty = message => `<div class="empty-state"><p>${message}</p></div>`;
   const heading = (title, description = '', context = {}) => `<header class="page-heading"><nav class="page-context" aria-label="面包屑"><a class="back" href="${escape(context.href || './index.html')}">${escape(context.parent || '首页')}</a><span aria-hidden="true">/</span><span>${escape(context.label || title)}</span></nav><h1>${escape(title)}</h1>${context.meta || description ? `<div class="page-summary">${context.meta || `<p class="description">${escape(description)}</p>`}</div>` : ''}</header>`;
   const articleOutline = body => {
@@ -62,7 +62,7 @@
     if(r){
       const url=safeUrl(r.url); title=r.title+' · BRO';
       const header=heading(r.title,'',{parent:'资源',href:'./resources.html',label:'详情'});
-      const actions=url?`<a class="primary-link" href="${escape(url)}" ${/^https?:/i.test(url)?'target="_blank" rel="noopener noreferrer"':''}>${r.type==='free'?'获取资源':'前往购买'} <span aria-hidden="true">↗</span></a>`:'<p class="notice">资源地址暂未配置。</p>';
+      const actions=url?`<a class="primary-link" href="${escape(url)}" ${/^https?:/i.test(url)?'target="_blank" rel="noopener noreferrer"':''}>${escape(r.actionLabel||(r.type==='free'?'获取资源':'前往购买'))} <span aria-hidden="true">↗</span></a>`:'<p class="notice">资源地址暂未配置。</p>';
       markup=`<section class="page page--reading">${readingLayout(header,`<div class="prose reading-content"><p>${escape(r.desc)}</p></div>`,[],actions)}</section>`;
     }
     else {title='资源未找到 · BRO';markup=`<section class="page">${heading('未找到这项资源')}<a class="primary-link" href="./resources.html">返回资源列表 →</a></section>`;}
