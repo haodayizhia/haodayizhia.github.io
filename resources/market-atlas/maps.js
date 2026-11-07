@@ -83,11 +83,11 @@
       const visible=this.rows.filter(r=>this.selected.has(r.name));
       this.points=visible.map(row=>({...row,x:row.x[this.index],y:row.y[this.index]})).filter(p=>finite(p.x)&&finite(p.y));
       if(!this.domain){let x=1,y=1;for(const row of visible)for(let i=Math.max(0,this.index-this.trailStep*4);i<=this.index;i++){if(finite(row.x[i]))x=Math.max(x,Math.abs(row.x[i]));if(finite(row.y[i]))y=Math.max(y,Math.abs(row.y[i]));}const nice=v=>{const n=v*1.1,p=10**Math.floor(Math.log10(n));return([1,2,3,5,8,10].find(k=>k>=n/p)||10)*p;};x=nice(x);y=nice(y);this.domain=[-x,x,-y,y];}
-      const [a,b,c,d]=this.domain,g=this.g;this.X=x=>g.left+(x-a)/(b-a)*g.width;this.Y=y=>g.bottom-(y-c)/(d-c)*g.height;
+      const [a,b,c,d]=this.domain;this.g=root.AtlasCharts.geometry(this.w,this.h,root.AtlasCharts.measureAxis(root.AtlasCharts.ticks(c,d,3).map(root.AtlasCharts.axisNumber)));this.g.top=24;this.g.height=this.g.bottom-this.g.top;const g=this.g;this.X=x=>g.left+(x-a)/(b-a)*g.width;this.Y=y=>g.bottom-(y-c)/(d-c)*g.height;
       const clip='rotationClip'+this.id,arrow='rotationArrow'+this.id;
       let html=`<defs><clipPath id="${clip}"><rect x="${g.left}" y="${g.top}" width="${g.width}" height="${g.height}"/></clipPath><marker id="${arrow}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10" fill="var(--plot-gold)"/></marker></defs>`;
-      for(const v of root.AtlasCharts.ticks(a,b,3))html+=`<path class="grid-line" d="M${this.X(v)},${g.top}V${g.bottom}"/><text class="axis-label" x="${this.X(v)}" y="${this.h-10}" text-anchor="middle">${num(v,1)}</text>`;
-      for(const v of root.AtlasCharts.ticks(c,d,3))html+=`<path class="grid-line" d="M${g.left},${this.Y(v)}H${g.right}"/><text class="axis-label" x="${g.left-10}" y="${this.Y(v)+4}" text-anchor="end">${num(v,1)}</text>`;
+      for(const v of root.AtlasCharts.ticks(a,b,3))html+=`<path class="grid-line" d="M${this.X(v)},${g.top}V${g.bottom}"/><text class="axis-label" x="${this.X(v)}" y="${this.h-10}" text-anchor="${this.X(v)<g.left+24?'start':this.X(v)>g.right-24?'end':'middle'}">${root.AtlasCharts.axisNumber(v)}</text>`;
+      for(const v of root.AtlasCharts.ticks(c,d,3))html+=`<path class="grid-line" d="M${g.left},${this.Y(v)}H${g.right}"/><text class="axis-label" x="${g.left-7}" y="${this.Y(v)+4}" text-anchor="end">${root.AtlasCharts.axisNumber(v)}</text>`;
       if(a<=0&&b>=0)html+=`<path class="zero-line" d="M${this.X(0)},${g.top}V${g.bottom}"/>`;if(c<=0&&d>=0)html+=`<path class="zero-line" d="M${g.left},${this.Y(0)}H${g.right}"/>`;
       html+=`<text class="axis-unit" x="${g.left}" y="13">超额改善 / 百分点</text><text class="axis-unit" x="${g.right}" y="${this.h-26}" text-anchor="end">${this.lookback}日超额 / 百分点</text>`;
       const quadrant=(x,y,text)=>`<text class="quadrant-label" x="${x}" y="${y}">${text}</text>`;

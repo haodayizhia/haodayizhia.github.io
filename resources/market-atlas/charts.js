@@ -3,6 +3,14 @@
   const finite=v=>typeof v==='number'&&Number.isFinite(v);
   const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const number=(v,d=2)=>finite(v)?v.toLocaleString('zh-CN',{maximumFractionDigits:d,minimumFractionDigits:d}):'—';
+  const axisNumber=v=>finite(v)?v.toLocaleString('zh-CN',{maximumFractionDigits:12}):'—';
+  let axisContext;
+  function measureAxis(labels){
+    const size=root.innerWidth<=760?11:12;
+    if(!axisContext&&root.document)axisContext=document.createElement('canvas').getContext('2d');
+    if(axisContext)axisContext.font=size+'px Inter,"Segoe UI","Microsoft YaHei",sans-serif';
+    return Math.max(0,...labels.map(label=>axisContext?axisContext.measureText(label).width:String(label).length*size*.62));
+  }
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   function bounds(series) {
     let lo=Infinity,hi=-Infinity;
@@ -16,8 +24,8 @@
     for(let v=Math.ceil(lo/step)*step;v<=hi+step*.001;v+=step)out.push(Math.abs(v)<1e-9?0:v);
     return out;
   }
-  function geometry(width,height) {
-    const left=width<500?58:66,right=width-18,top=24,bottom=height-34;
+  function geometry(width,height,labelWidth=24) {
+    const left=Math.max(30,Math.ceil(labelWidth+8)),right=width-6,top=12,bottom=height-30;
     return {left,right,top,bottom,width:Math.max(1,right-left),height:Math.max(1,bottom-top)};
   }
   function path(values,X,Y,start=0,end=values.length-1) {
@@ -40,7 +48,8 @@
       this.id=++chartId;this.index=this.dates.length-1;this.view=[0,Math.max(0,this.dates.length-1)];this.axisValue=null;this.revision=0;
       this.abort=new AbortController();
       host.classList.add('chart-host');
-      host.innerHTML=`${this.compact?`<header class="mini-chart-head"><h3>${escape(this.label)}</h3><dl class="chart-values"></dl></header>`:`<div class="plot-toolbar"><div><span class="chart-label">${escape(this.label)}</span><span class="chart-window"></span></div><div class="plot-actions"><button data-chart-action="out" aria-label="缩小图表" title="同时缩小时间与数值范围">−</button><button data-chart-action="in" aria-label="放大图表" title="同时放大时间与数值范围">＋</button><button data-chart-action="reset">复原</button><button data-chart-action="expand">⛶ 全屏</button></div></div><div class="chart-readout"></div>`}<div class="chart-canvas"><svg class="atlas-chart" tabindex="0" role="img"></svg><div class="chart-input" aria-hidden="true"></div></div>`;
+      const heading=escape(this.label)+(this.unit?`<small class="chart-unit">（${escape(this.unit)}）</small>`:'');
+      host.innerHTML=`${this.compact?`<header class="mini-chart-head"><h3>${heading}</h3><dl class="chart-values"></dl></header>`:`<div class="plot-toolbar"><div><span class="chart-label" title="${escape(this.label)}（${escape(this.unit)}）">${heading}</span><span class="chart-window"></span></div><div class="plot-actions"><button data-chart-action="out" aria-label="缩小图表" title="同时缩小时间与数值范围">−</button><button data-chart-action="in" aria-label="放大图表" title="同时放大时间与数值范围">＋</button><button data-chart-action="reset">复原</button><button data-chart-action="expand">⛶ 全屏</button></div></div><div class="chart-readout"></div>`}<div class="chart-canvas"><svg class="atlas-chart" tabindex="0" role="img"></svg><div class="chart-input" aria-hidden="true"></div></div>`;
       this.surface=host.querySelector('.chart-canvas');this.svg=host.querySelector('svg');this.values=host.querySelector('.chart-values');root.AtlasInspector.mount(this,this.readoutHost);
       host.addEventListener('click',e=>{const action=e.target.closest('[data-chart-action]')?.dataset.chartAction;if(action==='in')this.zoom(1.7);if(action==='out')this.zoom(1/1.7);if(action==='reset')this.reset();if(action==='expand')root.AtlasFullscreen.open(this.host,this.label);const remove=e.target.closest('[data-remove-series]');if(remove)this.onRemove?.(remove.dataset.removeSeries);},{signal:this.abort.signal});
       this.svg.addEventListener('keydown',e=>this.key(e),{signal:this.abort.signal});
@@ -120,11 +129,11 @@
       this.onInspect(this.index,this);this.updateOverlay();this.updateValues();const r=this.surface.getBoundingClientRect();root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.getRows(),x:r.right-30,y:r.top+60,axis:`纵轴 ${number(this.axisValue)}${this.unit}`});
     }
     measure() {
-      this.w=Math.round(this.surface.getBoundingClientRect().width);let h=this.compact?(this.w<600?130:164):(this.kind==='candles'?370:350);
+      this.w=Math.round(this.surface.getBoundingClientRect().width);let h=this.compact?(this.w<600?130:164):Math.max(this.kind==='candles'?370:350,Math.min(460,this.w*.25));
       const expanded=this.host.closest('.is-fullscreen');
       if(expanded){const stage=expanded.parentElement.getBoundingClientRect().height,readout=this.readout?.getBoundingClientRect().height||0;h=this.compact?Math.max(95,(stage-90-readout)/3-34):Math.max(190,stage-100-readout);}
       this.h=Math.round(h);this.surface.style.height=this.h+'px';this.svg.setAttribute('viewBox',`0 0 ${this.w} ${this.h}`);
-      this.g=geometry(this.w,this.h);if(this.compact){this.g.top=12;if(this.hideDates)this.g.bottom=this.h-12;}if(this.kind==='candles')this.g.bottom-=76;
+      this.g=geometry(this.w,this.h,this.axisLabelWidth);if(this.compact){this.g.top=12;if(this.hideDates)this.g.bottom=this.h-12;}if(this.kind==='candles')this.g.bottom-=76;
       this.g.height=Math.max(1,this.g.bottom-this.g.top);
     }
     draw() {
@@ -137,11 +146,12 @@
       this.hasData=this.stock?this.stock.close.slice(a,b+1).some(finite):data.some(s=>s.values.slice(a,b+1).some(v=>finite(v)&&finite(this.transform(v))));
       if(!this.hasData){this.svg.innerHTML=`<text class="axis-label" x="${this.w/2}" y="${this.h/2}" text-anchor="middle">当前区间缺少有效数据</text>`;if(this.values)this.values.innerHTML='';root.AtlasInspector.render(this,{date:this.dates[this.index],rows:[]});this.svg.dataset.axisValue='';return;}
       [this.lo,this.hi]=this.yView|| (this.domain?this.domain.map(this.transform):bounds(data.map(s=>({values:s.values.slice(a,b+1).map(v=>finite(v)?this.transform(v):null)}))));
+      const axisTicks=ticks(this.lo,this.hi,this.compact?2:4),axisLabels=axisTicks.map(v=>axisNumber(this.inverse(v)));
+      this.axisLabelWidth=measureAxis(axisLabels);this.g.left=geometry(this.w,this.h,this.axisLabelWidth).left;this.g.width=Math.max(1,this.g.right-this.g.left);
       const g=this.g;this.X=i=>g.left+(this.view[1]===this.view[0]?.5:(i-this.view[0])/(this.view[1]-this.view[0]))*g.width;
       this.Y=v=>g.bottom-(this.transform(v)-this.lo)/(this.hi-this.lo)*g.height;
       let html=`<defs><clipPath id="plotClip${this.id}"><rect x="${g.left}" y="${g.top}" width="${g.width}" height="${g.height}"/></clipPath></defs>`;
-      for(const v of ticks(this.lo,this.hi,this.compact?2:4)){const y=g.bottom-(v-this.lo)/(this.hi-this.lo)*g.height;html+=`<path class="grid-line" d="M${g.left},${y}H${g.right}"/><text class="axis-label" x="${g.left-9}" y="${y+4}" text-anchor="end">${number(this.inverse(v),Math.abs(this.inverse(v))<10?2:1)}</text>`;}
-      if(!this.compact)html+=`<text class="axis-unit" x="${g.left}" y="13">${escape(this.unit)}</text>`;
+      for(const v of axisTicks){const y=g.bottom-(v-this.lo)/(this.hi-this.lo)*g.height;html+=`<path class="grid-line" d="M${g.left},${y}H${g.right}"/><text class="axis-label" x="${g.left-7}" y="${y+4}" text-anchor="end">${axisNumber(this.inverse(v))}</text>`;}
       if(!this.hideDates){const n=this.w<500?3:5;for(let k=0;k<n;k++){const i=clamp(Math.round(this.view[0]+k/(n-1)*(this.view[1]-this.view[0])),0,this.dates.length-1);html+=`<text class="axis-label" x="${g.left+k/(n-1)*g.width}" y="${this.h-9}" text-anchor="${k===0?'start':k===n-1?'end':'middle'}">${this.dates[i].slice(2)}</text>`;}}
       html+=`<g clip-path="url(#plotClip${this.id})">`;
       if(this.kind==='candles'&&this.stock) {
@@ -168,7 +178,7 @@
         html+=`<path class="crosshair" d="M${x},${g.top}V${this.stock?this.h-34:g.bottom}"/>`;
         for(const s of this.series)if((this.series.length<=8||s.reference||s.id===focus)&&finite(s.values[i])&&this.Y(s.values[i])>=g.top&&this.Y(s.values[i])<=g.bottom)html+=`<circle cx="${x}" cy="${this.Y(s.values[i])}" r="3.2" fill="${s.color||'var(--plot-main)'}" stroke="var(--bg)" stroke-width="1.3"/>`;
       }
-      if(finite(value)&&this.Y(value)>=g.top&&this.Y(value)<=g.bottom){const y=this.Y(value);html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${g.left-5}" height="22" rx="2"/><text class="axis-tag-text" x="${g.left-10}" y="${y+4}" text-anchor="end">${number(value)}</text>`;}
+      if(finite(value)&&this.Y(value)>=g.top&&this.Y(value)<=g.bottom){const y=this.Y(value),tagWidth=Math.max(g.left-5,Math.ceil(measureAxis([number(value)])+10));html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${tagWidth}" height="22" rx="2"/><text class="axis-tag-text" x="${tagWidth-5}" y="${y+4}" text-anchor="end">${number(value)}</text>`;}
       if(this.brush){const left=clamp(Math.min(...this.brush),g.left,g.right),right=clamp(Math.max(...this.brush),g.left,g.right);html+=`<rect class="zoom-brush" x="${left}" y="${g.top}" width="${right-left}" height="${g.height}"/>`;}
       layer.innerHTML=html;const styleKey=this.revision+'|'+focus;if(this.lastStyleKey!==styleKey){const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===focus,reference=references.has(line.dataset.series);line.style.opacity=this.series.length>12&&!reference&&!active?(focus?'.22':'.55'):'1';line.style.strokeWidth=active?'2.5':'';}this.lastStyleKey=styleKey;}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
     }
@@ -180,6 +190,6 @@
       this.values.innerHTML=this.series.map(s=>`<div><dt><i style="background:${s.color||'var(--plot-main)'}"></i>${escape(s.name)}</dt><dd>${number(s.values[i])}<small>${finite(s.values[i])?escape(this.unit):''}</small></dd>${s.removable?`<button data-remove-series="${escape(s.id)}" aria-label="移除${escape(s.name)}">×</button>`:''}</div>`).join('');
     }
   }
-  root.AtlasCharts={Chart,geometry,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,zoomDomain};
-  if(typeof module!=='undefined')module.exports={Chart,geometry,bounds,ticks,path,rankLatest,seriesStyle,zoomDomain};
+  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,zoomDomain};
+  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,zoomDomain};
 })(globalThis);

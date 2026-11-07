@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const{Chart,geometry,bounds,ticks,path:linePath,rankLatest,seriesStyle,zoomDomain}=require('../../resources/market-atlas/charts.js');
+const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,zoomDomain}=require('../../resources/market-atlas/charts.js');
 const{rotationTrail,rotationSettings}=require('../../resources/market-atlas/maps.js');
 const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
 
@@ -28,7 +28,8 @@ test('market chart entry offers all-selection and removes the global date picker
  for(const name of ['chart-interaction.js','maps.js'])assert.ok(html.includes('./resources/market-atlas/'+name));
 });
 test('mobile chart preserves the vertical axis and a usable plotting area',()=>{
- for(const width of [264,288,318,342,760,1200]){const g=geometry(width,300);assert.ok(g.left>=55);assert.ok(g.width>=width-90);assert.ok(g.right<=width-16);assert.ok(g.bottom>g.top+180);}
+ for(const width of [264,288,318,342,760,1200])for(const labelWidth of [18,24,36,64]){const g=geometry(width,300,labelWidth);assert.ok(g.left>=labelWidth+7);assert.ok(g.width>=width-Math.max(38,labelWidth+16));assert.equal(width-g.right,6);assert.ok(g.bottom>g.top+180);}
+ assert.equal(axisNumber(-50),'-50');assert.equal(axisNumber(0),'0');assert.equal(axisNumber(.25),'0.25');assert.equal(axisNumber(.00002),'0.00002');assert.notEqual(axisNumber(1000010),axisNumber(1000015));
 });
 test('chart domains preserve zero and gaps without non-finite coordinates',()=>{
  assert.deepEqual(bounds([{values:[null,NaN]}]),[-1,1]);const[lo,hi]=bounds([{values:[0,0,0]}]);assert.ok(lo<0&&hi>0);
