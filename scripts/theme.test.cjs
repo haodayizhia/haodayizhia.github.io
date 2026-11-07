@@ -57,7 +57,8 @@ function expect(page,mode){
   assert.equal(page.html.dataset.theme,mode);
   assert.equal(page.html.style.colorScheme,mode);
   assert.equal(page.button.getAttribute('aria-pressed'),String(mode==='dark'));
-  assert.equal(page.meta.content,mode==='light'?'#eef3fc':'#03070d');
+  assert.equal(page.meta.content,mode==='light'?'#f3f6fc':'#070b12');
+  assert.equal(page.html.style.backgroundColor,mode==='light'?'#f3f6fc':'#070b12');
 }
 
 test('first visit defaults to night',()=>expect(browser().page(),'dark'));

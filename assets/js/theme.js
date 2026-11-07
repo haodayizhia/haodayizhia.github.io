@@ -16,8 +16,9 @@
       // Keep the control usable if a cached page still loaded the older head script.
       html.dataset.theme = value;
       html.style.colorScheme = value;
+      html.style.backgroundColor = value === 'dark' ? '#070b12' : '#f3f6fc';
       const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.content = value === 'dark' ? '#03070d' : '#eef3fc';
+      if (meta) meta.content = value === 'dark' ? '#070b12' : '#f3f6fc';
       for (const name of ['localStorage', 'sessionStorage']) {
         try { window[name].setItem('bro-theme', value); } catch (_) {}
       }

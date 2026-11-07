@@ -66,6 +66,7 @@ jobs:
           node --test scripts/theme.test.cjs scripts/market_atlas/engine.test.cjs scripts/market_atlas/publish.test.cjs
           python scripts/market_atlas/package_test.py
           python scripts/build.py
+          node --test scripts/market_atlas/ui.test.cjs
 
       - name: Save validated historical CSV cache
         uses: actions/cache/save@v5

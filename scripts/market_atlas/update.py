@@ -47,7 +47,7 @@ def run(args):
         source=Path(module.OUTPUT_FILE)
     meta=export(source,allow_older=args.allow_older)
     subprocess.run([sys.executable,str(ROOT/'scripts/build.py')],cwd=ROOT,check=True)
-    subprocess.run(['node','--test',str(ROOT/'scripts/theme.test.cjs'),str(ROOT/'scripts/market_atlas/engine.test.cjs'),str(ROOT/'scripts/market_atlas/publish.test.cjs')],cwd=ROOT,check=True)
+    subprocess.run(['node','--test',str(ROOT/'scripts/theme.test.cjs'),str(ROOT/'scripts/market_atlas/engine.test.cjs'),str(ROOT/'scripts/market_atlas/publish.test.cjs'),str(ROOT/'scripts/market_atlas/ui.test.cjs')],cwd=ROOT,check=True)
     if publisher:
         subprocess.run(['git','-C',str(ROOT),'add','--','data-source/market-atlas'],check=True)
         if subprocess.run(['git','-C',str(ROOT),'diff','--cached','--quiet']).returncode==0:

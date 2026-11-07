@@ -6,7 +6,73 @@
 <meta name="description" content="BRO — 文章与资源。世间有价，星空无主。">
 <meta name="theme-color" content="#03070d">
 <title>搜索 · BRO</title>
-<script src="./assets/js/theme-init.js?v=54ef706958b9"></script>
+<style data-bro-theme-canvas>html{background:#070b12;color:#edf1f7;color-scheme:dark}html[data-theme=light]{background:#f3f6fc;color:#142641;color-scheme:light}</style>
+<script data-bro-theme>
+// Apply the saved choice before styles and content paint. Night is the default
+// only when the visitor has not chosen a theme.
+(() => {
+  'use strict';
+  const key = 'bro-theme';
+  const html = document.documentElement;
+  const valid = value => value === 'light' || value === 'dark';
+  function stored(name) {
+    try {
+      const value = window[name].getItem(key);
+      return valid(value) ? value : null;
+    } catch (_) { return null; }
+  }
+  function cookie() {
+    try {
+      const item = document.cookie.split(';').map(part => part.trim()).find(part => part.startsWith(key + '='));
+      const value = item ? decodeURIComponent(item.slice(key.length + 1)) : null;
+      return valid(value) ? value : null;
+    } catch (_) { return null; }
+  }
+  function read() {
+    return stored('localStorage') || cookie() || stored('sessionStorage');
+  }
+  function persist(value) {
+    for (const name of ['localStorage', 'sessionStorage']) {
+      try { window[name].setItem(key, value); }
+      catch (_) {
+        // A quota failure must not leave an older choice ahead of the fallback.
+        try { window[name].removeItem(key); } catch (_) {}
+      }
+    }
+    try {
+      document.cookie = key + '=' + value + '; Path=/; Max-Age=31536000; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+    } catch (_) {}
+  }
+  const saved = read();
+  let mode = saved || 'dark';
+  function apply(value, instant = false) {
+    const changed = html.dataset.theme !== value;
+    const restoreTransitions = instant && html.classList.contains('theme-ready');
+    if (restoreTransitions) html.classList.remove('theme-ready');
+    mode = value;
+    html.dataset.theme = value;
+    html.style.colorScheme = value;
+    // The document canvas must have its color before an external stylesheet arrives.
+    html.style.backgroundColor = value === 'dark' ? '#070b12' : '#f3f6fc';
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = value === 'dark' ? '#070b12' : '#f3f6fc';
+    if (changed) window.dispatchEvent(new CustomEvent('bro:themechange', {detail:{dark:value === 'dark'}}));
+    if (restoreTransitions) requestAnimationFrame(() => requestAnimationFrame(() => html.classList.add('theme-ready')));
+  }
+  function sync(instant = false) { apply(read() || mode, instant); }
+  window.BRO_THEME = {
+    get: () => mode,
+    set(value) { if (valid(value)) { persist(value); apply(value); } },
+    sync,
+  };
+  // Migrate the previous tab-only preference without resetting it on reload.
+  if (saved) persist(saved);
+  apply(mode);
+  window.addEventListener('pageshow', () => sync(true));
+  window.addEventListener('storage', event => { if (event.key === key || event.key === null) sync(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') sync(true); });
+})();
+</script>
 <link rel="icon" href="./assets/images/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./assets/css/style.css?v=af7e27c09457">
 
@@ -37,7 +103,7 @@
 <footer class="site-footer"><div class="footer-ideas"><span><b>B</b> Build · 创造</span><span><b>R</b> Reason · 理性</span><span><b>O</b> Open · 开放</span></div><div class="footer-side"><span>© BRO</span></div></footer>
 <dialog class="lightbox" id="lightbox" aria-label="图片放大预览"><div class="lightbox-toolbar"><button type="button" data-toggle-actual aria-pressed="false">查看原始尺寸</button><button type="button" data-close-lightbox>关闭 · Esc</button></div><div class="lightbox-stage" id="lightbox-stage"><img id="lightbox-img" alt="放大图片"></div></dialog>
 <script src="./assets/js/globe.js?v=aa16cb30bb7c"></script>
-<script src="./assets/js/theme.js?v=f6b984000c66"></script>
+<script src="./assets/js/theme.js?v=4796d7bd8e1d"></script>
 <script src="./assets/js/app.js?v=b337be14e0a0"></script>
 </body>
 </html>

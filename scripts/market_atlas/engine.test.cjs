@@ -28,5 +28,6 @@ test('local CSV import computes real data and rejects invalid schemas',async()=>
  const out=imported.market({start:'2026-01-05',end:'2026-01-06',window:1,mode:'dynamic'});assert.equal(out.pool.path[0],0);assert.ok(Math.abs(out.pool.path[1]-10)<1e-8);
  await assert.rejects(globalThis.importAtlasCsv([new File(['代码,名称\nwrong,x'],'bad.csv')],'merged'),/缺少字段/);
  await assert.rejects(globalThis.importAtlasCsv([new File([body.replaceAll('000001.SZ','600001.SH')],'000001.SZ.csv')],'directory'),/不一致/);
+ await assert.rejects(globalThis.importAtlasCsv([new File([body],'000001.SZ.csv'),new File([body],'000001.SZ.csv')],'directory'),/同名/);
  assert.equal(imported.meta.source_kind,'merged');assert.equal(imported.s,1);
 });

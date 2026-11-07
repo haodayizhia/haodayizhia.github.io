@@ -1,6 +1,6 @@
 'use strict';
 const AtlasData=(()=>{
- const base=new URL('./resources/market-atlas/',document.baseURI),worker=new Worker(new URL('data-worker.js?v='+atlasRoot.dataset.build,base));
+ const base=new URL('./resources/market-atlas/',document.baseURI),worker=new Worker(new URL('data-worker.js?v='+document.querySelector('.atlas-app').dataset.build,base));
  const pending=new Map();let next=0;
  function send(action,values={},progress){return new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject,progress});worker.postMessage({id,action,...values});});}
  function status(p){const el=document.querySelector('#loading p');if(el)el.textContent=p.message;}

@@ -41,6 +41,9 @@ jobs:
       - name: Compile content and prerender pages
         run: python3 scripts/build.py
 
+      - name: Verify mobile chart geometry and first-paint theme boot
+        run: node --test scripts/market_atlas/ui.test.cjs
+
       - name: Prepare static site artifact
         run: |
           mkdir -p _site

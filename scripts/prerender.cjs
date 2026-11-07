@@ -9,6 +9,16 @@ const sandbox = {window: {}};
 vm.runInNewContext(fs.readFileSync(path.join(root, 'assets/js/data.js'), 'utf8'), sandbox);
 const data = sandbox.window.BRO_DATA;
 const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function themeBoot(source){
+  const code='\n'+fs.readFileSync(path.join(root,'assets/js/theme-init.js'),'utf8').replace(/\r\n?/g,'\n').trim()+'\n';
+  const boot='<style data-bro-theme-canvas>html{background:#070b12;color:#edf1f7;color-scheme:dark}html[data-theme=light]{background:#f3f6fc;color:#142641;color-scheme:light}</style>\n<script data-bro-theme>'+code+'</script>';
+  source=source.replace(/<style data-bro-theme-canvas>[\s\S]*?<\/style>\s*/g,'');
+  if(source.includes('<script data-bro-theme>'))source=source.replace(/<script data-bro-theme>[\s\S]*?<\/script>/,()=>boot);
+  else source=source.replace(/<script src="\.\/assets\/js\/theme-init\.js[^\"]*"><\/script>/,()=>boot);
+  const hash=createHash('sha256').update(code).digest('base64');
+  source=source.replace(/script-src 'self'(?: 'sha256-[^']*')?/,`script-src 'self' 'sha256-${hash}'`);
+  return source;
+}
 function build(template, page, query = '', id) {
   const result = render(data, page, query);
   let source = template.replace(/<main\b[^>]*>[\s\S]*?<\/main>/, () => `<main id="view" tabindex="-1" data-render-key="${escape(result.key)}">${result.markup}</main>`);
@@ -23,7 +33,7 @@ function build(template, page, query = '', id) {
   const nav = page === 'article' ? 'articles' : page === 'resource' ? 'resources' : page;
   source = source.replace(/( data-nav="[^"]+") aria-current="page"/g, '$1');
   source = source.replace(new RegExp(`data-nav="${nav}"`, 'g'), `$& aria-current="page"`);
-  return source;
+  return themeBoot(source);
 }
 let count = 0;
 const details = new Set();
@@ -62,5 +72,5 @@ if(fs.existsSync(atlasPath)){
     const version=createHash('sha256').update(fs.readFileSync(path.join(root,url))).digest('hex').slice(0,12);
     return `${prefix}${url}?v=${version}"`;
   });
-  fs.writeFileSync(atlasPath,source);
+  fs.writeFileSync(atlasPath,themeBoot(source));
 }

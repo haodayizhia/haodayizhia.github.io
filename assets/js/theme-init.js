@@ -42,8 +42,10 @@
     mode = value;
     html.dataset.theme = value;
     html.style.colorScheme = value;
+    // The document canvas must have its color before an external stylesheet arrives.
+    html.style.backgroundColor = value === 'dark' ? '#070b12' : '#f3f6fc';
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = value === 'dark' ? '#03070d' : '#eef3fc';
+    if (meta) meta.content = value === 'dark' ? '#070b12' : '#f3f6fc';
     if (changed) window.dispatchEvent(new CustomEvent('bro:themechange', {detail:{dark:value === 'dark'}}));
     if (restoreTransitions) requestAnimationFrame(() => requestAnimationFrame(() => html.classList.add('theme-ready')));
   }

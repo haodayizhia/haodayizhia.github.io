@@ -1,8 +1,9 @@
 'use strict';
 importScripts('./engine.js'+self.location.search,'./csv.js'+self.location.search,'./snapshot.js'+self.location.search);
 let engine=null;
-async function loadPublished(url){
- const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('公开数据尚未加载，请稍后重试（'+response.status+'）。');
+let sourceRevision=0,download=null;
+async function loadPublished(url,signal){
+ const response=await fetch(url,{cache:'no-store',signal});if(!response.ok)throw Error('公开数据尚未加载，请稍后重试（'+response.status+'）。');
  const meta=await response.json();
  if(meta.format!==1||JSON.stringify(meta.fields)!==JSON.stringify(AtlasFields))throw Error('公开数据格式不兼容，请刷新页面。');
  const n=meta.dates.length,s=meta.stocks.length;
@@ -11,7 +12,7 @@ async function loadPublished(url){
  let filled=0;
  for(const chunk of meta.chunks){
   if(chunk.start!==filled||!Number.isInteger(chunk.count)||chunk.count<=0||filled+chunk.count>n||!/^[\w.-]+\.bin\.gz$/.test(chunk.file))throw Error('公开数据清单不完整。');
-  const r=await fetch(new URL(chunk.file,url),{cache:'force-cache'});if(!r.ok)throw Error('读取行情分片失败，请刷新重试（'+r.status+'）。');
+  const r=await fetch(new URL(chunk.file,url),{cache:'force-cache',signal});if(!r.ok)throw Error('读取行情分片失败，请刷新重试（'+r.status+'）。');
   if(typeof DecompressionStream==='undefined')throw Error('此浏览器不支持数据解压，请更新浏览器后重试。');
   const buffer=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
   if(buffer.byteLength!==chunk.count*s*9*4)throw Error('行情分片长度校验失败，已停止加载。');
@@ -29,8 +30,8 @@ self.onmessage=async({data})=>{
  const {id,action}=data;
  try{
   let result;
-  if(action==='load'){const next=await loadPublished(data.url);engine=next;result=engine.meta;}
-  else if(action==='import'){const next=await importAtlasCsv(data.files,data.kind,progress=>postMessage({id,progress}));engine=next;result=engine.meta;}
+  if(action==='load'){const revision=++sourceRevision;download?.abort();const controller=new AbortController();download=controller;const next=await loadPublished(data.url,controller.signal);if(revision!==sourceRevision)throw Error('已切换到更新的数据源。');engine=next;result=engine.meta;}
+  else if(action==='import'){const revision=++sourceRevision;download?.abort();const next=await importAtlasCsv(data.files,data.kind,progress=>postMessage({id,progress}));if(revision!==sourceRevision)throw Error('已切换到更新的数据源。');engine=next;result=engine.meta;}
   else if(action==='snapshot'){if(!engine)throw Error('请先导入行情数据。');result=await atlasSnapshot(engine);postMessage({id,result},result.chunks.map(c=>c.buffer));return;}
   else{if(!engine)throw Error('数据尚未准备好。');result=engine.request(data.path,data.query);}
   postMessage({id,result});

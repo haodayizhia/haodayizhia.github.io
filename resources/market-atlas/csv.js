@@ -32,8 +32,9 @@
   if(!files.length||(kind==='merged'&&files.length!==1))throw Error('请选择合并CSV或逐股CSV。');
   const total=files.reduce((s,f)=>s+f.size,0);if(total>2*1024**3)throw Error('所选CSV总大小超过2GB，请缩小数据范围。');
   const quality={files:files.length,rows:0,duplicate_rows:0,invalid_dates:0,invalid_prices:0,invalid_amounts:0,invalid_turnover:0,invalid_codes:0,industry_changes:[],errors:[],schema_errors:[],quote_missing:0,cache_hit:false,load_seconds:0};
-  const stocks=new Map(),allDates=new Map();let loaded=0,observations=0;
+  const stocks=new Map(),allDates=new Map(),filenames=new Set();let loaded=0,observations=0;
   for(const file of files){
+   if(filenames.has(file.name.toUpperCase()))throw Error('存在同名CSV文件：'+file.name);filenames.add(file.name.toUpperCase());
    let header=null,columns=null,rows=0;
    const expected=kind==='directory'?file.name.replace(/\.csv$/i,'').toUpperCase():null;
    if(expected&&!/^\d{6}\.(SH|SZ|BJ)$/.test(expected))throw Error('逐股文件名不合法：'+file.name);
