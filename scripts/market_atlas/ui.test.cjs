@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const{Chart,geometry,bounds,ticks,path:linePath}=require('../../resources/market-atlas/charts.js');
-const{rotationTrail}=require('../../resources/market-atlas/maps.js');
+const{Chart,geometry,bounds,ticks,path:linePath,rankLatest,seriesStyle,zoomDomain}=require('../../resources/market-atlas/charts.js');
+const{rotationTrail,rotationSettings}=require('../../resources/market-atlas/maps.js');
 const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
 
 test('pinch zoom preserves its date anchor and stops at data boundaries',()=>{
@@ -49,4 +49,19 @@ test('rotation trails sample actual weekly observations including the current se
  const trail=rotationTrail(row,39);assert.deepEqual(trail.map(p=>p.index),[19,24,29,34,39]);
  assert.equal(trail[0].y,null);assert.equal(trail.at(-1).x,row.x[39]);
  assert.deepEqual(rotationTrail(row,3).map(p=>p.index),[3]);
+});
+
+test('latest ranking uses the actual final session, preserves missing values last and never mutates data',()=>{
+ const rows=[{name:'B',v:[100,null]},{name:'C',v:[-100,3]},{name:'A',v:[10,3]},{name:'D',v:[99,0]}];
+ assert.deepEqual(rankLatest(rows,s=>s.v.at(-1)).map(s=>s.name),['A','C','D','B']);assert.equal(rows[0].name,'B');
+});
+test('each of 91 industries has a distinct stable hue/line-pattern pair',()=>{
+ const keys=Array.from({length:91},(_,i)=>JSON.stringify(seriesStyle(i)));assert.equal(new Set(keys).size,91);assert.deepEqual(seriesStyle(16),seriesStyle(16));
+});
+test('numeric zoom preserves its anchor, supports negative domains and is reversible',()=>{
+ assert.deepEqual(zoomDomain([-10,30],2,.25),[-5,15]);assert.deepEqual(zoomDomain(zoomDomain([-10,30],2,.25),.5,.25),[-10,30]);assert.deepEqual(zoomDomain([2,4],0),[2,4]);
+});
+test('short rotation windows use daily trails and the engine change interval',()=>{
+ for(const window of [1,5,10,20,60]){const {lag,trailStep}=rotationSettings(window);assert.equal(lag,window===1?1:5);assert.equal(trailStep,window<=5?1:window===10?2:5);}
+ const row={x:Array(20).fill(1),y:Array(20).fill(2)};assert.deepEqual(rotationTrail(row,12,rotationSettings(5).trailStep).map(p=>p.index),[8,9,10,11,12]);
 });

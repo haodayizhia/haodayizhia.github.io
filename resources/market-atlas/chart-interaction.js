@@ -57,7 +57,7 @@
       const button=el.querySelector('button');button.hidden=rows.length<=6;if(rows.length<=6){el.classList.remove('is-expanded');el.querySelector('.readout-all').hidden=true;button.setAttribute('aria-expanded','false');}button.textContent=el.classList.contains('is-expanded')?'收起列表':'全部 '+rows.length+' 项';
       const focused=rows.find(r=>r.id===focus||r.name===focus);
       const primary=owner.stock?rows.filter(r=>['收盘','涨跌','最高','最低'].includes(r.name)):rows.length<=6?rows:focused&&focused!==rows[0]?[rows[0],focused]:rows.slice(0,1);
-      const row=r=>`<div class="readout-row"><i style="background:${r.color||'var(--plot-main)'}"></i><span title="${esc(r.name)}">${esc(r.name)}</span><strong>${finite(r.value)?num(r.value,r.digits??2):'—'}<small>${finite(r.value)?esc(r.unit||''):''}</small></strong></div>`;
+      const row=r=>`<div class="readout-row"><i style="color:${r.color||'var(--plot-main)'};border-top:2px ${r.dash?'dashed':'solid'} currentColor;background:transparent"></i><span title="${esc(r.name)}">${esc(r.name)}</span><strong>${finite(r.value)?num(r.value,r.digits??2):'—'}<small>${finite(r.value)?esc(r.unit||''):''}</small></strong></div>`;
       el.querySelector('.readout-primary').innerHTML=primary.map(row).join('')+(rows.length>6&&!focused&&!owner.stock?'<span class="readout-hint">移动查看行业 · 完整数值可展开</span>':'');
       el.querySelector('.readout-all').innerHTML=rows.map(row).join('');
     },
@@ -97,7 +97,7 @@
         if(!this.touch)return;
         if(e.touches.length===2&&this.touch.pinch) {
           e.preventDefault();const [a,b]=e.touches,d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
-          handlers.zoom?.(d/this.touch.pinch,{x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2});this.touch.pinch=d;return;
+          const center={x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2};handlers.zoom?.(d/this.touch.pinch,center);handlers.panPinch?.(center.x-this.touch.x,center.y-this.touch.y);this.touch.pinch=d;this.touch.x=center.x;this.touch.y=center.y;return;
         }
         if(e.touches.length!==1||this.touch.pinch)return;
         const p=point(e.touches[0]),dx=p.x-this.touch.x,dy=p.y-this.touch.y;this.touch.last=p;

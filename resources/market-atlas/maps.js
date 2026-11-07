@@ -41,16 +41,17 @@
     inspect(p){const r=this.surface.getBoundingClientRect();this.index=clamp(Math.floor((p.x-r.left+this.surface.scrollLeft)/this.cellWidth),0,this.dates.length-1);this.row=clamp(Math.floor((p.y-r.top+this.surface.scrollTop)/this.rowHeight),0,this.rows.length-1);this.onInspect?.(this.index,this);this.updateCursor();this.show(p);}
     show(p){root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index,this.row),x:p.x,y:p.y});}
   }
-  // Weekly samples of the actual 20/60-session excess series; no curve smoothing.
+  function rotationSettings(window){return{lag:window===1?1:5,trailStep:window<=5?1:window===10?2:5};}
+  // Sample actual observations; daily mode remains available without artificial smoothing.
   function rotationTrail(row,index,step=5,count=5){
     const out=[];for(let n=count-1;n>=0;n--){const i=index-n*step;if(i>=0)out.push({index:i,x:row.x[i],y:row.y[i]});}return out;
   }
   let scatterId=0;
   class Scatter {
     constructor(host,options) {
-      this.host=host;Object.assign(this,options);this.index=this.dates.length-1;this.independentDate=true;this.id=++scatterId;this.abort=new AbortController();
+      this.host=host;Object.assign(this,options);Object.assign(this,rotationSettings(this.lookback));this.index=this.dates.length-1;this.independentDate=true;this.id=++scatterId;this.abort=new AbortController();
       host.classList.add('scatter-host');
-      host.innerHTML=toolbar('行业中期强弱与改善方向')+`<div class="rotation-controls"><div class="rotation-pickers"><label><span class="sr-only">轮动观察窗口</span><select class="rotation-window"><option value="20" ${this.lookback===20?'selected':''}>20日轮动</option><option value="60" ${this.lookback===60?'selected':''}>60日轮动</option></select></label><label><span class="sr-only">固定观察行业</span><select class="rotation-industry"><option value="">指向行业查看轨迹</option></select></label></div><div class="rotation-timeline"><button data-time="prev" aria-label="前一交易日">‹</button><button data-time="play" aria-label="播放行业轮动">播放</button><button data-time="next" aria-label="后一交易日">›</button><input type="range" min="0" max="${this.dates.length-1}" step="1" value="${this.index}" aria-label="轮动时间"><span class="timeline-extent">${this.dates[0].slice(0,7)} — ${this.dates.at(-1).slice(0,7)}</span></div></div><div class="chart-readout"></div><div class="chart-canvas"><svg class="atlas-scatter" tabindex="0" role="img"></svg><div class="rotation-input" aria-hidden="true"></div></div><p class="rotation-explanation">横轴：近${this.lookback}日行业收益减股票池收益；纵轴：这项超额近5日的变化。右侧跑赢，上方改善。仅展示当前观察行业的轨迹，每5个交易日一个点，箭头指向当前日期。拖动上方时间轴可跨月查看。</p>`;
+      host.innerHTML=toolbar('行业强弱与变化方向')+`<div class="rotation-controls"><div class="rotation-pickers"><label><span class="sr-only">轮动观察窗口</span><select class="rotation-window">${[1,5,10,20,60].map(n=>`<option value="${n}" ${this.lookback===n?'selected':''}>${n===1?'当日':n+'日'}轮动</option>`).join('')}</select></label><label><span class="sr-only">固定观察行业</span><select class="rotation-industry"><option value="">指向行业查看轨迹</option></select></label></div><div class="rotation-timeline"><button data-time="prev" aria-label="前一交易日">‹</button><button data-time="play" aria-label="播放行业轮动">播放</button><button data-time="next" aria-label="后一交易日">›</button><input type="range" min="0" max="${this.dates.length-1}" step="1" value="${this.index}" aria-label="轮动时间"><span class="timeline-extent">${this.dates[0].slice(0,7)} — ${this.dates.at(-1).slice(0,7)}</span></div></div><div class="chart-readout"></div><div class="chart-canvas"><svg class="atlas-scatter" tabindex="0" role="img"></svg><div class="rotation-input" aria-hidden="true"></div></div><p class="rotation-explanation">横轴：近${this.lookback}日行业收益减股票池收益；纵轴：这项超额近${this.lag}日的变化。右侧跑赢，上方改善。仅展示当前观察行业的轨迹，每${this.trailStep}个交易日一个点，箭头指向当前日期。拖动上方时间轴可跨月查看。</p>`;
       this.surface=host.querySelector('.chart-canvas');this.svg=host.querySelector('svg');this.timeline=host.querySelector('input[type=range]');root.AtlasInspector.mount(this);
       this.fillIndustryPicker();
       host.addEventListener('click',e=>{const a=e.target.closest('[data-map-action]')?.dataset.mapAction;if(a==='in')this.zoom(1.6);if(a==='out')this.zoom(1/1.6);if(a==='reset')this.reset();if(a==='expand')root.AtlasFullscreen.open(host,'行业轮动 · 独立时间轴');const t=e.target.closest('[data-time]')?.dataset.time;if(t==='play')this.play();if(t==='prev'||t==='next'){this.pause();this.setIndex(this.index+(t==='prev'?-1:1));}},{signal:this.abort.signal});
@@ -76,7 +77,7 @@
       this.surface.style.height=this.h+'px';this.svg.setAttribute('viewBox',`0 0 ${this.w} ${this.h}`);this.g=root.AtlasCharts.geometry(this.w,this.h);
       const visible=this.rows.filter(r=>this.selected.has(r.name));
       this.points=visible.map(row=>({...row,x:row.x[this.index],y:row.y[this.index]})).filter(p=>finite(p.x)&&finite(p.y));
-      if(!this.domain){let x=1,y=1;for(const row of visible)for(let i=Math.max(0,this.index-20);i<=this.index;i++){if(finite(row.x[i]))x=Math.max(x,Math.abs(row.x[i]));if(finite(row.y[i]))y=Math.max(y,Math.abs(row.y[i]));}const nice=v=>{const n=v*1.1,p=10**Math.floor(Math.log10(n));return([1,2,3,5,8,10].find(k=>k>=n/p)||10)*p;};x=nice(x);y=nice(y);this.domain=[-x,x,-y,y];}
+      if(!this.domain){let x=1,y=1;for(const row of visible)for(let i=Math.max(0,this.index-this.trailStep*4);i<=this.index;i++){if(finite(row.x[i]))x=Math.max(x,Math.abs(row.x[i]));if(finite(row.y[i]))y=Math.max(y,Math.abs(row.y[i]));}const nice=v=>{const n=v*1.1,p=10**Math.floor(Math.log10(n));return([1,2,3,5,8,10].find(k=>k>=n/p)||10)*p;};x=nice(x);y=nice(y);this.domain=[-x,x,-y,y];}
       const [a,b,c,d]=this.domain,g=this.g;this.X=x=>g.left+(x-a)/(b-a)*g.width;this.Y=y=>g.bottom-(y-c)/(d-c)*g.height;
       const clip='rotationClip'+this.id,arrow='rotationArrow'+this.id;
       let html=`<defs><clipPath id="${clip}"><rect x="${g.left}" y="${g.top}" width="${g.width}" height="${g.height}"/></clipPath><marker id="${arrow}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0L10,5L0,10" fill="var(--plot-gold)"/></marker></defs>`;
@@ -87,7 +88,7 @@
       const quadrant=(x,y,text)=>`<text class="quadrant-label" x="${x}" y="${y}">${text}</text>`;
       html+=quadrant(g.left+8,g.top+18,'落后改善')+quadrant(g.right-70,g.top+18,'领先增强')+quadrant(g.left+8,g.bottom-13,'落后走弱')+quadrant(g.right-70,g.bottom-13,'领先减弱');
       html+=`<g clip-path="url(#${clip})">`;
-      const row=visible.find(r=>r.name===this.focus);this.trail=row?rotationTrail(row,this.index):[];
+      const row=visible.find(r=>r.name===this.focus);this.trail=row?rotationTrail(row,this.index,this.trailStep):[];
       if(row){let trail='',open=false;for(const p of this.trail){if(!finite(p.x)||!finite(p.y)){open=false;continue;}trail+=(open?'L':'M')+this.X(p.x)+','+this.Y(p.y);open=true;}html+=`<path class="rotation-trail" d="${trail}" fill="none" stroke="var(--plot-gold)" stroke-width="1.8" marker-end="url(#${arrow})"/>`;for(const p of this.trail)if(finite(p.x)&&finite(p.y))html+=`<circle class="trail-sample" cx="${this.X(p.x)}" cy="${this.Y(p.y)}" r="2.8" fill="var(--plot-gold)"/>`;}
       for(const p of this.points){const x=this.X(p.x),y=this.Y(p.y),chosen=p.name===this.focus;html+=`<g data-point="${esc(p.name)}" role="button" tabindex="0" aria-label="${esc(p.name)}，超额${num(p.x)}，改善${num(p.y)}" aria-pressed="${chosen}"><circle cx="${x}" cy="${y}" r="${chosen?6:3.5}" fill="${chosen?'var(--plot-gold)':'var(--plot-blue)'}" opacity="${chosen?1:.55}"/></g>`;}
       html+='</g>';
@@ -95,12 +96,12 @@
       if(!this.points.length)html+=`<text class="axis-label" x="${(g.left+g.right)/2}" y="${(g.top+g.bottom)/2}" text-anchor="middle">${visible.length?'历史不足，向后选择交易日':'请在行业对比中选择行业'}</text>`;
       this.svg.innerHTML=html;this.svg.dataset.date=this.dates[this.index];this.svg.dataset.focus=this.focus||'';this.svg.setAttribute('aria-label','行业轮动：右侧跑赢，上方改善；移动查看行业，点按固定，时间轴独立于其他图表。');
       this.host.querySelector('.rotation-industry').value=this.pinned||'';
-      root.AtlasInspector.render(this,{date:this.dates[this.index]+(this.pinned?' · 已固定':''),rows:point?[{name:point.name+' · '+this.lookback+'日超额',value:point.x,unit:'个百分点',color:'var(--plot-gold)'},{name:'近5日超额改善',value:point.y,unit:'个百分点',color:'var(--plot-gold)'}]:[{name:'移动指针或拖动查看行业',value:null}]});
+      root.AtlasInspector.render(this,{date:this.dates[this.index]+(this.pinned?' · 已固定':''),rows:point?[{name:point.name+' · '+this.lookback+'日超额',value:point.x,unit:'个百分点',color:'var(--plot-gold)'},{name:'近'+this.lag+'日超额改善',value:point.y,unit:'个百分点',color:'var(--plot-gold)'}]:[{name:'移动指针或拖动查看行业',value:null}]});
     }
     nearest(p){const r=this.surface.getBoundingClientRect(),x=p.x-r.left,y=p.y-r.top;let best=null,distance=Infinity;for(const point of this.points){const px=this.X(point.x),py=this.Y(point.y);if(px<this.g.left||px>this.g.right||py<this.g.top||py>this.g.bottom)continue;const d=Math.hypot(px-x,py-y);if(d<distance){distance=d;best=point;}}return best;}
     pick(p){const point=this.nearest(p);if(point){this.pinned=this.pinned===point.name?'':point.name;this.focus=point.name;this.draw();}}
     inspect(p){const point=this.nearest(p);if(point&&this.focus!==point.name){this.focus=point.name;this.draw();}}
   }
-  root.AtlasMaps={Heatmap,Scatter,rotationTrail};
-  if(typeof module!=='undefined')module.exports={rotationTrail};
+  root.AtlasMaps={Heatmap,Scatter,rotationTrail,rotationSettings};
+  if(typeof module!=='undefined')module.exports={rotationTrail,rotationSettings};
 })(globalThis);
