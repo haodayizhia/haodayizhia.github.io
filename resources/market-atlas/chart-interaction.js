@@ -47,7 +47,7 @@
       if(!el.firstElementChild){
         el.innerHTML='<div class="readout-head"><time></time><button class="readout-unpin" type="button" title="取消当前关注" aria-label="取消当前关注" hidden>×</button><a class="readout-drill" hidden></a><button class="readout-toggle" type="button" aria-expanded="false"></button></div><div class="readout-primary"></div><div class="readout-all" hidden></div>';
         el.querySelector('.readout-toggle').addEventListener('click',()=>{const open=el.classList.toggle('is-expanded');if(open)el.renderAll?.();el.querySelector('.readout-all').hidden=!open;el.querySelector('.readout-toggle').setAttribute('aria-expanded',String(open));el.querySelector('.readout-toggle').textContent=open?'收起列表':'全部 '+el.dataset.rows+' 项';window.dispatchEvent(new Event('resize'));});
-        el.querySelector('.readout-unpin').addEventListener('click',()=>{const owner=el.owner;owner.pinned=null;owner.focus=null;owner.draw();});
+        el.querySelector('.readout-unpin').addEventListener('click',()=>{const owner=el.owner;owner.clearInspection?.();});
         el.addEventListener('pointerdown',()=>el.owner?.pause?.());
         el.addEventListener('click',e=>{const link=e.target.closest('[data-open-series]');if(link&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey&&e.button===0){e.preventDefault();el.owner?.onOpenSeries?.(link.dataset.openSeries);}});
       }
@@ -82,7 +82,14 @@
       on('pointermove',e=>{if(e.pointerType==='touch')return;this.mouse?handlers.drag?.(point(e),this.mouse):handlers.inspect?.(point(e));});
       on('pointerup',e=>{if(e.pointerType==='touch')return;handlers.end?.(point(e),this.mouse);this.mouse=null;});
       on('pointercancel',()=>{this.mouse=null;handlers.cancel?.();});
-      on('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse)inspector.hide();});
+      on('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse){handlers.dismiss?.(true);inspector.hide();}});
+      const owner=handlers.owner;
+      if(owner){
+        const outside=e=>{if(!owner.host.contains(e.target)&&!owner.readout?.contains(e.target))handlers.dismiss?.(false);};
+        document.addEventListener('pointerdown',outside,{signal});
+        document.addEventListener('touchstart',outside,{passive:true,signal});
+        owner.host.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse&&!owner.readout?.contains(e.relatedTarget))handlers.dismiss?.(false);},{signal});
+      }
       if(handlers.wheel!==false)on('wheel',e=>{e.preventDefault();handlers.zoom?.(Math.exp(-e.deltaY*.002),point(e));},{passive:false});
       on('dblclick',e=>{e.preventDefault();handlers.reset?.();});
       on('touchstart',e=>{

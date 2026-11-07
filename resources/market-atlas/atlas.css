@@ -53,8 +53,8 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 /* A stable hue and dash identity for each industry in both site themes. */
 .atlas-app{--plot-c1:#246bb1;--plot-c2:#9b660d;--plot-c3:#147b68;--plot-c4:#9345a4;--plot-c5:#bc4e39;--plot-c6:#5c7722;--plot-c7:#5859b6;--plot-c8:#a84779;--plot-c9:#147e99;--plot-c10:#8c741f;--plot-c11:#5f666a;--plot-c12:#8d5833;--plot-blue:var(--plot-c1);--plot-gold:var(--plot-c2);--plot-teal:var(--plot-c3);--plot-purple:var(--plot-c4);--plot-red:var(--plot-c5);--plot-slate:var(--plot-c11)}
 :root[data-theme=dark] .atlas-app{--plot-c1:#7db8f0;--plot-c2:#f2bd63;--plot-c3:#68d0bb;--plot-c4:#dd9bea;--plot-c5:#ef998b;--plot-c6:#b9d47a;--plot-c7:#91a1f3;--plot-c8:#eaa9c8;--plot-c9:#72c9dd;--plot-c10:#d7c494;--plot-c11:#b8b1a0;--plot-c12:#c29a70;--plot-blue:var(--plot-c1);--plot-gold:var(--plot-c2);--plot-teal:var(--plot-c3);--plot-purple:var(--plot-c4);--plot-red:var(--plot-c5);--plot-slate:var(--plot-c11)}
-.chart-input{position:absolute;inset:0;touch-action:pan-y;cursor:crosshair}.plot-overlay{pointer-events:none}.atlas-app .plot-actions .zoom-axis{font-size:11px;min-height:32px;max-width:90px;padding:4px 6px;margin-right:5px;align-self:center}.readout-row{grid-template-columns:16px minmax(0,1fr) auto}.readout-row i{width:16px}.comparison-order{margin:10px 0 0!important;font-size:11px!important;color:var(--muted)}
-@media(max-width:760px){.atlas-app .plot-actions .zoom-axis{font-size:10px;max-width:73px;padding:4px 3px;margin-right:3px}.plot-toolbar{gap:5px}.plot-toolbar .chart-label{font-size:10px}.readout-row{grid-template-columns:14px minmax(0,1fr) auto}.readout-row i{width:14px}}
+.chart-input{position:absolute;inset:0;touch-action:pan-y;cursor:crosshair}.plot-overlay{pointer-events:none}.readout-row{grid-template-columns:16px minmax(0,1fr) auto}.readout-row i{width:16px}.comparison-order{margin:10px 0 0!important;font-size:11px!important;color:var(--muted)}
+@media(max-width:760px){.plot-toolbar{gap:5px}.plot-toolbar .chart-label{font-size:10px}.readout-row{grid-template-columns:14px minmax(0,1fr) auto}.readout-row i{width:14px}}
 
 .plot-toolbar>div:first-child{min-width:0;flex:1}.plot-toolbar .chart-label,.plot-toolbar .chart-window{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 
@@ -67,3 +67,14 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 
 .industry-viewbar .plot-views{gap:12px;align-items:center}.industry-viewbar .plot-views [data-atlas-back]{min-width:28px}.industry-return{font-size:14px;color:var(--muted);min-height:40px;display:flex;align-items:center}.industry-return:hover{text-decoration:underline;color:var(--ink)}@media(max-width:760px){.industry-return{font-size:12px}.industry-viewbar .plot-views{gap:10px}}
 .stock-search-hint{font-size:11px!important;color:var(--muted);padding:8px 10px;line-height:1.7}
+
+/* Reserve emphasis for the current view, comparison and detail actions. */
+.atlas-app .compare-trigger,.atlas-app .readout-head .readout-toggle{background:color-mix(in srgb,var(--plot-blue) 9%,var(--bg));border:1px solid color-mix(in srgb,var(--plot-blue) 45%,var(--line));color:var(--ink);font-weight:500}
+.atlas-app .compare-trigger span{color:var(--plot-blue);font-weight:600}
+.atlas-app .readout-drill{padding:6px 10px;min-height:34px;border:1px solid var(--plot-blue);border-radius:3px;background:var(--plot-blue);color:var(--bg);font-weight:600;text-decoration:none}
+.atlas-app .readout-drill:hover{filter:brightness(1.08)}
+.atlas-app .readout-open{color:var(--plot-blue);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--plot-blue) 40%,transparent);text-underline-offset:4px}
+.atlas-app .plot-actions button:last-child{border:1px solid var(--line);background:var(--subtle);color:var(--ink);font-weight:500;white-space:nowrap}
+.atlas-app .plot-views button[aria-pressed=true],.atlas-app .atlas-view-tabs button[aria-selected=true]{color:var(--plot-blue);border-bottom:2px solid var(--plot-blue);font-weight:600}
+.atlas-app .heat-names button{color:var(--ink)}
+@media(max-width:760px){.atlas-app .readout-drill{padding:6px 8px}.atlas-app .plot-actions button{min-height:40px}.atlas-app .compare-trigger{min-height:40px}.readout-head{flex-wrap:wrap}.readout-head time{flex:1;min-width:80px}}

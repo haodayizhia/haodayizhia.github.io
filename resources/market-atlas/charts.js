@@ -33,21 +33,19 @@
     anchor=clamp(anchor,0,1);const width=clamp((range[1]-range[0])/factor,1e-9,1e12),pivot=range[0]+(range[1]-range[0])*anchor;
     return[pivot-width*anchor,pivot+width*(1-anchor)];
   }
-  const zoomControl='<select class="zoom-axis" aria-label="缩放坐标轴"><option value="both">双轴</option><option value="x">时间轴</option><option value="y">数值轴</option></select>';
   let chartId=0;
   class Chart {
     constructor(host,options) {
-      this.host=host;Object.assign(this,{unit:'%',label:'',kind:'lines',stock:null,log:false,compact:false,onInspect:()=>{},onRange:()=>{},onYRange:()=>{},onAxisChange:()=>{},zoomAxis:'both'},options);
+      this.host=host;Object.assign(this,{unit:'%',label:'',kind:'lines',stock:null,log:false,compact:false,onInspect:()=>{},onRange:()=>{},onYRange:()=>{},inspectionActive:false},options);
       this.id=++chartId;this.index=this.dates.length-1;this.view=[0,Math.max(0,this.dates.length-1)];this.axisValue=null;this.revision=0;
       this.abort=new AbortController();
       host.classList.add('chart-host');
-      host.innerHTML=`${this.compact?`<header class="mini-chart-head"><h3>${escape(this.label)}</h3><dl class="chart-values"></dl></header>`:`<div class="plot-toolbar"><div><span class="chart-label">${escape(this.label)}</span><span class="chart-window"></span></div><div class="plot-actions">${zoomControl}<button data-chart-action="out" aria-label="缩小图表">−</button><button data-chart-action="in" aria-label="放大图表">＋</button><button data-chart-action="reset">复原</button><button data-chart-action="expand">全屏</button></div></div><div class="chart-readout"></div>`}<div class="chart-canvas"><svg class="atlas-chart" tabindex="0" role="img"></svg><div class="chart-input" aria-hidden="true"></div></div>`;
+      host.innerHTML=`${this.compact?`<header class="mini-chart-head"><h3>${escape(this.label)}</h3><dl class="chart-values"></dl></header>`:`<div class="plot-toolbar"><div><span class="chart-label">${escape(this.label)}</span><span class="chart-window"></span></div><div class="plot-actions"><button data-chart-action="out" aria-label="缩小图表" title="同时缩小时间与数值范围">−</button><button data-chart-action="in" aria-label="放大图表" title="同时放大时间与数值范围">＋</button><button data-chart-action="reset">复原</button><button data-chart-action="expand">⛶ 全屏</button></div></div><div class="chart-readout"></div>`}<div class="chart-canvas"><svg class="atlas-chart" tabindex="0" role="img"></svg><div class="chart-input" aria-hidden="true"></div></div>`;
       this.surface=host.querySelector('.chart-canvas');this.svg=host.querySelector('svg');this.values=host.querySelector('.chart-values');root.AtlasInspector.mount(this,this.readoutHost);
       host.addEventListener('click',e=>{const action=e.target.closest('[data-chart-action]')?.dataset.chartAction;if(action==='in')this.zoom(1.7);if(action==='out')this.zoom(1/1.7);if(action==='reset')this.reset();if(action==='expand')root.AtlasFullscreen.open(this.host,this.label);const remove=e.target.closest('[data-remove-series]');if(remove)this.onRemove?.(remove.dataset.removeSeries);},{signal:this.abort.signal});
-      const axis=host.querySelector('.zoom-axis');if(axis){axis.value=this.zoomAxis;axis.addEventListener('change',e=>{this.zoomAxis=e.target.value;this.onAxisChange(this.zoomAxis);},{signal:this.abort.signal});}
       this.svg.addEventListener('keydown',e=>this.key(e),{signal:this.abort.signal});
       this.gesture=new root.AtlasGesture(this.surface,{
-        inspect:p=>this.inspect(p),tap:p=>this.select(p),
+        owner:this,dismiss:keep=>{this.clearInspection(keep);this.onDismiss?.(keep,this);},inspect:p=>this.inspect(p),tap:p=>this.select(p),
         start:()=>{this.dragView=[...this.view];this.dragY=[this.lo,this.hi];},
         drag:(p,start)=>{if(start.shift){this.brush=[this.local(start).x,this.local(p).x];this.updateOverlay();}else if(this.canPan()){this.pan(p.x-start.x,this.dragView,p.y-start.y,this.dragY);}else this.inspect(p);},
         end:(p,start)=>{if(start?.shift&&this.brush&&Math.abs(this.brush[1]-this.brush[0])>12){const a=this.indexAt(Math.min(...this.brush)),b=this.indexAt(Math.max(...this.brush));this.setRange(a,b,true);}else if(start&&Math.hypot(p.x-start.x,p.y-start.y)<7)this.select(p);this.brush=null;this.updateOverlay();},
@@ -72,8 +70,8 @@
     setDateRange(start,end){const a=this.dates.indexOf(start),b=this.dates.indexOf(end);if(a>=0&&b>=a)this.setRange(a,b);}
     setYRange(range,notify=false){this.yView=range&&[...range];this.sceneKey='';this.draw();if(notify)this.onYRange(this.yView);}
     zoom(factor,p,axis){
-      if(!this.hasData||!this.g)return;axis=axis||this.zoomAxis;
-      const q=p&&this.local(p);if(!arguments[2]&&q){if(q.x<this.g.left)axis='y';else if(q.y>this.g.bottom)axis='x';}
+      if(!this.hasData||!this.g)return;axis=axis||'both';
+      const q=p&&this.local(p);
       if(axis!=='x'){const anchor=q?clamp((this.g.bottom-q.y)/this.g.height,0,1):.5;this.yView=zoomDomain([this.lo,this.hi],factor,anchor);this.sceneKey='';}
       if(axis!=='y'){
         const anchor=q?clamp((q.x-this.g.left)/this.g.width,0,1):clamp((this.index-this.view[0])/(this.view[1]-this.view[0]||1),0,1);
@@ -84,8 +82,8 @@
     zoomY(factor,p){this.zoom(factor,p,'y');}
     pan(dx,start,dy=0,yStart){
       if(!start)return;const span=start[1]-start[0],a=clamp(start[0]-dx/this.g.width*span,0,this.dates.length-1-span);
-      if(this.yView&&yStart&&this.zoomAxis!=='x'){const shift=dy/this.g.height*(yStart[1]-yStart[0]);this.yView=yStart.map(v=>v+shift);this.onYRange(this.yView);}
-      if(this.zoomAxis!=='y'&&this.canPanX())this.setRange(a,a+span,true);else{this.sceneKey='';this.draw();}
+      if(this.yView&&yStart){const shift=dy/this.g.height*(yStart[1]-yStart[0]);this.yView=yStart.map(v=>v+shift);this.onYRange(this.yView);}
+      if(this.canPanX())this.setRange(a,a+span,true);else{this.sceneKey='';this.draw();}
     }
     reset(){this.yView=null;this.onYRange(null);this.setRange(0,this.dates.length-1,true);}
     setSeries(series){if(!series.some(s=>s.id===this.pinned))this.pinned=null;if(!series.some(s=>s.id===this.focus))this.focus=null;this.series=series;this.revision++;this.sceneKey='';this.draw();}
@@ -102,9 +100,10 @@
       }
       return this.series.map(s=>({id:s.id,name:s.name,detail:s.detail,canOpen:!!this.onOpenSeries&&!s.reference,openLabel:this.openLabel,value:s.values[this.index],color:s.color,dash:s.dash,unit:this.unit}));
     }
+    clearInspection(keepReadout=false){this.inspectionActive=false;this.axisValue=null;this.brush=null;if(!keepReadout){this.focus=null;this.pinned=null;}this.updateOverlay();this.updateValues();}
     select(p){this.inspect(p,true);this.pinned=this.pinned===this.focus?null:this.focus;this.updateOverlay();this.updateValues();}
     inspect(p,force=false) {
-      if(!this.hasData||!this.g)return;const q=this.local(p);
+      if(!this.hasData||!this.g)return;this.inspectionActive=true;const q=this.local(p);
       if(q.x<0||q.x>this.w||q.y<0||q.y>this.h)return;
       this.index=this.indexAt(q.x);const t=clamp((this.g.bottom-q.y)/this.g.height,0,1);this.axisValue=this.inverse(this.lo+t*(this.hi-this.lo));
       this.focus=!force&&this.pinned?this.pinned:this.series.filter(s=>!s.reference&&finite(s.values[this.index])&&this.Y(s.values[this.index])>=this.g.top&&this.Y(s.values[this.index])<=this.g.bottom).sort((a,b)=>Math.abs(this.Y(a.values[this.index])-q.y)-Math.abs(this.Y(b.values[this.index])-q.y))[0]?.id;
@@ -113,10 +112,10 @@
     }
     key(e) {
       if(e.key==='Enter'&&this.focus&&this.onOpenSeries){e.preventDefault();this.onOpenSeries(this.focus);return;}
-      if(e.key==='Escape'){this.pinned=null;this.focus=null;this.updateOverlay();this.updateValues();return;}
+      if(e.key==='Escape'){this.clearInspection();this.onDismiss?.(false,this);return;}
       if(['+','=','-','0','f'].includes(e.key)){e.preventDefault();if(e.key==='0')this.reset();else if(e.key==='f')root.AtlasFullscreen.open(this.host,this.label);else this.zoom(e.key==='-'?1/1.7:1.7);return;}
       if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;
-      e.preventDefault();if(e.key==='ArrowLeft'||e.key==='ArrowRight')this.setIndex(this.index+(e.key==='ArrowLeft'?-1:1),{reveal:true});
+      this.inspectionActive=true;e.preventDefault();if(e.key==='ArrowLeft'||e.key==='ArrowRight')this.setIndex(this.index+(e.key==='ArrowLeft'?-1:1),{reveal:true});
       else this.axisValue=(this.axisValue??this.series[0]?.values[this.index]??0)+(e.key==='ArrowUp'?1:-1)*(this.hi-this.lo)/100;
       this.onInspect(this.index,this);this.updateOverlay();this.updateValues();const r=this.surface.getBoundingClientRect();root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.getRows(),x:r.right-30,y:r.top+60,axis:`纵轴 ${number(this.axisValue)}${this.unit}`});
     }
@@ -162,16 +161,16 @@
     }
     updateOverlay() {
       const layer=this.svg.querySelector('.plot-overlay');if(!layer||!this.hasData)return;
-      const i=this.index,g=this.g,value=this.axisValue??this.series[0]?.values[i];let html='';
-      if(i>=this.view[0]&&i<=this.view[1]){
+      const i=this.index,g=this.g,focus=this.inspectionActive?this.focus:null,value=this.inspectionActive?(this.axisValue??this.series[0]?.values[i]):null;let html='';
+      if(this.inspectionActive&&i>=this.view[0]&&i<=this.view[1]){
         const x=this.X(i);
-        if(this.series.length>12)for(const s of this.series)if(s.reference||s.id===this.focus)html+=`<path class="focus-trace" d="${path(s.values,this.X,this.Y,Math.max(0,Math.floor(this.view[0])-1),Math.min(this.dates.length-1,Math.ceil(this.view[1])+1))}" clip-path="url(#plotClip${this.id})" fill="none" stroke="${s.color||'var(--plot-main)'}" stroke-width="${s.reference?2.3:2.8}" stroke-dasharray="${s.dash||''}"/>`;
+        if(this.series.length>12)for(const s of this.series)if(s.reference||s.id===focus)html+=`<path class="focus-trace" d="${path(s.values,this.X,this.Y,Math.max(0,Math.floor(this.view[0])-1),Math.min(this.dates.length-1,Math.ceil(this.view[1])+1))}" clip-path="url(#plotClip${this.id})" fill="none" stroke="${s.color||'var(--plot-main)'}" stroke-width="${s.reference?2.3:2.8}" stroke-dasharray="${s.dash||''}"/>`;
         html+=`<path class="crosshair" d="M${x},${g.top}V${this.stock?this.h-34:g.bottom}"/>`;
-        for(const s of this.series)if((this.series.length<=8||s.reference||s.id===this.focus)&&finite(s.values[i])&&this.Y(s.values[i])>=g.top&&this.Y(s.values[i])<=g.bottom)html+=`<circle cx="${x}" cy="${this.Y(s.values[i])}" r="3.2" fill="${s.color||'var(--plot-main)'}" stroke="var(--bg)" stroke-width="1.3"/>`;
+        for(const s of this.series)if((this.series.length<=8||s.reference||s.id===focus)&&finite(s.values[i])&&this.Y(s.values[i])>=g.top&&this.Y(s.values[i])<=g.bottom)html+=`<circle cx="${x}" cy="${this.Y(s.values[i])}" r="3.2" fill="${s.color||'var(--plot-main)'}" stroke="var(--bg)" stroke-width="1.3"/>`;
       }
       if(finite(value)&&this.Y(value)>=g.top&&this.Y(value)<=g.bottom){const y=this.Y(value);html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${g.left-5}" height="22" rx="2"/><text class="axis-tag-text" x="${g.left-10}" y="${y+4}" text-anchor="end">${number(value)}</text>`;}
       if(this.brush){const left=clamp(Math.min(...this.brush),g.left,g.right),right=clamp(Math.max(...this.brush),g.left,g.right);html+=`<rect class="zoom-brush" x="${left}" y="${g.top}" width="${right-left}" height="${g.height}"/>`;}
-      layer.innerHTML=html;const styleKey=this.revision+'|'+this.focus;if(this.lastStyleKey!==styleKey){const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===this.focus,reference=references.has(line.dataset.series);line.style.opacity=this.series.length>12&&!reference&&!active?(this.focus?'.22':'.55'):'1';line.style.strokeWidth=active?'2.5':'';}this.lastStyleKey=styleKey;}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
+      layer.innerHTML=html;const styleKey=this.revision+'|'+focus;if(this.lastStyleKey!==styleKey){const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===focus,reference=references.has(line.dataset.series);line.style.opacity=this.series.length>12&&!reference&&!active?(focus?'.22':'.55'):'1';line.style.strokeWidth=active?'2.5':'';}this.lastStyleKey=styleKey;}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
     }
     updateValues() {
       const i=this.index,time=this.host.querySelector('.chart-date');if(time)time.textContent=this.dates[i];
@@ -181,6 +180,6 @@
       this.values.innerHTML=this.series.map(s=>`<div><dt><i style="background:${s.color||'var(--plot-main)'}"></i>${escape(s.name)}</dt><dd>${number(s.values[i])}<small>${finite(s.values[i])?escape(this.unit):''}</small></dd>${s.removable?`<button data-remove-series="${escape(s.id)}" aria-label="移除${escape(s.name)}">×</button>`:''}</div>`).join('');
     }
   }
-  root.AtlasCharts={Chart,geometry,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,zoomDomain,zoomControl};
+  root.AtlasCharts={Chart,geometry,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,zoomDomain};
   if(typeof module!=='undefined')module.exports={Chart,geometry,bounds,ticks,path,rankLatest,seriesStyle,zoomDomain};
 })(globalThis);
