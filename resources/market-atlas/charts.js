@@ -47,10 +47,10 @@
       const axis=host.querySelector('.zoom-axis');if(axis){axis.value=this.zoomAxis;axis.addEventListener('change',e=>{this.zoomAxis=e.target.value;this.onAxisChange(this.zoomAxis);},{signal:this.abort.signal});}
       this.svg.addEventListener('keydown',e=>this.key(e),{signal:this.abort.signal});
       this.gesture=new root.AtlasGesture(this.surface,{
-        inspect:p=>this.inspect(p),tap:p=>this.inspect(p),
+        inspect:p=>this.inspect(p),tap:p=>this.select(p),
         start:()=>{this.dragView=[...this.view];this.dragY=[this.lo,this.hi];},
         drag:(p,start)=>{if(start.shift){this.brush=[this.local(start).x,this.local(p).x];this.updateOverlay();}else if(this.canPan()){this.pan(p.x-start.x,this.dragView,p.y-start.y,this.dragY);}else this.inspect(p);},
-        end:(p,start)=>{if(start?.shift&&this.brush&&Math.abs(this.brush[1]-this.brush[0])>12){const a=this.indexAt(Math.min(...this.brush)),b=this.indexAt(Math.max(...this.brush));this.setRange(a,b,true);}else if(start&&Math.hypot(p.x-start.x,p.y-start.y)<7)this.inspect(p);this.brush=null;this.updateOverlay();},
+        end:(p,start)=>{if(start?.shift&&this.brush&&Math.abs(this.brush[1]-this.brush[0])>12){const a=this.indexAt(Math.min(...this.brush)),b=this.indexAt(Math.max(...this.brush));this.setRange(a,b,true);}else if(start&&Math.hypot(p.x-start.x,p.y-start.y)<7)this.select(p);this.brush=null;this.updateOverlay();},
         cancel:()=>{this.brush=null;},canPan:()=>this.canPan(),zoom:(factor,p)=>this.zoom(factor,p),panPinch:(dx,dy)=>this.pan(dx,[...this.view],dy,[this.lo,this.hi]),reset:()=>this.reset()
       });
       this.observer=new ResizeObserver(()=>this.draw());this.observer.observe(this.surface);
@@ -60,7 +60,7 @@
     canPan(){return this.canPanX()||!!this.yView;}
     canPanX(){return this.view[1]-this.view[0]<this.dates.length-1-.1;}
     local(p){const r=this.surface.getBoundingClientRect();return {x:p.x-r.left,y:p.y-r.top};}
-    indexAt(x){return clamp(Math.round(this.view[0]+(x-this.g.left)/this.g.width*(this.view[1]-this.view[0])),0,this.dates.length-1);}
+    indexAt(x){return clamp(Math.round(this.view[0]+(x-this.g.left)/this.g.width*(this.view[1]-this.view[0])),Math.ceil(this.view[0]),Math.floor(this.view[1]));}
     setRange(a,b,notify=false) {
       a=clamp(a,0,this.dates.length-1);b=clamp(b,a,this.dates.length-1);
       if(b-a<1&&this.dates.length>1)return;
@@ -88,7 +88,7 @@
       if(this.zoomAxis!=='y'&&this.canPanX())this.setRange(a,a+span,true);else{this.sceneKey='';this.draw();}
     }
     reset(){this.yView=null;this.onYRange(null);this.setRange(0,this.dates.length-1,true);}
-    setSeries(series){this.series=series;this.revision++;this.sceneKey='';this.draw();}
+    setSeries(series){if(!series.some(s=>s.id===this.pinned))this.pinned=null;if(!series.some(s=>s.id===this.focus))this.focus=null;this.series=series;this.revision++;this.sceneKey='';this.draw();}
     setIndex(index,{reveal=false}={}) {
       this.index=clamp(index,0,this.dates.length-1);this.axisValue=null;
       if(reveal&&(index<this.view[0]||index>this.view[1])){const span=this.view[1]-this.view[0],a=clamp(index-span/2,0,this.dates.length-1-span);this.setRange(a,a+span,true);}
@@ -100,17 +100,20 @@
         const s=this.stock,i=this.index,hasVolume=s.volume.some(finite);
         return [['开盘',s.open[i],'元'],['最高',s.high[i],'元'],['最低',s.low[i],'元'],['收盘',s.close[i],'元'],['涨跌',s.daily[i],'%'],[hasVolume?'成交量':'成交额',hasVolume?s.volume[i]:s.amount[i],hasVolume?'万股':'亿元'],...this.series.filter(s=>s.id!=='price').map(s=>[s.name,s.values[i],'元'])].map(([name,value,unit])=>({name,value,unit}));
       }
-      return this.series.map(s=>({id:s.id,name:s.name,value:s.values[this.index],color:s.color,dash:s.dash,unit:this.unit}));
+      return this.series.map(s=>({id:s.id,name:s.name,detail:s.detail,canOpen:!!this.onOpenSeries&&!s.reference,openLabel:this.openLabel,value:s.values[this.index],color:s.color,dash:s.dash,unit:this.unit}));
     }
-    inspect(p) {
+    select(p){this.inspect(p,true);this.pinned=this.pinned===this.focus?null:this.focus;this.updateOverlay();this.updateValues();}
+    inspect(p,force=false) {
       if(!this.hasData||!this.g)return;const q=this.local(p);
       if(q.x<0||q.x>this.w||q.y<0||q.y>this.h)return;
       this.index=this.indexAt(q.x);const t=clamp((this.g.bottom-q.y)/this.g.height,0,1);this.axisValue=this.inverse(this.lo+t*(this.hi-this.lo));
-      this.focus=this.series.filter(s=>!s.reference&&finite(s.values[this.index])&&this.Y(s.values[this.index])>=this.g.top&&this.Y(s.values[this.index])<=this.g.bottom).sort((a,b)=>Math.abs(this.Y(a.values[this.index])-q.y)-Math.abs(this.Y(b.values[this.index])-q.y))[0]?.id;
+      this.focus=!force&&this.pinned?this.pinned:this.series.filter(s=>!s.reference&&finite(s.values[this.index])&&this.Y(s.values[this.index])>=this.g.top&&this.Y(s.values[this.index])<=this.g.bottom).sort((a,b)=>Math.abs(this.Y(a.values[this.index])-q.y)-Math.abs(this.Y(b.values[this.index])-q.y))[0]?.id;
       this.onInspect(this.index,this);this.updateOverlay();this.updateValues();
       root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.getRows(),x:p.x,y:p.y,axis:`纵轴 ${number(this.axisValue)}${this.unit}`});
     }
     key(e) {
+      if(e.key==='Enter'&&this.focus&&this.onOpenSeries){e.preventDefault();this.onOpenSeries(this.focus);return;}
+      if(e.key==='Escape'){this.pinned=null;this.focus=null;this.updateOverlay();this.updateValues();return;}
       if(['+','=','-','0','f'].includes(e.key)){e.preventDefault();if(e.key==='0')this.reset();else if(e.key==='f')root.AtlasFullscreen.open(this.host,this.label);else this.zoom(e.key==='-'?1/1.7:1.7);return;}
       if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;
       e.preventDefault();if(e.key==='ArrowLeft'||e.key==='ArrowRight')this.setIndex(this.index+(e.key==='ArrowLeft'?-1:1),{reveal:true});
@@ -154,7 +157,7 @@
         html+=`<text class="axis-unit" x="${g.left}" y="${top+10}">${unit==='万股'?'成交量':'成交额'} / ${unit}</text>`;
         for(let i=a;i<=b;i++)if(finite(volume[i])&&max>0){const h=volume[i]/max*(bottom-top-14),cw=Math.max(1,Math.min(14,g.width/(b-a+1)*.65));html+=`<rect x="${this.X(i)-cw/2}" y="${bottom-h}" width="${cw}" height="${h}" fill="${this.stock.daily[i]>=0?'var(--rise)':'var(--fall)'}" opacity=".45"/>`;}
       }
-      this.svg.innerHTML=html+'<g class="plot-overlay"></g>';this.svg.setAttribute('aria-label',this.label+'；点按或长按查值，双指或滚轮缩放，双击复原。');
+      this.lastStyleKey=null;this.svg.innerHTML=html+'<g class="plot-overlay"></g>';this.svg.setAttribute('aria-label',this.label+'；点按或长按查值，双指或滚轮缩放，双击复原。');
       this.svg.dataset.start=String(this.view[0]);this.svg.dataset.end=String(this.view[1]);this.updateOverlay();this.updateValues();
     }
     updateOverlay() {
@@ -168,7 +171,7 @@
       }
       if(finite(value)&&this.Y(value)>=g.top&&this.Y(value)<=g.bottom){const y=this.Y(value);html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${g.left-5}" height="22" rx="2"/><text class="axis-tag-text" x="${g.left-10}" y="${y+4}" text-anchor="end">${number(value)}</text>`;}
       if(this.brush){const left=clamp(Math.min(...this.brush),g.left,g.right),right=clamp(Math.max(...this.brush),g.left,g.right);html+=`<rect class="zoom-brush" x="${left}" y="${g.top}" width="${right-left}" height="${g.height}"/>`;}
-      layer.innerHTML=html;for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===this.focus,reference=this.series.find(s=>s.id===line.dataset.series)?.reference;line.style.opacity=this.series.length>12&&!reference&&!active?(this.focus?'.22':'.55'):'1';line.style.strokeWidth=active?'2.5':'';}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
+      layer.innerHTML=html;const styleKey=this.revision+'|'+this.focus;if(this.lastStyleKey!==styleKey){const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===this.focus,reference=references.has(line.dataset.series);line.style.opacity=this.series.length>12&&!reference&&!active?(this.focus?'.22':'.55'):'1';line.style.strokeWidth=active?'2.5':'';}this.lastStyleKey=styleKey;}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
     }
     updateValues() {
       const i=this.index,time=this.host.querySelector('.chart-date');if(time)time.textContent=this.dates[i];

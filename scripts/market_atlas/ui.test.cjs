@@ -65,3 +65,9 @@ test('short rotation windows use daily trails and the engine change interval',()
  for(const window of [1,5,10,20,60]){const {lag,trailStep}=rotationSettings(window);assert.equal(lag,window===1?1:5);assert.equal(trailStep,window<=5?1:window===10?2:5);}
  const row={x:Array(20).fill(1),y:Array(20).fill(2)};assert.deepEqual(rotationTrail(row,12,rotationSettings(5).trailStep).map(p=>p.index),[8,9,10,11,12]);
 });
+
+test('crosshair dates remain inside the zoomed visible sessions at either margin',()=>{
+ const chart={dates:Array(100),view:[10.25,20.75],g:{left:58,width:200}};
+ assert.equal(Chart.prototype.indexAt.call(chart,0),11);assert.equal(Chart.prototype.indexAt.call(chart,1000),20);
+ assert.equal(Chart.prototype.indexAt.call(chart,158),16);
+});

@@ -5,20 +5,23 @@
   function rgb(text){if(text.trim().startsWith('#')){let h=text.trim().slice(1);if(h.length===3)h=[...h].map(c=>c+c).join('');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16));}return(text.match(/[\d.]+/g)||[0,0,0]).slice(0,3).map(Number);}
   class Heatmap {
     constructor(host,options) {
-      this.host=host;Object.assign(this,{rowHeight:30,index:options.dates.length-1},options);this.fitted=true;this.abort=new AbortController();host.classList.add('heatmap-host');
-      host.innerHTML=toolbar('完整研究区间 · 双指缩放时间')+'<div class="chart-readout"></div><div class="heat-layout"><div class="heat-corner">行业</div><div class="heat-head"><canvas></canvas></div><div class="heat-names"><div></div></div><div class="heat-scroll"><div class="heat-stage"><canvas aria-label="完整行业时间热力图" tabindex="0"></canvas><div class="heat-cursor"></div><div class="heat-selection" hidden></div></div></div></div><p class="map-caption"></p>';
+      this.host=host;Object.assign(this,{rowHeight:30,index:options.dates.length-1},options);this.fitted=true;this.rowType=this.rowType||'行业';this.abort=new AbortController();host.classList.add('heatmap-host');
+      host.innerHTML=toolbar('完整研究区间 · 双指缩放时间')+'<div class="chart-readout"></div><p class="heat-empty plot-empty" hidden>当前样本没有可显示数据，请调整区间或样本口径。</p><div class="heat-layout"><div class="heat-corner">行业</div><div class="heat-head"><canvas></canvas></div><div class="heat-names"><div></div></div><div class="heat-scroll"><div class="heat-stage"><canvas aria-label="完整行业时间热力图" tabindex="0"></canvas><div class="heat-cursor"></div><div class="heat-selection" hidden></div></div></div></div><p class="map-caption"></p>';
       this.surface=host.querySelector('.heat-scroll');this.canvas=this.surface.querySelector('canvas');this.stage=this.surface.firstElementChild;this.header=host.querySelector('.heat-head canvas');this.names=host.querySelector('.heat-names>div');root.AtlasInspector.mount(this);
-      this.names.innerHTML=this.rows.map(r=>`<button title="研究${esc(r.name)}">${esc(r.name)}</button>`).join('');
-      [...this.names.children].forEach((b,i)=>b.addEventListener('click',()=>this.onIndustry?.(this.rows[i].name),{signal:this.abort.signal}));
-      host.addEventListener('click',e=>{const a=e.target.closest('[data-map-action]')?.dataset.mapAction;if(a==='in')this.zoom(1.8);if(a==='out')this.zoom(1/1.8);if(a==='reset')this.reset();if(a==='expand')root.AtlasFullscreen.open(host,'行业时间热力图');},{signal:this.abort.signal});
+      this.renderNames();this.names.addEventListener('click',e=>{const b=e.target.closest('[data-heat-row]');if(b)this.onOpenSeries?.(this.rows[Number(b.dataset.heatRow)].id||this.rows[Number(b.dataset.heatRow)].name);},{signal:this.abort.signal});
+      host.querySelector('.heat-corner').textContent=this.rowType;
+      host.addEventListener('click',e=>{const a=e.target.closest('[data-map-action]')?.dataset.mapAction;if(a==='in')this.zoom(1.8);if(a==='out')this.zoom(1/1.8);if(a==='reset')this.reset();if(a==='expand')root.AtlasFullscreen.open(host,this.label||this.rowType+'时间热力图');},{signal:this.abort.signal});
       this.surface.addEventListener('scroll',()=>{this.header.style.transform=`translateX(${-this.surface.scrollLeft}px)`;this.names.style.transform=`translateY(${-this.surface.scrollTop}px)`;},{passive:true,signal:this.abort.signal});
-      this.gesture=new root.AtlasGesture(this.surface,{wheel:false,inspect:p=>this.inspect(p),tap:p=>this.inspect(p),zoom:(f,p)=>this.zoom(f,p),reset:()=>this.reset(),canPan:()=>false});
-      this.canvas.addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();this.index=clamp(this.index+(e.key==='ArrowLeft'?-1:e.key==='ArrowRight'?1:0),0,this.dates.length-1);this.row=clamp((this.row??0)+(e.key==='ArrowUp'?-1:e.key==='ArrowDown'?1:0),0,this.rows.length-1);this.onInspect?.(this.index,this);this.updateCursor();const r=this.surface.getBoundingClientRect();this.show({x:r.left+r.width/2,y:r.top+50});},{signal:this.abort.signal});
+      this.gesture=new root.AtlasGesture(this.surface,{wheel:false,inspect:p=>this.inspect(p),tap:p=>this.select(p),zoom:(f,p)=>this.zoom(f,p),reset:()=>this.reset(),canPan:()=>false});
+      this.canvas.addEventListener('keydown',e=>{if(e.key==='Enter'&&this.rows[this.row]){e.preventDefault();this.onOpenSeries?.(this.rows[this.row].id||this.rows[this.row].name);return;}if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();if(e.key==='ArrowUp'||e.key==='ArrowDown')this.pinned=null;this.index=clamp(this.index+(e.key==='ArrowLeft'?-1:e.key==='ArrowRight'?1:0),0,this.dates.length-1);this.row=clamp((this.row??0)+(e.key==='ArrowUp'?-1:e.key==='ArrowDown'?1:0),0,this.rows.length-1);this.onInspect?.(this.index,this);this.updateCursor();const r=this.surface.getBoundingClientRect();this.show({x:r.left+r.width/2,y:r.top+50});},{signal:this.abort.signal});
       this.observer=new ResizeObserver(()=>this.draw());this.observer.observe(this.surface);window.addEventListener('resize',()=>this.draw(),{signal:this.abort.signal});this.draw();
     }
     destroy(){this.gesture.destroy();this.observer.disconnect();this.abort.abort();}
     setIndex(index){this.index=index;this.updateCursor();}
+    renderNames(){this.names.innerHTML=this.rows.map((r,i)=>`<button data-heat-row="${i}" title="查看${esc(r.name)} ${esc(r.detail||'')}">${esc(r.name)} ↗</button>`).join('');}
+    setRows(rows){const id=this.rows[this.row]?.id||this.rows[this.row]?.name;this.rows=rows;if(!rows.some(r=>(r.id||r.name)===this.pinned))this.pinned=null;const row=rows.findIndex(r=>(r.id||r.name)===id);this.row=row<0?undefined:row;this.renderNames();this.draw();}
     draw() {
+      const empty=!this.rows.length;this.host.querySelector('.heat-empty').hidden=!empty;this.host.querySelector('.heat-layout').hidden=empty;if(empty){this.host.dataset.columns=this.dates.length;this.host.dataset.rows='0';this.row=undefined;this.focus=null;root.AtlasInspector.render(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index)});return;}
       const width=this.surface.clientWidth;if(!width)return;
       const fit=width/this.dates.length;if(!this.cellWidth||this.fitted)this.cellWidth=fit;
       const w=Math.max(width,Math.ceil(this.cellWidth*this.dates.length)),h=this.rows.length*this.rowHeight;
@@ -28,7 +31,7 @@
       for(let r=0;r<this.rows.length;r++)for(let d=0;d<this.dates.length;d++){const value=this.rows[r].values[d],strength=this.metric==='breadth'?(value-50)/50:value/limit,t=finite(value)?Math.min(1,Math.abs(strength))*.8+.08:0,to=strength>=0?rise:fall;ctx.fillStyle=finite(value)?`rgb(${base.map((v,i)=>Math.round(v+(to[i]-v)*t)).join(',')})`:style.getPropertyValue('--subtle');ctx.fillRect(d*this.cellWidth,r*this.rowHeight,Math.ceil(this.cellWidth),this.rowHeight-3);}
       const dpr=Math.min(devicePixelRatio||1,2);this.header.width=w*dpr;this.header.height=28*dpr;this.header.style.width=w+'px';this.header.style.height='28px';const c=this.header.getContext('2d');c.scale(dpr,dpr);c.fillStyle=style.getPropertyValue('--muted');c.font='11px "Segoe UI","Microsoft YaHei"';
       const stride=Math.max(1,Math.ceil(82/this.cellWidth));for(let i=0;i<this.dates.length;i+=stride){c.fillText(this.dates[i].slice(2),i*this.cellWidth+2,18);}
-      this.host.querySelector('.map-caption').textContent=`${this.dates[0]} — ${this.dates.at(-1)} · ${this.dates.length}个交易日 × ${this.rows.length}个行业 · 冷色落后，暖色领先`;
+      this.host.querySelector('.map-caption').textContent=`${this.dates[0]} — ${this.dates.at(-1)} · ${this.dates.length}个交易日 × ${this.rows.length}${this.rowType==='股票'?'只股票':'个行业'} · 冷色落后，暖色领先`;
       if(this.host.classList.contains('is-fullscreen')){const h=Math.max(160,this.host.parentElement.clientHeight-185-this.readout.getBoundingClientRect().height);this.surface.style.maxHeight=h+'px';this.names.parentElement.style.maxHeight=h+'px';}else{this.surface.style.maxHeight='';this.names.parentElement.style.maxHeight='';}
       this.host.dataset.columns=this.dates.length;this.host.dataset.rows=this.rows.length;this.updateCursor();
     }
@@ -37,8 +40,9 @@
       const r=this.surface.getBoundingClientRect(),x=p?clamp(p.x-r.left,0,r.width):r.width/2,anchor=(this.surface.scrollLeft+x)/this.cellWidth;
       const min=this.surface.clientWidth/this.dates.length;this.cellWidth=clamp(this.cellWidth*factor,min,40);this.fitted=this.cellWidth<=min+.001;this.draw();this.surface.scrollLeft=anchor*this.cellWidth-x;
     }
-    updateCursor(){this.host.querySelector('.chart-date').textContent=this.dates[this.index];this.surface.querySelector('.heat-cursor').style.left=(this.index+.5)*this.cellWidth+'px';const cell=this.surface.querySelector('.heat-selection');cell.hidden=this.row===undefined;if(this.row!==undefined){Object.assign(cell.style,{left:this.index*this.cellWidth+'px',top:this.row*this.rowHeight+'px',width:Math.max(2,this.cellWidth)+'px',height:this.rowHeight-3+'px'});}this.focus=this.rows[this.row]?.name;root.AtlasInspector.render(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index,this.row),focus:this.focus});}
-    inspect(p){const r=this.surface.getBoundingClientRect();this.index=clamp(Math.floor((p.x-r.left+this.surface.scrollLeft)/this.cellWidth),0,this.dates.length-1);this.row=clamp(Math.floor((p.y-r.top+this.surface.scrollTop)/this.rowHeight),0,this.rows.length-1);this.onInspect?.(this.index,this);this.updateCursor();this.show(p);}
+    updateCursor(){this.host.querySelector('.chart-date').textContent=this.dates[this.index];this.surface.querySelector('.heat-cursor').style.left=(this.index+.5)*this.cellWidth+'px';const cell=this.surface.querySelector('.heat-selection');cell.hidden=this.row===undefined;if(this.row!==undefined){Object.assign(cell.style,{left:this.index*this.cellWidth+'px',top:this.row*this.rowHeight+'px',width:Math.max(2,this.cellWidth)+'px',height:this.rowHeight-3+'px'});}this.focus=this.rows[this.row]?.id||this.rows[this.row]?.name;root.AtlasInspector.render(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index,this.row),focus:this.focus});}
+    select(p){this.inspect(p,true);this.pinned=this.pinned===this.focus?null:this.focus;this.updateCursor();}
+    inspect(p,force=false){const r=this.surface.getBoundingClientRect();this.index=clamp(Math.floor((p.x-r.left+this.surface.scrollLeft)/this.cellWidth),0,this.dates.length-1);this.row=!force&&this.pinned?this.rows.findIndex(row=>(row.id||row.name)===this.pinned):clamp(Math.floor((p.y-r.top+this.surface.scrollTop)/this.rowHeight),0,this.rows.length-1);this.onInspect?.(this.index,this);this.updateCursor();this.show(p);}
     show(p){root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index,this.row),x:p.x,y:p.y});}
   }
   function rotationSettings(window){return{lag:window===1?1:5,trailStep:window<=5?1:window===10?2:5};}
@@ -96,11 +100,11 @@
       if(!this.points.length)html+=`<text class="axis-label" x="${(g.left+g.right)/2}" y="${(g.top+g.bottom)/2}" text-anchor="middle">${visible.length?'历史不足，向后选择交易日':'请在行业对比中选择行业'}</text>`;
       this.svg.innerHTML=html;this.svg.dataset.date=this.dates[this.index];this.svg.dataset.focus=this.focus||'';this.svg.setAttribute('aria-label','行业轮动：右侧跑赢，上方改善；移动查看行业，点按固定，时间轴独立于其他图表。');
       this.host.querySelector('.rotation-industry').value=this.pinned||'';
-      root.AtlasInspector.render(this,{date:this.dates[this.index]+(this.pinned?' · 已固定':''),rows:point?[{name:point.name+' · '+this.lookback+'日超额',value:point.x,unit:'个百分点',color:'var(--plot-gold)'},{name:'近'+this.lag+'日超额改善',value:point.y,unit:'个百分点',color:'var(--plot-gold)'}]:[{name:'移动指针或拖动查看行业',value:null}]});
+      root.AtlasInspector.render(this,{date:this.dates[this.index],rows:point?[{id:point.name,canOpen:!!this.onOpenSeries,openLabel:'进入行业',name:point.name+' · '+this.lookback+'日超额',value:point.x,unit:'个百分点',color:'var(--plot-gold)'},{name:'近'+this.lag+'日超额改善',value:point.y,unit:'个百分点',color:'var(--plot-gold)'}]:[{name:'移动指针或拖动查看行业',value:null}]});
     }
     nearest(p){const r=this.surface.getBoundingClientRect(),x=p.x-r.left,y=p.y-r.top;let best=null,distance=Infinity;for(const point of this.points){const px=this.X(point.x),py=this.Y(point.y);if(px<this.g.left||px>this.g.right||py<this.g.top||py>this.g.bottom)continue;const d=Math.hypot(px-x,py-y);if(d<distance){distance=d;best=point;}}return best;}
     pick(p){const point=this.nearest(p);if(point){this.pinned=this.pinned===point.name?'':point.name;this.focus=point.name;this.draw();}}
-    inspect(p){const point=this.nearest(p);if(point&&this.focus!==point.name){this.focus=point.name;this.draw();}}
+    inspect(p){if(this.pinned)return;const point=this.nearest(p);if(point&&this.focus!==point.name){this.focus=point.name;this.draw();}}
   }
   root.AtlasMaps={Heatmap,Scatter,rotationTrail,rotationSettings};
   if(typeof module!=='undefined')module.exports={rotationTrail,rotationSettings};

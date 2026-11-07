@@ -53,7 +53,9 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/atlas-browser/node_modules
           ATLAS_QA_OUTPUT: ${{ runner.temp }}/atlas-qa
-        run: node scripts/market_atlas/browser.test.cjs
+        run: |
+          node scripts/market_atlas/browser.test.cjs
+          node scripts/market_atlas/journey.test.cjs
 
       - name: Prepare static site artifact
         run: |

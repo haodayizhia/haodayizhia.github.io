@@ -45,21 +45,25 @@
       owner.readout=slot||owner.host.querySelector('.chart-readout');
       const el=owner.readout;if(!el)return;
       if(!el.firstElementChild){
-        el.innerHTML='<div class="readout-head"><time></time><button type="button" aria-expanded="false"></button></div><div class="readout-primary"></div><div class="readout-all" hidden></div>';
-        el.querySelector('button').addEventListener('click',()=>{const open=el.classList.toggle('is-expanded');el.querySelector('.readout-all').hidden=!open;el.querySelector('button').setAttribute('aria-expanded',String(open));el.querySelector('button').textContent=open?'收起列表':'全部 '+el.dataset.rows+' 项';window.dispatchEvent(new Event('resize'));});
+        el.innerHTML='<div class="readout-head"><time></time><button class="readout-unpin" type="button" title="取消当前关注" aria-label="取消当前关注" hidden>×</button><a class="readout-drill" hidden></a><button class="readout-toggle" type="button" aria-expanded="false"></button></div><div class="readout-primary"></div><div class="readout-all" hidden></div>';
+        el.querySelector('.readout-toggle').addEventListener('click',()=>{const open=el.classList.toggle('is-expanded');if(open)el.renderAll?.();el.querySelector('.readout-all').hidden=!open;el.querySelector('.readout-toggle').setAttribute('aria-expanded',String(open));el.querySelector('.readout-toggle').textContent=open?'收起列表':'全部 '+el.dataset.rows+' 项';window.dispatchEvent(new Event('resize'));});
+        el.querySelector('.readout-unpin').addEventListener('click',()=>{const owner=el.owner;owner.pinned=null;owner.focus=null;owner.draw();});
+        el.addEventListener('pointerdown',()=>el.owner?.pause?.());
+        el.addEventListener('click',e=>{const link=e.target.closest('[data-open-series]');if(link&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey&&e.button===0){e.preventDefault();el.owner?.onOpenSeries?.(link.dataset.openSeries);}});
       }
     },
-    render(owner,{date,rows,focus}) {
-      const el=owner.readout;if(!el)return;
+    render(owner,{date,rows,focus=owner.focus}) {
+      const el=owner.readout;if(!el)return;el.owner=owner;
       const {escape:esc,number:num,finite}=root.AtlasCharts;
-      const key=JSON.stringify([date,rows,focus]);if(el.renderKey===key)return;el.renderKey=key;el.dataset.rows=rows.length;el.dataset.many=String(rows.length>6&&!owner.stock);
-      el.querySelector('time').textContent=date;
-      const button=el.querySelector('button');button.hidden=rows.length<=6;if(rows.length<=6){el.classList.remove('is-expanded');el.querySelector('.readout-all').hidden=true;button.setAttribute('aria-expanded','false');}button.textContent=el.classList.contains('is-expanded')?'收起列表':'全部 '+rows.length+' 项';
+      const key=JSON.stringify([date,rows,focus,owner.pinned]);if(el.renderKey===key)return;el.renderKey=key;el.dataset.rows=rows.length;el.dataset.many=String(rows.length>6&&!owner.stock);
+      el.querySelector('time').textContent=date+(owner.pinned?' · 关注':'');el.querySelector('.readout-unpin').hidden=!owner.pinned;
+      const button=el.querySelector('.readout-toggle');button.hidden=rows.length<=6;if(rows.length<=6){el.classList.remove('is-expanded');el.querySelector('.readout-all').hidden=true;button.setAttribute('aria-expanded','false');}button.textContent=el.classList.contains('is-expanded')?'收起列表':'全部 '+rows.length+' 项';
       const focused=rows.find(r=>r.id===focus||r.name===focus);
+      const drill=el.querySelector('.readout-drill');drill.hidden=!focused?.canOpen;if(focused?.canOpen){drill.textContent=focused.openLabel||owner.openLabel||'查看详情';drill.href=owner.linkFor(focused.id);drill.dataset.openSeries=focused.id;drill.setAttribute('aria-label',drill.textContent+'：'+focused.name);}
       const primary=owner.stock?rows.filter(r=>['收盘','涨跌','最高','最低'].includes(r.name)):rows.length<=6?rows:focused&&focused!==rows[0]?[rows[0],focused]:rows.slice(0,1);
-      const row=r=>`<div class="readout-row"><i style="color:${r.color||'var(--plot-main)'};border-top:2px ${r.dash?'dashed':'solid'} currentColor;background:transparent"></i><span title="${esc(r.name)}">${esc(r.name)}</span><strong>${finite(r.value)?num(r.value,r.digits??2):'—'}<small>${finite(r.value)?esc(r.unit||''):''}</small></strong></div>`;
-      el.querySelector('.readout-primary').innerHTML=primary.map(row).join('')+(rows.length>6&&!focused&&!owner.stock?'<span class="readout-hint">移动查看行业 · 完整数值可展开</span>':'');
-      el.querySelector('.readout-all').innerHTML=rows.map(row).join('');
+      const row=r=>{const label=esc(r.name)+(r.detail?`<small class="readout-code">${esc(r.detail)}</small>`:'');return`<div class="readout-row"><i style="color:${r.color||'var(--plot-main)'};border-top:2px ${r.dash?'dashed':'solid'} currentColor;background:transparent"></i>${r.canOpen?`<a class="readout-open" href="${esc(owner.linkFor(r.id))}" data-open-series="${esc(r.id)}" aria-label="${esc(r.openLabel||owner.openLabel||'查看详情')}：${esc(r.name)}" title="${esc(r.name)} ${esc(r.detail||'')}">${label} ↗</a>`:`<span title="${esc(r.name)}">${label}</span>`}<strong>${finite(r.value)?num(r.value,r.digits??2):'—'}<small>${finite(r.value)?esc(r.unit||''):''}</small></strong></div>`;};
+      el.querySelector('.readout-primary').innerHTML=primary.map(row).join('')+(rows.length>6&&!focused&&!owner.stock?'<span class="readout-hint">移动查看对象 · 名称可进入详情</span>':'');
+      el.renderAll=()=>{el.querySelector('.readout-all').innerHTML=rows.map(row).join('');};if(el.classList.contains('is-expanded'))el.renderAll();
     },
     show(owner,data){this.owner=owner;this.render(owner,{...data,focus:owner.focus});},
     settle(){},
