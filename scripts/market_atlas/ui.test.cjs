@@ -15,6 +15,12 @@ test('small pinch steps retain fractional dates without rounding back outward',(
  assert.ok(chart.view[0]%1>0);
 });
 
+test('a zoomed or panned chart reads a date inside its visible interval',()=>{
+ let observed;
+ const chart={dates:Array.from({length:203},(_,i)=>String(i)),index:202,axisValue:9,draw(){},onRange(){},onInspect(i){observed=i;}};
+ Chart.prototype.setRange.call(chart,10.1,70.6,true);assert.equal(chart.index,70);assert.equal(observed,70);assert.equal(chart.axisValue,null);
+});
+
 test('market chart entry has no automatic selection, lock button or date slider',()=>{
  const root=path.resolve(__dirname,'../..'),html=fs.readFileSync(path.join(root,'market-atlas.html'),'utf8');
  assert.doesNotMatch(html,/<input[^>]+type=["']range["']/);assert.doesNotMatch(html,/inspect-lock/);

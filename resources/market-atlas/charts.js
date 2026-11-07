@@ -53,12 +53,14 @@
     setRange(a,b,notify=false) {
       a=clamp(a,0,this.dates.length-1);b=clamp(b,a,this.dates.length-1);
       if(b-a<1&&this.dates.length>1)return;
+      const previous=this.index;
+      if(notify){this.index=clamp(this.index,Math.ceil(a),Math.floor(b));if(this.index!==previous)this.axisValue=null;}
       this.view=[a,b];this.sceneKey='';this.draw();
-      if(notify)this.onRange(this.dates[Math.floor(a)],this.dates[Math.ceil(b)]);
+      if(notify){this.onRange(this.dates[Math.floor(a)],this.dates[Math.ceil(b)]);if(this.index!==previous)this.onInspect(this.index,this);}
     }
     setDateRange(start,end){const a=this.dates.indexOf(start),b=this.dates.indexOf(end);if(a>=0&&b>=a)this.setRange(a,b);}
     zoom(factor,p) {
-      const anchor=p?clamp((this.local(p).x-this.g.left)/this.g.width,0,1):.5;
+      const anchor=p?clamp((this.local(p).x-this.g.left)/this.g.width,0,1):clamp((this.index-this.view[0])/(this.view[1]-this.view[0]||1),0,1);
       const next=root.AtlasZoomRange(this.view,this.dates.length,factor,anchor);this.setRange(...next,true);
     }
     pan(dx,start) {
