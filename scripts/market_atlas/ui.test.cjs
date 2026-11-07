@@ -1,6 +1,25 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const{geometry,bounds,ticks,path:linePath}=require('../../resources/market-atlas/charts.js');
+const{Chart,geometry,bounds,ticks,path:linePath}=require('../../resources/market-atlas/charts.js');
+const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
+
+test('pinch zoom preserves its date anchor and stops at data boundaries',()=>{
+ const next=zoomRange([0,202],203,2,.25);assert.deepEqual(next,[25.25,126.25]);
+ for(const anchor of [0,.25,.5,1])for(const factor of [.01,.5,2,1000]){const [a,b]=zoomRange([40,80],203,factor,anchor);assert.ok(a>=0&&b<=202&&b-a>=5);}
+ assert.deepEqual(zoomRange([0,0],1,2),[0,0]);assert.deepEqual(zoomRange([0,0],0,2),[0,0]);
+});
+
+test('small pinch steps retain fractional dates without rounding back outward',()=>{
+ const chart={dates:Array.from({length:203},(_,i)=>String(i)),view:[0,202],draw(){},onRange(){}};
+ for(let i=0;i<40;i++){const before=chart.view[1]-chart.view[0];Chart.prototype.setRange.call(chart,...zoomRange(chart.view,203,1.01,.5));assert.ok(chart.view[1]-chart.view[0]<before);}
+ assert.ok(chart.view[0]%1>0);
+});
+
+test('market chart entry has no automatic selection, lock button or date slider',()=>{
+ const root=path.resolve(__dirname,'../..'),html=fs.readFileSync(path.join(root,'market-atlas.html'),'utf8');
+ assert.doesNotMatch(html,/<input[^>]+type=["']range["']/);assert.doesNotMatch(html,/inspect-lock/);
+ for(const name of ['chart-interaction.js','maps.js'])assert.ok(html.includes('./resources/market-atlas/'+name));
+});
 test('mobile chart preserves the vertical axis and a usable plotting area',()=>{
  for(const width of [264,288,318,342,760,1200]){const g=geometry(width,300);assert.ok(g.left>=55);assert.ok(g.width>=width-90);assert.ok(g.right<=width-16);assert.ok(g.bottom>g.top+180);}
 });
