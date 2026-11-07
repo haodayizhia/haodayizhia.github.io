@@ -83,5 +83,4 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 .chart-label .chart-unit,.mini-chart-head .chart-unit{font-size:inherit;font-weight:400;white-space:nowrap;color:var(--muted)}
 .plot-toolbar .chart-label{color:var(--ink)}
 .readout-row .readout-unit.is-percent{font-size:.85em;margin-left:1px;color:inherit;opacity:.8}
-@media(min-width:1600px){.atlas-stage{width:min(1920px,calc(100vw - 96px));position:relative;left:50%;transform:translateX(-50%)}}
 @media(max-width:760px){.atlas-stage{margin-inline:-8px}.workspace-viewbar,.plot-toolbar,.industry-viewbar,.coverage-note,.interaction-note{padding-inline:8px}.chart-readout{margin-inline:8px}.state-bundle>.chart-host{padding-inline:0}.chart-readout .chart-readout{margin-inline:0}}
