@@ -26,7 +26,7 @@
         this.dialog.querySelector('button').addEventListener('click',()=>this.close());
         this.dialog.addEventListener('close',()=>this.restore());
       }
-      this.host=host;this.placeholder=document.createComment('chart position');host.before(this.placeholder);
+      this.previousFocus=document.activeElement;this.host=host;this.placeholder=document.createComment('chart position');host.before(this.placeholder);
       this.position={x:scrollX,y:scrollY};this.dialog.querySelector('h2').textContent=label;
       this.dialog.querySelector('.fullscreen-stage').append(host);host.classList.add('is-fullscreen');
       this.dialog.showModal();root.AtlasInspector.hide();requestAnimationFrame(()=>window.dispatchEvent(new Event('resize')));
@@ -34,26 +34,36 @@
     restore() {
       if(!this.host)return;const host=this.host;host.classList.remove('is-fullscreen');
       if(this.placeholder?.isConnected)this.placeholder.replaceWith(host);
-      this.host=null;root.AtlasInspector.hide();window.scrollTo(this.position.x,this.position.y);
+      this.host=null;root.AtlasInspector.hide();if(this.previousFocus?.isConnected)this.previousFocus.focus({preventScroll:true});window.scrollTo(this.position.x,this.position.y);
       requestAnimationFrame(()=>window.dispatchEvent(new Event('resize')));
     },
     close(){if(this.dialog?.open)this.dialog.close();this.restore();}
   };
+  // Values occupy document flow; inspection never places a panel over the plot.
   const inspector={
-    show(owner,{date,rows,x,y,axis=''}) {
-      if(!this.el) {
-        this.el=document.createElement('div');this.el.className='floating-inspector';this.el.hidden=true;
-        document.addEventListener('pointerdown',e=>{if(!this.el.contains(e.target)&&!this.owner?.surface?.contains(e.target))this.hide();});
+    mount(owner,slot) {
+      owner.readout=slot||owner.host.querySelector('.chart-readout');
+      const el=owner.readout;if(!el)return;
+      if(!el.firstElementChild){
+        el.innerHTML='<div class="readout-head"><time></time><button type="button" aria-expanded="false"></button></div><div class="readout-primary"></div><div class="readout-all" hidden></div>';
+        el.querySelector('button').addEventListener('click',()=>{const open=el.classList.toggle('is-expanded');el.querySelector('.readout-all').hidden=!open;el.querySelector('button').setAttribute('aria-expanded',String(open));el.querySelector('button').textContent=open?'收起列表':'全部 '+el.dataset.rows+' 项';window.dispatchEvent(new Event('resize'));});
       }
-      this.owner=owner;owner.host.append(this.el);const {escape:esc,number:num,finite}=root.AtlasCharts;
-      this.el.innerHTML=`<header><time>${esc(date)}</time><span>${esc(axis)}</span></header><div class="inspector-rows">${rows.map(row=>`<div class="inspector-row"><i style="background:${row.color||'var(--plot-main)'}"></i><span>${esc(row.name)}</span><strong>${finite(row.value)?num(row.value,row.digits??2):'—'}<small>${finite(row.value)?esc(row.unit||''):''}</small></strong></div>`).join('')}</div>`;
-      this.el.dataset.rows=rows.length;this.el.hidden=false;this.el.classList.remove('is-settled');
-      const width=Math.min(300,innerWidth-24);this.el.style.width=width+'px';
-      const h=this.el.getBoundingClientRect().height,left=clamp(x>innerWidth/2?x-width-18:x+18,12,innerWidth-width-12);
-      this.el.style.left=left+'px';this.el.style.top=clamp(y>innerHeight/2?y-h-22:y+22,12,Math.max(12,innerHeight-h-12))+'px';
     },
-    settle(){if(this.el&&!this.el.hidden)this.el.classList.add('is-settled');},
-    hide(){if(this.el)this.el.hidden=true;this.owner=null;}
+    render(owner,{date,rows,focus}) {
+      const el=owner.readout;if(!el)return;
+      const {escape:esc,number:num,finite}=root.AtlasCharts;
+      const key=JSON.stringify([date,rows,focus]);if(el.renderKey===key)return;el.renderKey=key;el.dataset.rows=rows.length;el.dataset.many=String(rows.length>6&&!owner.stock);
+      el.querySelector('time').textContent=date;
+      const button=el.querySelector('button');button.hidden=rows.length<=6;if(rows.length<=6){el.classList.remove('is-expanded');el.querySelector('.readout-all').hidden=true;button.setAttribute('aria-expanded','false');}button.textContent=el.classList.contains('is-expanded')?'收起列表':'全部 '+rows.length+' 项';
+      const focused=rows.find(r=>r.id===focus||r.name===focus);
+      const primary=owner.stock?rows.filter(r=>['收盘','涨跌','最高','最低'].includes(r.name)):rows.length<=6?rows:focused&&focused!==rows[0]?[rows[0],focused]:rows.slice(0,1);
+      const row=r=>`<div class="readout-row"><i style="background:${r.color||'var(--plot-main)'}"></i><span title="${esc(r.name)}">${esc(r.name)}</span><strong>${finite(r.value)?num(r.value,r.digits??2):'—'}<small>${finite(r.value)?esc(r.unit||''):''}</small></strong></div>`;
+      el.querySelector('.readout-primary').innerHTML=primary.map(row).join('')+(rows.length>6&&!focused&&!owner.stock?'<span class="readout-hint">移动查看行业 · 完整数值可展开</span>':'');
+      el.querySelector('.readout-all').innerHTML=rows.map(row).join('');
+    },
+    show(owner,data){this.owner=owner;this.render(owner,{...data,focus:owner.focus});},
+    settle(){},
+    hide(){this.owner=null;}
   };
   class Gesture {
     constructor(surface,handlers) {
@@ -80,6 +90,7 @@
         }
         if(e.touches.length!==1)return;
         const p=point(e.touches[0]);this.touch={...p,last:p,moved:false,long:false,start:performance.now()};handlers.start?.(p,false);
+        if(handlers.touchInspect)handlers.inspect?.(p);
         this.timer=setTimeout(()=>{if(!this.touch||this.touch.moved)return;this.touch.long=true;surface.classList.add('press-inspecting');handlers.inspect?.(this.touch.last);},380);
       },{passive:false});
       on('touchmove',e=>{
@@ -91,8 +102,9 @@
         if(e.touches.length!==1||this.touch.pinch)return;
         const p=point(e.touches[0]),dx=p.x-this.touch.x,dy=p.y-this.touch.y;this.touch.last=p;
         if(this.touch.long){e.preventDefault();handlers.inspect?.(p);return;}
+        if(handlers.scrub){e.preventDefault();this.touch.moved=true;this.clearTimer();handlers.drag?.(p,this.touch);return;}
         if(Math.hypot(dx,dy)>8){this.touch.moved=true;this.clearTimer();}
-        if(this.touch.moved&&Math.abs(dx)>Math.abs(dy)&&handlers.canPan?.()) {e.preventDefault();handlers.drag?.(p,this.touch);}
+        if(this.touch.moved&&Math.abs(dx)>Math.abs(dy)&&(handlers.canPan?.()||handlers.scrub)) {e.preventDefault();handlers.drag?.(p,this.touch);}
       },{passive:false});
       on('touchend',e=>{
         this.clearTimer();const touch=this.touch;if(!touch)return;

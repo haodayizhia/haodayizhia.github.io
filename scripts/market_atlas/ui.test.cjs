@@ -1,6 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const{Chart,geometry,bounds,ticks,path:linePath}=require('../../resources/market-atlas/charts.js');
+const{rotationTrail}=require('../../resources/market-atlas/maps.js');
 const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
 
 test('pinch zoom preserves its date anchor and stops at data boundaries',()=>{
@@ -21,9 +22,9 @@ test('a zoomed or panned chart reads a date inside its visible interval',()=>{
  Chart.prototype.setRange.call(chart,10.1,70.6,true);assert.equal(chart.index,70);assert.equal(observed,70);assert.equal(chart.axisValue,null);
 });
 
-test('market chart entry has no automatic selection, lock button or date slider',()=>{
+test('market chart entry offers all-selection and removes the global date picker and lock',()=>{
  const root=path.resolve(__dirname,'../..'),html=fs.readFileSync(path.join(root,'market-atlas.html'),'utf8');
- assert.doesNotMatch(html,/<input[^>]+type=["']range["']/);assert.doesNotMatch(html,/inspect-lock/);
+ assert.doesNotMatch(html,/<input[^>]+type=["']range["']/);assert.doesNotMatch(html,/inspect-lock|id="atlasDate"|class="date-control"/);assert.ok(html.includes('id="selectAllComparison"'));
  for(const name of ['chart-interaction.js','maps.js'])assert.ok(html.includes('./resources/market-atlas/'+name));
 });
 test('mobile chart preserves the vertical axis and a usable plotting area',()=>{
@@ -41,4 +42,11 @@ test('every built page installs a matching inline theme before the main styleshe
   assert.equal((html.match(/<script data-bro-theme>/g)||[]).length,1,name);assert.ok(html.includes('data-bro-theme-canvas'),name);
   if(name==='market-atlas.html'){const hash=crypto.createHash('sha256').update(match[1].replace(/\r\n?/g,'\n')).digest('base64');assert.ok(html.includes("'sha256-"+hash+"'"),'Theme CSP hash does not match HTML parser-normalized script');}
  }
+});
+
+test('rotation trails sample actual weekly observations including the current session',()=>{
+ const row={x:Array.from({length:50},(_,i)=>i/10),y:Array.from({length:50},(_,i)=>i%2?null:i)};
+ const trail=rotationTrail(row,39);assert.deepEqual(trail.map(p=>p.index),[19,24,29,34,39]);
+ assert.equal(trail[0].y,null);assert.equal(trail.at(-1).x,row.x[39]);
+ assert.deepEqual(rotationTrail(row,3).map(p=>p.index),[3]);
 });

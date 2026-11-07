@@ -32,8 +32,8 @@
       this.id=++chartId;this.index=this.dates.length-1;this.view=[0,Math.max(0,this.dates.length-1)];this.axisValue=null;this.revision=0;
       this.abort=new AbortController();
       host.classList.add('chart-host');
-      host.innerHTML=`${this.compact?`<header class="mini-chart-head"><h3>${escape(this.label)}</h3><dl class="chart-values"></dl></header>`:`<div class="plot-toolbar"><div><time class="chart-date"></time><span class="chart-window"></span></div><div class="plot-actions"><button data-chart-action="out" aria-label="缩小时间范围">−</button><button data-chart-action="in" aria-label="放大时间范围">＋</button><button data-chart-action="reset">复原</button><button data-chart-action="expand">全屏</button></div></div>`}<div class="chart-canvas"><svg class="atlas-chart" tabindex="0" role="img"></svg></div>${this.compact?'':'<dl class="chart-values"></dl>'}`;
-      this.surface=host.querySelector('.chart-canvas');this.svg=host.querySelector('svg');this.values=host.querySelector('.chart-values');
+      host.innerHTML=`${this.compact?`<header class="mini-chart-head"><h3>${escape(this.label)}</h3><dl class="chart-values"></dl></header>`:`<div class="plot-toolbar"><div><span class="chart-label">${escape(this.label)}</span><span class="chart-window"></span></div><div class="plot-actions"><button data-chart-action="out" aria-label="缩小时间范围">−</button><button data-chart-action="in" aria-label="放大时间范围">＋</button><button data-chart-action="reset">复原</button><button data-chart-action="expand">全屏</button></div></div><div class="chart-readout"></div>`}<div class="chart-canvas"><svg class="atlas-chart" tabindex="0" role="img"></svg></div>`;
+      this.surface=host.querySelector('.chart-canvas');this.svg=host.querySelector('svg');this.values=host.querySelector('.chart-values');root.AtlasInspector.mount(this,this.readoutHost);
       host.addEventListener('click',e=>{const action=e.target.closest('[data-chart-action]')?.dataset.chartAction;if(action==='in')this.zoom(1.7);if(action==='out')this.zoom(1/1.7);if(action==='reset')this.reset();if(action==='expand')root.AtlasFullscreen.open(this.host,this.label);const remove=e.target.closest('[data-remove-series]');if(remove)this.onRemove?.(remove.dataset.removeSeries);},{signal:this.abort.signal});
       this.svg.addEventListener('keydown',e=>this.key(e),{signal:this.abort.signal});
       this.gesture=new root.AtlasGesture(this.surface,{
@@ -79,12 +79,13 @@
         const s=this.stock,i=this.index,hasVolume=s.volume.some(finite);
         return [['开盘',s.open[i],'元'],['最高',s.high[i],'元'],['最低',s.low[i],'元'],['收盘',s.close[i],'元'],['涨跌',s.daily[i],'%'],[hasVolume?'成交量':'成交额',hasVolume?s.volume[i]:s.amount[i],hasVolume?'万股':'亿元'],...this.series.filter(s=>s.id!=='price').map(s=>[s.name,s.values[i],'元'])].map(([name,value,unit])=>({name,value,unit}));
       }
-      return this.series.map(s=>({name:s.name,value:s.values[this.index],color:s.color,unit:this.unit}));
+      return this.series.map(s=>({id:s.id,name:s.name,value:s.values[this.index],color:s.color,unit:this.unit}));
     }
     inspect(p) {
       if(!this.hasData||!this.g)return;const q=this.local(p);
       if(q.x<0||q.x>this.w||q.y<0||q.y>this.h)return;
       this.index=this.indexAt(q.x);const t=clamp((this.g.bottom-q.y)/this.g.height,0,1);this.axisValue=this.inverse(this.lo+t*(this.hi-this.lo));
+      this.focus=this.series.filter(s=>!s.reference&&finite(s.values[this.index])).sort((a,b)=>Math.abs(this.Y(a.values[this.index])-q.y)-Math.abs(this.Y(b.values[this.index])-q.y))[0]?.id;
       this.onInspect(this.index,this);this.updateOverlay();this.updateValues();
       root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.getRows(),x:p.x,y:p.y,axis:`纵轴 ${number(this.axisValue)}${this.unit}`});
     }
@@ -96,9 +97,9 @@
       this.onInspect(this.index,this);this.updateOverlay();this.updateValues();const r=this.surface.getBoundingClientRect();root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.getRows(),x:r.right-30,y:r.top+60,axis:`纵轴 ${number(this.axisValue)}${this.unit}`});
     }
     measure() {
-      this.w=Math.round(this.surface.getBoundingClientRect().width);let h=this.compact?(this.w<600?150:178):(this.kind==='candles'?370:350);
+      this.w=Math.round(this.surface.getBoundingClientRect().width);let h=this.compact?(this.w<600?130:164):(this.kind==='candles'?370:350);
       const expanded=this.host.closest('.is-fullscreen');
-      if(expanded){const stage=expanded.parentElement.getBoundingClientRect().height;h=this.compact?Math.max(120,(stage-90)/3-34):Math.max(230,stage-120);}
+      if(expanded){const stage=expanded.parentElement.getBoundingClientRect().height,readout=this.readout?.getBoundingClientRect().height||0;h=this.compact?Math.max(95,(stage-90-readout)/3-34):Math.max(190,stage-100-readout);}
       this.h=Math.round(h);this.surface.style.height=this.h+'px';this.svg.setAttribute('viewBox',`0 0 ${this.w} ${this.h}`);
       this.g=geometry(this.w,this.h);if(this.compact){this.g.top=12;if(this.hideDates)this.g.bottom=this.h-12;}if(this.kind==='candles')this.g.bottom-=76;
       this.g.height=Math.max(1,this.g.bottom-this.g.top);
@@ -111,7 +112,7 @@
       const a=Math.max(0,Math.floor(this.view[0])),b=Math.min(this.dates.length-1,Math.ceil(this.view[1]));
       const data=[...this.series,...(this.stock&&this.kind==='candles'?[{values:this.stock.high},{values:this.stock.low}]:[])];
       this.hasData=this.stock?this.stock.close.slice(a,b+1).some(finite):data.some(s=>s.values.slice(a,b+1).some(v=>finite(v)&&finite(this.transform(v))));
-      if(!this.hasData){this.svg.innerHTML=`<text class="axis-label" x="${this.w/2}" y="${this.h/2}" text-anchor="middle">当前区间缺少有效数据</text>`;this.values.innerHTML='';this.svg.dataset.axisValue='';return;}
+      if(!this.hasData){this.svg.innerHTML=`<text class="axis-label" x="${this.w/2}" y="${this.h/2}" text-anchor="middle">当前区间缺少有效数据</text>`;if(this.values)this.values.innerHTML='';root.AtlasInspector.render(this,{date:this.dates[this.index],rows:[]});this.svg.dataset.axisValue='';return;}
       [this.lo,this.hi]=this.domain?this.domain.map(this.transform):bounds(data.map(s=>({values:s.values.slice(a,b+1).map(v=>finite(v)?this.transform(v):null)})));
       const g=this.g;this.X=i=>g.left+(this.view[1]===this.view[0]?.5:(i-this.view[0])/(this.view[1]-this.view[0]))*g.width;
       this.Y=v=>g.bottom-(this.transform(v)-this.lo)/(this.hi-this.lo)*g.height;
@@ -124,7 +125,7 @@
         const s=this.stock,cw=Math.max(1,Math.min(15,g.width/Math.max(1,b-a+1)*.65));
         for(let i=a;i<=b;i++){const c=s.close[i],o=s.open[i],h=s.high[i],l=s.low[i],color=c>=o?'var(--rise)':'var(--fall)';if([c,o,h,l].every(finite))html+=`<path d="M${this.X(i)},${this.Y(h)}V${this.Y(l)}" stroke="${color}"/><rect x="${this.X(i)-cw/2}" y="${Math.min(this.Y(o),this.Y(c))}" width="${cw}" height="${Math.max(1,Math.abs(this.Y(o)-this.Y(c)))}" fill="${color}"/>`;else if(finite(c))html+=`<circle cx="${this.X(i)}" cy="${this.Y(c)}" r="1.6" fill="var(--plot-main)"/>`;}
       }
-      for(const s of this.series){if(this.kind==='candles'&&s.id==='price')continue;html+=`<path class="data-line" d="${path(s.values,this.X,this.Y,Math.max(0,a-1),Math.min(this.dates.length-1,b+1))}" stroke="${s.color||'var(--plot-main)'}" stroke-width="${s.reference?2.3:1.7}"/>`;}
+      for(const s of this.series){if(this.kind==='candles'&&s.id==='price')continue;html+=`<path class="data-line" d="${path(s.values,this.X,this.Y,Math.max(0,a-1),Math.min(this.dates.length-1,b+1))}" data-series="${escape(s.id)}" stroke="${s.color||'var(--plot-main)'}" stroke-width="${s.reference?2.3:this.series.length>12?1:1.7}"/>`;}
       html+='</g>';
       if(this.stock&&this.kind==='candles') {
         const volume=this.stock.volume.some(finite)?this.stock.volume:this.stock.amount,unit=this.stock.volume.some(finite)?'万股':'亿元',top=g.bottom+16,bottom=this.h-34;let max=0;
@@ -140,15 +141,17 @@
       const i=this.index,g=this.g,value=this.axisValue??this.series[0]?.values[i];let html='';
       if(i>=this.view[0]&&i<=this.view[1]){
         const x=this.X(i);html+=`<path class="crosshair" d="M${x},${g.top}V${this.stock?this.h-34:g.bottom}"/>`;
-        for(const s of this.series)if(finite(s.values[i]))html+=`<circle cx="${x}" cy="${this.Y(s.values[i])}" r="3.2" fill="${s.color||'var(--plot-main)'}" stroke="var(--bg)" stroke-width="1.3"/>`;
+        for(const s of this.series)if((this.series.length<=8||s.reference||s.id===this.focus)&&finite(s.values[i]))html+=`<circle cx="${x}" cy="${this.Y(s.values[i])}" r="3.2" fill="${s.color||'var(--plot-main)'}" stroke="var(--bg)" stroke-width="1.3"/>`;
       }
       if(finite(value)){const y=clamp(this.Y(value),g.top,g.bottom);html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${g.left-5}" height="22" rx="2"/><text class="axis-tag-text" x="${g.left-10}" y="${y+4}" text-anchor="end">${number(value)}</text>`;}
       if(this.brush){const left=clamp(Math.min(...this.brush),g.left,g.right),right=clamp(Math.max(...this.brush),g.left,g.right);html+=`<rect class="zoom-brush" x="${left}" y="${g.top}" width="${right-left}" height="${g.height}"/>`;}
-      layer.innerHTML=html;this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
+      layer.innerHTML=html;for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===this.focus,reference=this.series.find(s=>s.id===line.dataset.series)?.reference;line.style.opacity=this.series.length>12&&!reference&&!active?'.2':'1';line.style.strokeWidth=active?'2.5':'';}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
     }
     updateValues() {
       const i=this.index,time=this.host.querySelector('.chart-date');if(time)time.textContent=this.dates[i];
       const range=this.host.querySelector('.chart-window');if(range)range.textContent=this.canPan()?`${this.dates[Math.ceil(this.view[0])]} — ${this.dates[Math.floor(this.view[1])]}`:'';
+      root.AtlasInspector.render(this,{date:this.dates[i],rows:this.getRows(),focus:this.focus});
+      if(!this.values)return;
       this.values.innerHTML=this.series.map(s=>`<div><dt><i style="background:${s.color||'var(--plot-main)'}"></i>${escape(s.name)}</dt><dd>${number(s.values[i])}<small>${finite(s.values[i])?escape(this.unit):''}</small></dd>${s.removable?`<button data-remove-series="${escape(s.id)}" aria-label="移除${escape(s.name)}">×</button>`:''}</div>`).join('');
     }
   }
