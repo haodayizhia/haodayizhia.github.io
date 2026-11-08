@@ -23,7 +23,7 @@
   }
   function captureNavigation(){
     if(!S.market)return null;
-    const charts=S.charts.map(c=>({host:c.host.id,index:c.index,focus:c.focus,axisValue:c.axisValue,view:c.view&&[...c.view],yView:c.yView&&[...c.yView],row:c.row,cellWidth:c.cellWidth,fitted:c.fitted,resetIndex:c.resetIndex,scrollLeft:c.surface.scrollLeft,scrollTop:c.surface.scrollTop,pinned:c.pinned,domain:c.domain&&[...c.domain],zoomed:c.zoomed}));
+    const charts=S.charts.map(c=>({host:c.host.id,index:c.index,focus:c.focus,axisValue:c.axisValue,view:c.view&&[...c.view],yView:c.yView&&[...c.yView],row:c.row,cellWidth:c.cellWidth,fitted:c.fitted,resetIndex:c.resetIndex,scrollLeft:c.surface.scrollLeft,scrollTop:c.surface.scrollTop,pinned:c.pinned,domain:c.domain&&[...c.domain],zoomed:c.zoomed,zoomedAxes:c.zoomedAxes&&{...c.zoomedAxes},zoomAxis:c.zoomAxis}));
     return{dataset:S.datasetKey,...Object.fromEntries(navigationFields.map(k=>[k,S[k]])),start:S.market.dates[0],end:S.market.dates.at(-1),date:S.market.dates[S.cursor],period:$('atlasPeriod').value,selected:[...S.selected],stockSelections:[...S.stockSelections],ranges:[...S.ranges],yRanges:[...S.yRanges],charts,scroll:[scrollX,scrollY],fullscreen:AtlasFullscreen.host?.id||''};
   }
   // Keep ordinary chart interaction out of the browser navigation pipeline.
@@ -45,9 +45,9 @@
   function scheduleNavigation(){if(!navigationReady)return;clearTimeout(historyTimer);historyTimer=setTimeout(recordNavigation,400);}
   function restoreCharts(states=[]){
     for(const saved of states){const c=S.charts.find(c=>c.host.id===saved.host);if(!c)continue;
-      if(c instanceof Chart){if(saved.view)c.setRange(...saved.view);if(saved.yView)c.setYRange(saved.yView,true);c.setIndex(Math.min(saved.index,c.dates.length-1));c.focus=saved.focus;c.pinned=saved.pinned;c.axisValue=saved.axisValue;c.updateOverlay();c.updateValues();}
+      if(c instanceof Chart){if(saved.view)c.setRange(...saved.view);if(saved.yView)c.setYRange(saved.yView,true);c.setIndex(Math.min(saved.index,c.dates.length-1));c.focus=saved.focus;c.pinned=saved.pinned;c.axisValue=saved.axisValue;c.zoomAxis=saved.zoomAxis||'both';const axisPicker=c.host.querySelector('.zoom-axis-picker');if(axisPicker)axisPicker.value=c.zoomAxis;c.updateOverlay();c.updateValues();}
       else if(c instanceof AtlasMaps.Heatmap){c.pinned=saved.pinned;c.fitted=saved.fitted;c.cellWidth=saved.cellWidth;c.resetIndex=Number.isInteger(saved.resetIndex)?Math.max(0,Math.min(saved.resetIndex,c.dates.length-1)):c.resetIndex;c.row=saved.row<c.rows.length?saved.row:undefined;c.draw();c.setIndex(saved.index);c.surface.scrollLeft=saved.scrollLeft||0;c.surface.scrollTop=saved.scrollTop||0;}
-      else{c.setIndex(saved.index);c.focus=saved.focus;c.pinned=saved.pinned;c.domain=saved.domain;c.zoomed=saved.zoomed;c.fillIndustryPicker();c.draw();}
+      else{c.setIndex(saved.index);c.focus=saved.focus;c.pinned=saved.pinned;c.domain=saved.domain;c.zoomed=saved.zoomed;c.zoomedAxes=saved.zoomedAxes||{x:!!saved.zoomed,y:!!saved.zoomed};c.zoomAxis=saved.zoomAxis||'both';const axisPicker=c.host.querySelector('.zoom-axis-picker');if(axisPicker)axisPicker.value=c.zoomAxis;c.fillIndustryPicker();c.draw();}
     }
   }
   function restoreNavigation(value,hydrate=false){const pending=restoreNavigationNow(value,hydrate);activeRestore=pending;const done=()=>{if(activeRestore===pending)activeRestore=null;};pending.then(done,done);return pending;}
