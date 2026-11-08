@@ -157,7 +157,7 @@
   async function renderMarket(ticket){
     const modes={lines:'走势',heat:'热力',rotation:'轮动',state:'状态'};
     $('atlasContent').innerHTML=`<section class="workspace-plot"><div class="workspace-viewbar"><nav class="plot-views" aria-label="市场图表">${Object.entries(modes).map(([key,label])=>`<button data-display="${key}" aria-pressed="${S.display===key}">${label}</button>`).join('')}</nav>${compareButton()}</div><div id="marketChart"></div><p class="interaction-note">点曲线查值，点名称进入行业 · 图外点击退出高亮 · 双指/滚轮双轴缩放</p></section>`;
-    $('atlasContent').querySelectorAll('[data-display]').forEach(b=>b.addEventListener('click',()=>{S.display=b.dataset.display;renderView();}));bindComparison();
+    $('atlasContent').querySelectorAll('[data-display]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.display==='heat'&&S.display!=='heat')S.cursor=S.market.dates.length-1;S.display=b.dataset.display;renderView();}));bindComparison();
     if(S.display==='lines')graph('marketChart',{dates:S.market.dates,series:marketSeries(),unit:unit(),label:titles[S.metric],log:S.scale==='log'&&S.metric==='path',onRemove:name=>toggleIndustry(name),onOpenSeries:openIndustry,linkFor:name=>routeURL('industry',name),openLabel:'进入行业'});
     if(S.display==='heat')renderHeat();if(S.display==='rotation')await renderRotation(ticket);if(S.display==='state')renderState();
   }
@@ -220,7 +220,7 @@
     $('atlasContent').innerHTML=`<section class="workspace-plot"><div class="workspace-viewbar"><label class="industry-picker"><span class="sr-only">研究行业</span><select id="industrySelect"><option value="">选择研究行业</option>${orderedSectors().map(s=>`<option value="${esc(s.name)}" ${s.name===S.industry?'selected':''}>${esc(s.name)} · ${s.size}只</option>`).join('')}</select></label>${compareButton()}</div><div class="industry-viewbar"><nav class="plot-views" aria-label="成分股视图"><button type="button" data-atlas-back aria-label="返回上一步" title="返回上一步">←</button><a class="industry-return" data-route-view="market" href="${esc(routeURL('market'))}">市场</a><button data-industry-display="lines" aria-pressed="${S.industryDisplay==='lines'}">走势</button><button data-industry-display="heat" aria-pressed="${S.industryDisplay==='heat'}">热力</button></nav>${relative?`<label class="benchmark-picker"><span>超额基准</span><select id="industryBenchmark" aria-label="成分股超额基准"><option value="sector" ${S.benchmark==='sector'?'selected':''}>本行业</option><option value="pool" ${S.benchmark==='pool'?'selected':''}>股票池</option></select></label>`:''}</div><p id="industryCoverage" class="coverage-note"></p><div id="industryChart" class="plot-empty">${S.industry?'正在读取全部成分股…':'选择行业，或从市场图的行业名称进入。'}</div>${S.industryDisplay==='lines'?'<p class="interaction-note">点股票曲线查值，点名称查看日线 · 图外点击退出高亮 · 双指双轴缩放</p>':''}</section>`;
     $('openComparison').disabled=true;
     $('industrySelect').addEventListener('change',()=>openIndustry($('industrySelect').value));bindComparison();
-    $('atlasContent').querySelectorAll('[data-industry-display]').forEach(b=>b.addEventListener('click',()=>{S.industryDisplay=b.dataset.industryDisplay;renderView();}));
+    $('atlasContent').querySelectorAll('[data-industry-display]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.industryDisplay==='heat'&&S.industryDisplay!=='heat')S.cursor=S.market.dates.length-1;S.industryDisplay=b.dataset.industryDisplay;renderView();}));
     $('industryBenchmark')?.addEventListener('change',()=>{S.benchmark=$('industryBenchmark').value;renderView();});
     if(!S.industry)return;
     const key=JSON.stringify({...query(),name:S.industry});
