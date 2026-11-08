@@ -77,8 +77,8 @@ async function ensurePublished(query,id){
  const dates=publicMeta.dates,start=dates.indexOf(query.start),end=dates.indexOf(query.end);
  if(start<0||end<0)throw Error('请选择数据范围内的交易日。');
  if(start>end)throw Error('开始日期不能晚于结束日期。');
- // Momentum 60 and volatility 20 need observations preceding the visible window.
- const wantedStart=Math.max(0,start-61),wantedEnd=end;
+ // Historical peaks and drawdowns require the full prefix up to the requested end date.
+ const wantedStart=0,wantedEnd=end;
  const revision=sourceRevision;
  const run=async()=>{
   if(engine&&coveredStart<=wantedStart&&coveredEnd>=wantedEnd)return;
@@ -105,6 +105,22 @@ async function ensurePublished(query,id){
  loadQueue=task.catch(()=>{});
  return task;
 }
+async function previewMarket(query,id){
+ const info=publicMeta?.preview;
+ if(!info||query.start!==info.start||query.end!==info.end||Number(query.window||1)!==info.window||(query.mode||'dynamic')!==info.mode)return null;
+ const data=await cachedChunk(info.sha256,info.length);
+ if(data)return JSON.parse(new TextDecoder().decode(data));
+ const response=await fetch(new URL(info.file,publicUrl),{cache:'force-cache',signal:download.signal});
+ if(!response.ok)throw Error('近期行情摘要尚未准备好（'+response.status+'）。');
+ if(typeof DecompressionStream==='undefined')throw Error('此浏览器不支持数据解压，请更新浏览器后重试。');
+ const buffer=await new Response(response.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+ if(buffer.byteLength!==info.length)throw Error('近期行情摘要长度校验失败。');
+ const digest=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',buffer)),v=>v.toString(16).padStart(2,'0')).join('');
+ if(digest!==info.sha256)throw Error('近期行情摘要校验失败。');
+ const result=JSON.parse(new TextDecoder().decode(buffer));
+ await rememberChunk(info.sha256,buffer);
+ return result;
+}
 self.onmessage=async({data})=>{
  const {id,action}=data;
  try{
@@ -128,7 +144,7 @@ self.onmessage=async({data})=>{
    if(publicMeta){
     if(data.path==='/api/meta')result=publicMeta;
     else if(data.path==='/api/health')result={ok:true,version:8};
-    else{await ensurePublished(data.query,id);result=engine.request(data.path,data.query);}
+    else{const preview=data.path==='/api/market'&&!engine?await previewMarket(data.query,id):null;if(preview)result=preview;else{await ensurePublished(data.query,id);result=engine.request(data.path,data.query);}}
    }else{
     if(!engine)throw Error('数据尚未准备好。');
     result=engine.request(data.path,data.query);

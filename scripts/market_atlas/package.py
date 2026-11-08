@@ -6,6 +6,8 @@ import json
 import os
 import shutil
 import tempfile
+import subprocess
+import shutil as _shutil
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'data-source/market-atlas'
@@ -58,6 +60,12 @@ def package(source=SOURCE, target=TARGET):
         if position != len(meta['dates']):
             raise ValueError('MarketAtlas trading days are incomplete.')
         meta['chunks'] = chunks
+        if meta['fields'] == ['close', 'amount', 'turnover', 'ma20', 'quoted', 'open', 'high', 'low', 'volume'] and meta.get('quality') and all('industry' in stock for stock in meta['stocks']):
+            node = _shutil.which('node')
+            if not node:
+                raise RuntimeError('Node.js is required to build the complete-history market preview.')
+            info = subprocess.check_output([node, str(ROOT / 'scripts/market_atlas/build_recent.cjs'), str(source), str(staging)], text=True)
+            meta['preview'] = json.loads(info)
         (staging / 'manifest.json').write_text(json.dumps(meta, ensure_ascii=False, separators=(',', ':'), allow_nan=False) + '\n', encoding='utf-8')
         replace_directory(staging, target)
         print(f'MarketAtlas: {len(meta["stocks"]):,} stocks, {len(meta["dates"])} sessions, {sum(c["bytes"] for c in chunks)/1024**2:.1f} MiB compressed; through {meta["dates"][-1]}.')
