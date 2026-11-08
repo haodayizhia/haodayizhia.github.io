@@ -45,35 +45,36 @@
   class Chart {
     constructor(host,options) {
       this.host=host;Object.assign(this,{unit:'%',label:'',kind:'lines',stock:null,log:false,compact:false,onInspect:()=>{},onRange:()=>{},onYRange:()=>{},inspectionActive:false},options);
-      this.id=++chartId;this.index=this.dates.length-1;this.view=[0,Math.max(0,this.dates.length-1)];this.resetView=[...this.view];this.axisValue=null;this.revision=0;
+      this.zoomAxis='both';this.id=++chartId;this.index=this.dates.length-1;this.view=[0,Math.max(0,this.dates.length-1)];this.resetView=[...this.view];this.axisValue=null;this.revision=0;
       this.abort=new AbortController();
       host.classList.add('chart-host');
       const heading=escape(this.label)+(this.unit?`<small class="chart-unit">（${escape(this.unit)}）</small>`:'');
-      host.innerHTML=`${this.compact?`<header class="mini-chart-head"><h3>${heading}</h3><dl class="chart-values"></dl></header>`:`<div class="plot-toolbar"><div><span class="chart-label" title="${escape(this.label)}（${escape(this.unit)}）">${heading}</span><span class="chart-window"></span></div><div class="plot-actions"><button data-chart-action="out" aria-label="缩小图表" title="同时缩小时间与数值范围">−</button><button data-chart-action="in" aria-label="放大图表" title="同时放大时间与数值范围">＋</button><button data-chart-action="reset">复原</button><button data-chart-action="expand">⛶ 全屏</button></div></div><div class="chart-readout"></div>`}<div class="chart-canvas"><svg class="atlas-chart" tabindex="0" role="img"></svg><div class="chart-input" aria-hidden="true"></div></div>`;
-      this.surface=host.querySelector('.chart-canvas');this.svg=host.querySelector('svg');this.values=host.querySelector('.chart-values');root.AtlasInspector.mount(this,this.readoutHost);
-      host.addEventListener('click',e=>{const action=e.target.closest('[data-chart-action]')?.dataset.chartAction;if(action==='in')this.zoom(1.7);if(action==='out')this.zoom(1/1.7);if(action==='reset')this.reset();if(action==='expand')root.AtlasFullscreen.open(this.host,this.label);const remove=e.target.closest('[data-remove-series]');if(remove)this.onRemove?.(remove.dataset.removeSeries);},{signal:this.abort.signal});
+      host.innerHTML=`${this.compact?`<header class="mini-chart-head"><h3>${heading}</h3><dl class="chart-values"></dl></header>`:`<div class="plot-toolbar"><div><span class="chart-label" title="${escape(this.label)}（${escape(this.unit)}）">${heading}</span><span class="chart-window"></span></div><div class="plot-actions"><select class="zoom-axis-picker" aria-label="缩放方向" title="缩放方向"><option value="both">双轴</option><option value="x">横向</option><option value="y">纵向</option></select><button data-chart-action="out" aria-label="缩小图表" title="同时缩小时间与数值范围">−</button><button data-chart-action="in" aria-label="放大图表" title="同时放大时间与数值范围">＋</button><button data-chart-action="reset">复原</button><button data-chart-action="expand">⛶ 全屏</button></div></div><div class="chart-readout"></div>`}<div class="chart-canvas"><svg class="atlas-chart" tabindex="0" role="img"></svg><div class="chart-input" aria-hidden="true"></div></div>`;
+      this.surface=host.querySelector('.chart-canvas');this.svg=host.querySelector('svg');this.values=host.querySelector('.chart-values');root.AtlasInspector.mount(this,this.readoutHost);host.querySelector('.zoom-axis-picker')?.addEventListener('change',e=>{this.zoomAxis=e.target.value;},{signal:this.abort.signal});
+      host.addEventListener('click',e=>{const action=e.target.closest('[data-chart-action]')?.dataset.chartAction;if(action==='in')this.zoom(1.7,null,this.zoomAxis);if(action==='out')this.zoom(1/1.7,null,this.zoomAxis);if(action==='reset')this.reset();if(action==='expand')root.AtlasFullscreen.open(this.host,this.label);const remove=e.target.closest('[data-remove-series]');if(remove)this.onRemove?.(remove.dataset.removeSeries);},{signal:this.abort.signal});
       this.svg.addEventListener('keydown',e=>this.key(e),{signal:this.abort.signal});
       this.gesture=new root.AtlasGesture(this.surface,{
         owner:this,dismiss:keep=>{this.clearInspection(keep);this.onDismiss?.(keep,this);},inspect:p=>this.inspect(p),tap:p=>this.select(p),
         start:()=>{this.dragView=[...this.view];this.dragY=[this.lo,this.hi];},
         drag:(p,start)=>{if(start.shift){this.brush=[this.local(start).x,this.local(p).x];this.updateOverlay();}else if(this.canPan()){this.pan(p.x-start.x,this.dragView,p.y-start.y,this.dragY);}else this.inspect(p);},
         end:(p,start)=>{if(start?.shift&&this.brush&&Math.abs(this.brush[1]-this.brush[0])>12){const a=this.indexAt(Math.min(...this.brush)),b=this.indexAt(Math.max(...this.brush));this.setRange(a,b,true);}else if(start&&Math.hypot(p.x-start.x,p.y-start.y)<7)this.select(p);this.brush=null;this.updateOverlay();},
-        cancel:()=>{this.brush=null;},canPan:()=>this.canPan(),zoom:(factor,p)=>this.zoom(factor,p),panPinch:(dx,dy)=>this.pan(dx,[...this.view],dy,[this.lo,this.hi]),reset:()=>this.reset()
+        cancel:()=>{this.brush=null;},canPan:()=>this.canPan(),zoom:(factor,p,wheel)=>this.zoom(factor,p,wheel?this.axisAt(p):this.zoomAxis),panPinch:(dx,dy)=>this.pan(dx,[...this.view],dy,[this.lo,this.hi]),reset:()=>this.reset()
       });
-      this.observer=new ResizeObserver(()=>this.draw());this.observer.observe(this.surface);
-      window.addEventListener('resize',()=>this.draw(),{signal:this.abort.signal});this.draw();
+      this.observer=new ResizeObserver(()=>{this.draw();this.navigator?.update();});this.observer.observe(this.surface);
+      window.addEventListener('resize',()=>{this.draw();this.navigator?.update();},{signal:this.abort.signal});this.draw();if(!this.compact)this.navigator=new root.AtlasTimeNavigator(host,{getRange:()=>this.view,getLength:()=>this.dates.length,getDates:()=>this.dates,onChange:(a,b)=>this.setRange(a,b,true)});
     }
-    destroy(){this.gesture.destroy();this.observer.disconnect();this.abort.abort();}
+    destroy(){this.navigator?.destroy();this.gesture.destroy();this.observer.disconnect();this.abort.abort();}
     canPan(){return this.canPanX()||!!this.yView;}
     canPanX(){return this.view[1]-this.view[0]<this.dates.length-1-.1;}
     local(p){const r=this.surface.getBoundingClientRect();return {x:p.x-r.left,y:p.y-r.top};}
+    axisAt(p){if(!p||!this.g)return this.zoomAxis;const q=this.local(p);if(q.x<this.g.left)return 'y';if(q.y>(this.stock?this.h-32:this.g.bottom))return 'x';return this.zoomAxis;}
     indexAt(x){return clamp(Math.round(this.view[0]+(x-(this.plotXLeft??this.g.left))/(this.plotXWidth??this.g.width)*(this.view[1]-this.view[0])),Math.ceil(this.view[0]),Math.floor(this.view[1]));}
     setRange(a,b,notify=false) {
       a=clamp(a,0,this.dates.length-1);b=clamp(b,a,this.dates.length-1);
       if(b-a<1&&this.dates.length>1)return;
       const previous=this.index;
       if(notify){this.index=clamp(this.index,Math.ceil(a),Math.floor(b));if(this.index!==previous)this.axisValue=null;}
-      this.view=[a,b];this.sceneKey='';this.draw();
+      this.view=[a,b];this.sceneKey='';this.draw();this.navigator?.update();
       if(notify){this.onRange(this.dates[Math.floor(a)],this.dates[Math.ceil(b)]);if(this.index!==previous)this.onInspect(this.index,this);}
     }
     setDateRange(start,end){const a=this.dates.indexOf(start),b=this.dates.indexOf(end);if(a>=0&&b>=a)this.setRange(a,b);}

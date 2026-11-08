@@ -69,6 +69,63 @@
     settle(){},
     hide(){this.owner=null;}
   };
+  // Compact overview: drag the viewport, its edges, or use arrow keys.
+  class TimeNavigator {
+    constructor(host,{getRange,getLength,getDates,onChange}){
+      Object.assign(this,{getRange,getLength,getDates,onChange});this.abort=new AbortController();
+      this.el=document.createElement('div');this.el.className='atlas-time-nav';
+      this.el.innerHTML='<div class="atlas-time-track" tabindex="0" role="slider" aria-label="时间导航，拖动窗口移动日期、拖动两端调整范围"><div class="atlas-time-window"><i class="atlas-time-grip is-start"></i><i class="atlas-time-grip is-end"></i></div></div>';
+      host.append(this.el);this.track=this.el.firstElementChild;this.window=this.track.firstElementChild;
+      const signal=this.abort.signal;
+      this.track.addEventListener('pointerdown',e=>this.down(e),{signal});
+      this.track.addEventListener('pointermove',e=>this.move(e),{signal});
+      this.track.addEventListener('pointerup',e=>this.end(e),{signal});
+      this.track.addEventListener('pointercancel',e=>this.end(e),{signal});
+      this.track.addEventListener('keydown',e=>this.key(e),{signal});
+      this.observer=new ResizeObserver(()=>this.update());this.observer.observe(this.track);this.update();
+    }
+    max(){return Math.max(0,this.getLength()-1);}
+    range(){const m=this.max(),v=this.getRange()||[0,m];return[clamp(Number(v[0])||0,0,m),clamp(Number(v[1])||0,0,m)];}
+    update(){
+      const m=this.max(),[a,b]=this.range(),start=m?a/m*100:0,end=m?b/m*100:100;
+      this.window.style.left=start+'%';this.window.style.width=Math.max(0,end-start)+'%';
+      const dates=this.getDates(),first=dates[Math.max(0,Math.floor(a))]||'',last=dates[Math.min(dates.length-1,Math.ceil(b))]||'';
+      this.track.title=first+' — '+last+'（拖动中间移动，拖动两端缩放）';
+      this.track.setAttribute('aria-valuemin','0');this.track.setAttribute('aria-valuemax',String(m));
+      this.track.setAttribute('aria-valuenow',String(Math.round(a)));this.track.setAttribute('aria-valuetext',first+' 至 '+last);
+    }
+    change(a,b,mode){
+      const m=this.max(),min=Math.min(5,m);
+      if(mode==='left'){b=clamp(b,0,m);a=clamp(a,0,Math.max(0,b-min));}
+      else if(mode==='right'){a=clamp(a,0,m);b=clamp(b,Math.min(m,a+min),m);}
+      else{const span=clamp(b-a,min,m);a=clamp(a,0,m-span);b=a+span;}
+      this.onChange(a,b,mode);this.update();
+    }
+    down(e){
+      if(e.button!==0)return;const rect=this.track.getBoundingClientRect(),m=this.max();if(rect.width<1||m<1)return;
+      const x=clamp(e.clientX-rect.left,0,rect.width),value=x/rect.width*m,edge=Math.min(18,Math.max(12,rect.width*.035));
+      let [a,b]=this.range(),mode='pan';
+      if(Math.abs(x-a/m*rect.width)<=edge)mode='left';
+      else if(Math.abs(x-b/m*rect.width)<=edge)mode='right';
+      else if(value<a||value>b){const span=b-a;a=clamp(value-span/2,0,m-span);b=a+span;this.change(a,b,'pan');}
+      this.drag={id:e.pointerId,x:e.clientX,a,b,mode,w:rect.width};this.track.setPointerCapture(e.pointerId);e.preventDefault();
+    }
+    move(e){
+      const d=this.drag;if(!d||d.id!==e.pointerId)return;
+      const m=this.max(),dx=(e.clientX-d.x)/d.w*m,span=d.b-d.a;
+      if(d.mode==='left')this.change(d.a+dx,d.b,'left');
+      else if(d.mode==='right')this.change(d.a,d.b+dx,'right');
+      else{const a=clamp(d.a+dx,0,m-span);this.change(a,a+span,'pan');}
+      e.preventDefault();
+    }
+    end(e){if(!this.drag||e.pointerId!==this.drag.id)return;this.drag=null;if(this.track.hasPointerCapture(e.pointerId))this.track.releasePointerCapture(e.pointerId);}
+    key(e){
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+      e.preventDefault();const m=this.max(),[a,b]=this.range(),span=b-a,step=(e.shiftKey?5:1)*(e.key==='ArrowLeft'?-1:1);
+      const left=e.key==='Home'?0:e.key==='End'?m-span:clamp(a+step,0,m-span);this.change(left,left+span,'pan');
+    }
+    destroy(){this.observer.disconnect();this.abort.abort();this.el.remove();}
+  }
   class Gesture {
     constructor(surface,handlers) {
       this.surface=surface;this.handlers=handlers;this.abort=new AbortController();const signal=this.abort.signal;
@@ -90,7 +147,7 @@
         document.addEventListener('touchstart',outside,{passive:true,signal});
         owner.host.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse&&!owner.readout?.contains(e.relatedTarget))handlers.dismiss?.(false);},{signal});
       }
-      if(handlers.wheel!==false)on('wheel',e=>{e.preventDefault();handlers.zoom?.(Math.exp(-e.deltaY*.002),point(e));},{passive:false});
+      if(handlers.wheel!==false)on('wheel',e=>{e.preventDefault();handlers.zoom?.(Math.exp(-e.deltaY*.002),point(e),true);},{passive:false});
       on('dblclick',e=>{e.preventDefault();handlers.reset?.();});
       on('touchstart',e=>{
         this.clearTimer();
@@ -127,6 +184,6 @@
     clearTimer(){clearTimeout(this.timer);}
     destroy(){this.clearTimer();this.abort.abort();if(inspector.owner?.surface===this.surface)inspector.hide();}
   }
-  Object.assign(root,{AtlasGesture:Gesture,AtlasFullscreen:fullscreen,AtlasInspector:inspector,AtlasDialogDismiss:bindDismiss,AtlasZoomRange:zoomRange});
+  Object.assign(root,{AtlasGesture:Gesture,AtlasTimeNavigator:TimeNavigator,AtlasFullscreen:fullscreen,AtlasInspector:inspector,AtlasDialogDismiss:bindDismiss,AtlasZoomRange:zoomRange});
   if(typeof module!=='undefined')module.exports={zoomRange,clamp};
 })(globalThis);
