@@ -31,11 +31,26 @@ const preview={...json('recent',engine.market(previewQuery)),...previewQuery};
 const all=[...Array(s).keys()];
 const indices={pool:Array.from(engine.aggregate(all,1).index,v=>Number.isFinite(v)?v:null),sectors:[]};
 for(const [,ids]of engine.order)indices.sectors.push(Array.from(engine.aggregate(ids,1).index,v=>Number.isFinite(v)?v:null));
+// Verify range rebasing against the original engine before publishing assets.
+function slicePrecomputed(full,a,b){
+ const cut=s=>{
+  const result={};
+  for(const [key,values] of Object.entries(s))if(key!=='path'&&key!=='__rawIndex')result[key]=values.slice(a,b+1);
+  const raw=s.__rawIndex,base=raw[a];
+  result.path=Array.from({length:b-a+1},(_,t)=>Number.isFinite(base)&&base>0&&Number.isFinite(raw[a+t])?(raw[a+t]/base-1)*100:null);
+  return result;
+ };
+ return {dates:meta.dates.slice(a,b+1),pool:cut(full.pool),sectors:full.sectors.map(x=>({...x,series:cut(x.series)})),eligible:full.eligible,window:full.window,mode:'dynamic'};
+}
 const markets={};
 for(const window of [1,5,10,20,60]){
  const full=engine.market({start:first,end,window,mode:'dynamic'});
  full.pool.__rawIndex=indices.pool;
  full.sectors.forEach((sector,i)=>{sector.series.__rawIndex=indices.sectors[i];});
+ for(const [startIndex,endIndex] of [[Math.max(0,n-63),n-1],[Math.max(0,n-252),n-1]]){
+  const q={start:meta.dates[startIndex],end:meta.dates[endIndex],window,mode:'dynamic'};
+  assert.deepStrictEqual(slicePrecomputed(full,startIndex,endIndex),engine.market(q),'Fast market range differs from full calculations: '+JSON.stringify(q));
+ }
  markets[String(window)]={...json('market-'+window,full),window};
 }
 const industries={};
@@ -57,6 +72,8 @@ for(let group=0;group<engine.order.length;group++){
    const q={code,start:recentStart,end};
    assert.deepStrictEqual(mini.stock(q),engine.stock(q),'Industry bundle changed stock indicators: '+code);
   }
+  const q={name,start:recentStart,end,window:5,mode:'complete'};
+  assert.deepStrictEqual(mini.industryHistory(q),engine.industryHistory(q),'Industry bundle changed historical stock metrics: '+name);
  }
 }
-process.stdout.write(JSON.stringify({preview,markets,industries}));
+process.stdout.write(JSON.stringify({preview,markets,industriesBundle:industries}));

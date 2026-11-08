@@ -62,7 +62,7 @@ def package(source=SOURCE, target=TARGET):
         if meta['fields'] == ['close', 'amount', 'turnover', 'ma20', 'quoted', 'open', 'high', 'low', 'volume'] and meta.get('quality') and all('industry' in stock for stock in meta['stocks']):
             node = shutil.which('node')
             if not node:
-                raise RuntimeError('Node.js is required to build the complete-history market preview.')
+                raise RuntimeError('Node.js is required to build the precomputed market and industry assets.')
             info = subprocess.check_output([node, str(ROOT / 'scripts/market_atlas/build_recent.cjs'), str(source), str(staging)], text=True)
             meta.update(json.loads(info))
         (staging / 'manifest.json').write_text(json.dumps(meta, ensure_ascii=False, separators=(',', ':'), allow_nan=False) + '\n', encoding='utf-8')
