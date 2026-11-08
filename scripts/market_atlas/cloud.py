@@ -7,7 +7,6 @@ import os
 import sys
 from export import export
 from package import ROOT
-from merge_stocks import merge_stock_data, START_DATE
 
 
 def run(probe_only=False):
@@ -25,11 +24,8 @@ def run(probe_only=False):
         print(json.dumps(dict(probe='ok',latest=fetch.REAL_END_DATE),ensure_ascii=False))
         return
     fetch.main()  # Raises if any stock failed; no partial public snapshot.
-    # Keep the original merge script's publication window; older raw history warms indicators.
-    merged=ROOT/'.market-atlas/merged_stock_data.csv'
-    if merge_stock_data(str(raw),str(merged),START_DATE,None) is not True:
-        raise RuntimeError('Merged CSV validation failed; the public snapshot was preserved.')
-    report=export(merged)
+    # 直接从逐股 CSV 生成公开图谱数据
+    report = export(raw)
     if report['dates'][-1].replace('-','') != fetch.REAL_END_DATE:
         raise RuntimeError('The fetched dataset did not reach the latest probed trading day.')
     print(json.dumps(dict(latest=report['dates'][-1],stocks=len(report['stocks']),revision=report['revision']),ensure_ascii=False))

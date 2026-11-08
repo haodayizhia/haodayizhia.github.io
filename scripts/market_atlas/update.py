@@ -1,7 +1,6 @@
 """Merge the owner's existing CSVs, validate, export, build and optionally publish."""
 from pathlib import Path
 import argparse
-import importlib.util
 import json
 import os
 import subprocess
@@ -10,7 +9,10 @@ from export import export
 from package import ROOT
 from publish import Publisher
 
-DEFAULT_MERGE=Path.home()/'Documents/BaiduSyncdisk/Code/Python/Money/TushareTools/find_factor/merge_stocks.py'
+DEFAULT_STOCK_DIR = (
+    Path.home()
+    / 'Documents/BaiduSyncdisk/Code/Python/Money/TushareTools/find_factor/stock_data'
+)
 
 
 def run(args):
@@ -29,22 +31,14 @@ def run(args):
                 publisher.publish_head(lambda name:name.startswith('data-source/market-atlas/'))
             else:
                 raise RuntimeError('Local main differs from GitHub. Synchronize before publishing; no remote files were changed.')
-    if args.source:
-        source=Path(args.source).resolve()
-        if not source.exists():
-            raise ValueError('The CSV or directory does not exist.')
-    else:
-        script=Path(args.merge_script).resolve()
-        if not script.is_file():
-            raise ValueError('merge_stocks.py was not found. Specify --merge-script.')
-        spec=importlib.util.spec_from_file_location('owner_merge_stocks',script)
-        module=importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        # The original script returns False on validation errors but exits with code 0.
-        # Check its actual result rather than accepting a successful process exit.
-        if module.merge_stock_data(module.INPUT_FOLDER,module.OUTPUT_FILE,module.START_DATE,module.END_DATE) is not True:
-            raise RuntimeError('merge_stocks.py reported a failure. Existing website data was preserved.')
-        source=Path(module.OUTPUT_FILE)
+    source = (
+        Path(args.source).expanduser().resolve()
+        if args.source
+        else DEFAULT_STOCK_DIR.resolve()
+    )
+
+    if not source.exists():
+        raise ValueError(f'找不到行情数据：{source}')
     meta=export(source,allow_older=args.allow_older)
     subprocess.run([sys.executable,str(ROOT/'scripts/build.py')],cwd=ROOT,check=True)
     subprocess.run(['node','--test',str(ROOT/'scripts/theme.test.cjs'),str(ROOT/'scripts/market_atlas/engine.test.cjs'),str(ROOT/'scripts/market_atlas/publish.test.cjs'),str(ROOT/'scripts/market_atlas/ui.test.cjs')],cwd=ROOT,check=True)
@@ -62,7 +56,6 @@ def run(args):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source',help='An explicitly selected merged CSV or per-stock CSV directory; skips merging.')
-    parser.add_argument('--merge-script',default=str(DEFAULT_MERGE))
     parser.add_argument('--publish',action='store_true',help='Commit validated chart data and publish without force-pushing.')
     parser.add_argument('--allow-older',action='store_true',help='Intentionally replace a newer snapshot with older data.')
     args=parser.parse_args()

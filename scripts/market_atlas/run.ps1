@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Merge','Import')][string]$Mode='Merge',
+    [ValidateSet('Update','Import')][string]$Mode='Update',
     [string]$Source,
     [switch]$NoPublish
 )

@@ -12,11 +12,32 @@ from package import ROOT, SOURCE, replace_directory
 
 def export(source, *, allow_older=False):
     model = MarketData(Path(source))
-    if model.quality['errors'] or model.quality['schema_errors'] or model.quality['invalid_codes']:
-        raise ValueError('Some CSVs failed validation; public data was not changed. ' + json.dumps(clean(model.quality), ensure_ascii=False)[:1600])
+    checks = (
+    'errors',
+    'schema_errors',
+    'invalid_codes',
+    'invalid_dates',
+    'duplicate_rows',
+    )
+
+    issues = {
+        key: model.quality.get(key)
+        for key in checks
+        if model.quality.get(key)
+    }
+
+    if issues:
+        raise ValueError(
+            '数据校验失败，停止发布：' +
+            json.dumps(clean(issues), ensure_ascii=False)[:1600]
+        )
     if not model.quality['return_observations']:
         raise ValueError('There are no consecutive valid price observations.')
     old = json.loads((SOURCE/'manifest.json').read_text(encoding='utf-8')) if (SOURCE/'manifest.json').exists() else None
+    if old and model.dates[0] > old['dates'][0] and not allow_older:
+        raise ValueError(
+            '新数据起始日期晚于已发布数据，拒绝缩短历史范围。'
+        )
     if old and model.dates[-1] < old['dates'][-1] and not allow_older:
         raise ValueError('This data is older than the published snapshot. Use --allow-older only for an intentional replacement.')
     quality = dict(model.quality)
