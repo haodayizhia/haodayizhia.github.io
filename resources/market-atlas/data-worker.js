@@ -2,6 +2,7 @@
 importScripts('./engine.js'+self.location.search,'./csv.js'+self.location.search,'./snapshot.js'+self.location.search);
 let engine=null,publicMeta=null,publicUrl='',coveredStart=-1,coveredEnd=-1;
 let sourceRevision=0,download=null,loadQueue=Promise.resolve();
+const marketAssets=new Map(),industryAssets=new Map();
 
 // Only publicly published, SHA-256 verified monthly arrays are persisted. Local imports stay in memory.
 const database=(()=>{
@@ -105,6 +106,69 @@ async function ensurePublished(query,id){
  loadQueue=task.catch(()=>{});
  return task;
 }
+
+async function verifiedAsset(info){
+ const cached=await cachedChunk(info.sha256,info.length);
+ if(cached)return cached;
+ if(download?.signal.aborted)throw Error('数据源已切换。');
+ const r=await fetch(new URL(info.file,publicUrl),{cache:'force-cache',signal:download.signal});
+ if(!r.ok)throw Error('读取预计算数据失败（'+r.status+'）。');
+ if(typeof DecompressionStream==='undefined')throw Error('此浏览器不支持数据解压，请更新浏览器后重试。');
+ const buffer=await new Response(r.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+ if(buffer.byteLength!==info.length)throw Error('预计算数据长度校验失败。');
+ const sha=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',buffer)),v=>v.toString(16).padStart(2,'0')).join('');
+ if(sha!==info.sha256)throw Error('预计算数据校验失败。');
+ await rememberChunk(info.sha256,buffer);
+ return buffer;
+}
+function assetPromise(map,key,load){
+ if(!map.has(key)){
+  const task=Promise.resolve().then(load).catch(error=>{map.delete(key);throw error;});
+  map.set(key,task);
+ }
+ return map.get(key);
+}
+async function fullMarket(window){
+ const info=publicMeta?.markets?.[String(window)];
+ if(!info)return null;
+ return assetPromise(marketAssets,String(window),async()=>{
+  const full=JSON.parse(new TextDecoder().decode(await verifiedAsset(info)));
+  if(full.window!==window||full.mode!=='dynamic'||full.dates.length!==publicMeta.dates.length||
+     full.dates[0]!==publicMeta.dates[0]||full.dates.at(-1)!==publicMeta.dates.at(-1)||
+     full.sectors.length!==publicMeta.industries.length)throw Error('预计算市场数据与行情清单不匹配。');
+  return full;
+ });
+}
+function selectFullMarket(full,q){
+ const dates=publicMeta.dates,a=dates.indexOf(q.start),b=dates.indexOf(q.end);
+ if(a<0||b<0)throw Error('请选择数据范围内的交易日。');
+ if(a>b)throw Error('开始日期不能晚于结束日期。');
+ const slice=series=>{
+  const result={};
+  for(const [name,values] of Object.entries(series))if(name!=='path'&&name!=='__rawIndex')result[name]=values.slice(a,b+1);
+  const raw=series.__rawIndex,base=raw[a];
+  result.path=Array.from({length:b-a+1},(_,i)=>Number.isFinite(base)&&base>0&&Number.isFinite(raw[a+i])?(raw[a+i]/base-1)*100:null);
+  return result;
+ };
+ return {dates:dates.slice(a,b+1),pool:slice(full.pool),sectors:full.sectors.map(x=>({...x,series:slice(x.series)})),eligible:full.eligible,window:full.window,mode:'dynamic'};
+}
+async function industryEngine(industry){
+ const info=publicMeta?.industriesBundle?.[industry];
+ if(!info)return null;
+ return assetPromise(industryAssets,industry,async()=>{
+  const selected=publicMeta.stocks.filter(s=>s.industry===industry),n=publicMeta.dates.length,count=selected.length;
+  if(count!==info.count||!count||info.length!==n*count*AtlasFields.length*4)throw Error('行业分片与股票目录不一致。');
+  const buffer=await verifiedAsset(info),values=new Float32Array(buffer),size=n*count;
+  const arrays=Object.fromEntries(AtlasFields.map((name,f)=>[name,new Float32Array(buffer,size*f*4,size)]));
+  const subset={dates:publicMeta.dates,stocks:selected,quality:{...publicMeta.quality},allowEmptyGroup:true};
+  const instance=new AtlasEngine(subset,arrays);
+  // Don't keep an unbounded set of stock matrices in a mobile browser.
+  if(industryAssets.size>3){
+   for(const key of industryAssets.keys())if(key!==industry){industryAssets.delete(key);break;}
+  }
+  return instance;
+ });
+}
 async function previewMarket(query,id){
  const info=publicMeta?.preview;
  if(!info||query.start!==info.start||query.end!==info.end||Number(query.window||1)!==info.window||(query.mode||'dynamic')!==info.mode)return null;
@@ -129,13 +193,13 @@ self.onmessage=async({data})=>{
    const revision=++sourceRevision;download?.abort();const controller=new AbortController();download=controller;
    const meta=await publishedManifest(data.url,controller.signal);
    if(revision!==sourceRevision)throw Error('已切换到更新的数据源。');
-   publicMeta=meta;publicUrl=data.url;engine=null;coveredStart=-1;coveredEnd=-1;loadQueue=Promise.resolve();
+   publicMeta=meta;publicUrl=data.url;engine=null;coveredStart=-1;coveredEnd=-1;loadQueue=Promise.resolve();marketAssets.clear();industryAssets.clear();
    result=meta;
   }else if(action==='import'){
    const revision=++sourceRevision;download?.abort();
    const next=await importAtlasCsv(data.files,data.kind,progress=>postMessage({id,progress}));
    if(revision!==sourceRevision)throw Error('已切换到更新的数据源。');
-   engine=next;publicMeta=null;coveredStart=-1;coveredEnd=-1;loadQueue=Promise.resolve();result=engine.meta;
+   engine=next;publicMeta=null;coveredStart=-1;coveredEnd=-1;loadQueue=Promise.resolve();marketAssets.clear();industryAssets.clear();result=engine.meta;
   }else if(action==='snapshot'){
    if(publicMeta)await ensurePublished({start:publicMeta.dates[0],end:publicMeta.dates.at(-1)},id);
    if(!engine)throw Error('请先导入行情数据。');
@@ -144,7 +208,24 @@ self.onmessage=async({data})=>{
    if(publicMeta){
     if(data.path==='/api/meta')result=publicMeta;
     else if(data.path==='/api/health')result={ok:true,version:8};
-    else{const preview=data.path==='/api/market'&&!engine?await previewMarket(data.query,id):null;if(preview)result=preview;else{await ensurePublished(data.query,id);result=engine.request(data.path,data.query);}}
+    else{
+     const q=data.query||{},route=data.path;
+     if(route==='/api/market'&&(q.mode||'dynamic')==='dynamic'){
+      const preview=await previewMarket(q,id);
+      if(preview)result=preview;
+      else{
+       const w=Number(q.window||1),full=await fullMarket(w);
+       if(full)result=selectFullMarket(full,q);
+       else{await ensurePublished(q,id);result=engine.request(route,q);}
+      }
+     }else if(['/api/stock','/api/industry-history','/api/industry'].includes(route)&&publicMeta.industriesBundle){
+      const group=route==='/api/stock'?publicMeta.stocks.find(s=>s.code===q.code)?.industry:q.name;
+      if(!group)throw Error(route==='/api/stock'?'未知股票。':'未知行业。');
+      const mini=await industryEngine(group);
+      if(mini)result=mini.request(route,q);
+      else{await ensurePublished(q,id);result=engine.request(route,q);}
+     }else{await ensurePublished(q,id);result=engine.request(route,q);}
+    }
    }else{
     if(!engine)throw Error('数据尚未准备好。');
     result=engine.request(data.path,data.query);
