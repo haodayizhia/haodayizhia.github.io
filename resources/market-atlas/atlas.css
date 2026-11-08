@@ -85,21 +85,43 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 .readout-row .readout-unit.is-percent{font-size:.85em;margin-left:1px;color:inherit;opacity:.8}
 
 
-/* Thin visible time overview; touch hit area remains large enough to drag. */
-.atlas-time-nav{width:100%;height:28px;padding:9px 0 7px;min-width:0;user-select:none;-webkit-user-select:none;touch-action:none}
-.atlas-time-track{position:relative;width:100%;height:10px;border-radius:3px;background:color-mix(in srgb,var(--muted) 16%,transparent);cursor:crosshair;touch-action:none;outline-offset:2px}
-.atlas-time-window{position:absolute;top:1px;height:8px;background:color-mix(in srgb,var(--plot-blue) 22%,transparent);border:1px solid var(--plot-blue);border-radius:2px;box-sizing:border-box;pointer-events:none}
-.atlas-time-grip{position:absolute;top:-3px;height:13px;width:3px;border-radius:2px;background:var(--plot-blue)}
-.atlas-time-grip.is-start{left:0}.atlas-time-grip.is-end{right:0}
+/* Visible zoom mode selection: no hidden desktop control. */
+.atlas-app .plot-actions{gap:2px;align-items:center;min-width:0}
+.atlas-app .plot-actions button:nth-child(2){margin-right:0}
+.zoom-mode-label{font-size:11px!important;white-space:nowrap;color:var(--muted);padding-right:3px}
+.zoom-modes{display:inline-flex;align-items:center;gap:1px;padding:2px;border:1px solid var(--line);border-radius:6px;background:color-mix(in srgb,var(--muted) 6%,var(--surface));flex-shrink:0}
+.atlas-app .plot-actions .zoom-modes button{min-height:30px;min-width:33px;padding:4px 7px;margin:0;border-radius:4px;font-size:11px;white-space:nowrap;color:var(--muted);line-height:1.4}
+.atlas-app .plot-actions .zoom-modes button[aria-pressed="true"]{background:var(--plot-blue);color:var(--bg);font-weight:600;box-shadow:0 1px 4px #0002}
+.atlas-app .plot-actions .zoom-modes button:not([aria-pressed="true"]):hover{background:color-mix(in srgb,var(--plot-blue) 12%,transparent);color:var(--ink)}
+/* Compact timeline with accessible drag region, date labels, and visible handles. */
+.atlas-time-nav{min-width:0;width:100%;height:43px;margin-top:3px;padding:0 0 4px;user-select:none;-webkit-user-select:none;touch-action:pan-y}
+.atlas-time-meta{height:19px;display:grid;grid-template-columns:minmax(45px,1fr) auto minmax(45px,1fr);align-items:center;gap:6px;color:var(--muted);font-size:10px;line-height:17px;font-variant-numeric:tabular-nums}
+.atlas-time-meta .atlas-time-first{text-align:left}
+.atlas-time-meta .atlas-time-selected{text-align:center;white-space:nowrap;color:var(--plot-blue);font-weight:600}
+.atlas-time-meta .atlas-time-last{text-align:right}
+.atlas-time-track{position:relative;height:14px;width:100%;border:1px solid color-mix(in srgb,var(--muted) 28%,var(--line));border-radius:5px;cursor:crosshair;touch-action:none;background:linear-gradient(180deg,color-mix(in srgb,var(--muted) 15%,var(--surface)),color-mix(in srgb,var(--muted) 6%,var(--surface)));box-shadow:inset 0 1px 3px #0001;outline-offset:3px}
+.atlas-time-track:before{content:"";position:absolute;inset:1px;border-radius:3px;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(12.5% - 1px),color-mix(in srgb,var(--muted) 16%,transparent) calc(12.5% - 1px),color-mix(in srgb,var(--muted) 16%,transparent) 12.5%);pointer-events:none}
+.atlas-time-window{position:absolute;top:-1px;height:14px;box-sizing:border-box;border-radius:4px;border:1px solid var(--plot-blue);background:linear-gradient(180deg,color-mix(in srgb,var(--plot-blue) 34%,var(--surface)),color-mix(in srgb,var(--plot-blue) 21%,var(--surface)));box-shadow:0 0 0 1px color-mix(in srgb,var(--plot-blue) 12%,transparent),inset 0 1px 1px #fff2;pointer-events:none;transition:box-shadow .15s}
+.atlas-time-grip{position:absolute;top:-3px;width:7px;height:18px;border:1px solid color-mix(in srgb,var(--plot-blue) 78%,var(--ink));border-radius:3px;background:var(--plot-blue);box-shadow:0 1px 4px #0003}
+.atlas-time-grip:after{content:"";position:absolute;top:4px;left:2px;width:1px;height:8px;background:var(--bg);opacity:.75}
+.atlas-time-grip.is-start{left:-3px}.atlas-time-grip.is-end{right:-3px}
+.atlas-time-track[data-dragging] .atlas-time-window{box-shadow:0 0 0 3px color-mix(in srgb,var(--plot-blue) 20%,transparent)}
 .atlas-time-track:focus-visible{outline:2px solid var(--plot-blue)}
 .heatmap-host>.atlas-time-nav{width:calc(100% - 122px);margin-left:122px}
-.state-bundle>.atlas-time-nav{margin-top:3px}
-.zoom-axis-picker{display:none!important}
+.state-bundle>.atlas-time-nav{margin-top:7px}
 @media(max-width:760px){
-  .atlas-app .zoom-axis-picker{display:block!important;width:58px;min-width:58px;max-width:58px;min-height:34px;height:34px;margin-right:2px;padding:3px 2px;font-size:11px;border:1px solid var(--line);background:transparent;border-radius:3px}
-  .atlas-app .plot-toolbar{min-width:0;gap:5px}
-  .atlas-app .plot-actions{gap:0;min-width:0}
-  .atlas-app .plot-actions button{min-width:31px;padding:6px 5px}
-  .heatmap-host>.atlas-time-nav{width:calc(100% - 85px);margin-left:85px}
-  .atlas-time-nav{height:31px;padding-top:10px;padding-bottom:8px}
+  .atlas-app .plot-toolbar{min-width:0;gap:5px;flex-wrap:wrap;row-gap:3px}
+  .atlas-app .plot-toolbar>div:first-child{flex:1 1 100px;min-width:0}
+  .atlas-app .plot-actions{min-width:0;margin-left:auto;gap:1px}
+  .atlas-app .plot-actions button{min-width:30px;padding:6px 5px}
+  .atlas-app .plot-actions .zoom-modes button{min-width:31px;padding:4px 5px;min-height:32px}
+  .zoom-mode-label{font-size:10px!important}
+  .heatmap-host>.atlas-time-nav{margin-left:85px;width:calc(100% - 85px)}
+  .atlas-time-nav{height:45px;margin-top:5px}
+}
+@media(max-width:480px){
+  .atlas-app .chart-host>.plot-toolbar,.atlas-app .scatter-host>.plot-toolbar,.atlas-app .state-bundle>.plot-toolbar{align-items:flex-start}
+  .atlas-app .chart-host>.plot-toolbar>.plot-actions,.atlas-app .scatter-host>.plot-toolbar>.plot-actions,.atlas-app .state-bundle>.plot-toolbar>.plot-actions{width:100%;justify-content:flex-end}
+  .atlas-app .plot-actions .zoom-modes button{font-size:10px;min-width:30px;padding-inline:5px}
+  .zoom-mode-label{margin-right:auto;align-self:center}
 }

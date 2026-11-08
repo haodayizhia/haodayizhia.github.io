@@ -69,13 +69,18 @@
     settle(){},
     hide(){this.owner=null;}
   };
+  function axisControls(kind='time'){
+    const x=kind==='time'?'时间':'横轴',y=kind==='time'?'数值':'纵轴';
+    return '<span class="zoom-mode-label" aria-hidden="true">缩放</span><div class="zoom-modes" role="group" aria-label="缩放方向">'+[['x',x],['y',y],['both','双轴']].map(([axis,label])=>'<button type="button" data-zoom-axis="'+axis+'" aria-pressed="'+(axis==='both')+'" title="'+label+'缩放">'+label+'</button>').join('')+'</div>';
+  }
+  function applyZoomAxis(host,axis){for(const b of host.querySelectorAll('[data-zoom-axis]'))b.setAttribute('aria-pressed',String(b.dataset.zoomAxis===axis));}
   // Compact overview: drag the viewport, its edges, or use arrow keys.
   class TimeNavigator {
     constructor(host,{getRange,getLength,getDates,onChange}){
       Object.assign(this,{getRange,getLength,getDates,onChange});this.abort=new AbortController();
       this.el=document.createElement('div');this.el.className='atlas-time-nav';
-      this.el.innerHTML='<div class="atlas-time-track" tabindex="0" role="slider" aria-label="时间导航，拖动窗口移动日期、拖动两端调整范围"><div class="atlas-time-window"><i class="atlas-time-grip is-start"></i><i class="atlas-time-grip is-end"></i></div></div>';
-      host.append(this.el);this.track=this.el.firstElementChild;this.window=this.track.firstElementChild;
+      this.el.innerHTML='<div class="atlas-time-meta" aria-hidden="true"><span class="atlas-time-first"></span><span class="atlas-time-selected"></span><span class="atlas-time-last"></span></div><div class="atlas-time-track" tabindex="0" role="slider" aria-label="时间导航，拖动窗口移动日期、拖动两端调整范围"><div class="atlas-time-window"><i class="atlas-time-grip is-start"></i><i class="atlas-time-grip is-end"></i></div></div>';
+      host.append(this.el);this.track=this.el.querySelector('.atlas-time-track');this.window=this.track.firstElementChild;
       const signal=this.abort.signal;
       this.track.addEventListener('pointerdown',e=>this.down(e),{signal});
       this.track.addEventListener('pointermove',e=>this.move(e),{signal});
@@ -90,6 +95,8 @@
       const m=this.max(),[a,b]=this.range(),start=m?a/m*100:0,end=m?b/m*100:100;
       this.window.style.left=start+'%';this.window.style.width=Math.max(0,end-start)+'%';
       const dates=this.getDates(),first=dates[Math.max(0,Math.floor(a))]||'',last=dates[Math.min(dates.length-1,Math.ceil(b))]||'';
+      const short=t=>/^\d{4}-\d{2}/.test(t)?t.slice(2,7).replace('-','.'):String(t).slice(2,6);
+      this.el.querySelector('.atlas-time-first').textContent=short(dates[0]||'');this.el.querySelector('.atlas-time-last').textContent=short(dates.at(-1)||'');this.el.querySelector('.atlas-time-selected').textContent=short(first)+' — '+short(last);
       this.track.title=first+' — '+last+'（拖动中间移动，拖动两端缩放）';
       this.track.setAttribute('aria-valuemin','0');this.track.setAttribute('aria-valuemax',String(m));
       this.track.setAttribute('aria-valuenow',String(Math.round(a)));this.track.setAttribute('aria-valuetext',first+' 至 '+last);
@@ -108,17 +115,17 @@
       if(Math.abs(x-a/m*rect.width)<=edge)mode='left';
       else if(Math.abs(x-b/m*rect.width)<=edge)mode='right';
       else if(value<a||value>b){const span=b-a;a=clamp(value-span/2,0,m-span);b=a+span;this.change(a,b,'pan');}
-      this.drag={id:e.pointerId,x:e.clientX,a,b,mode,w:rect.width};this.track.setPointerCapture(e.pointerId);e.preventDefault();
+      this.drag={id:e.pointerId,x:e.clientX,a,b,mode,w:rect.width};this.track.dataset.dragging=mode;this.track.setPointerCapture(e.pointerId);e.preventDefault();
     }
     move(e){
-      const d=this.drag;if(!d||d.id!==e.pointerId)return;
+      const d=this.drag;if(!d||d.id!==e.pointerId){if(!d){const r=this.track.getBoundingClientRect(),m=this.max(),[a,b]=this.range();if(m>0){const x=e.clientX-r.left,edge=Math.min(10,Math.max(5,(b-a)/m*r.width*.2));this.track.style.cursor=Math.abs(x-a/m*r.width)<=edge||Math.abs(x-b/m*r.width)<=edge?'ew-resize':x>a/m*r.width&&x<b/m*r.width?'grab':'crosshair';}}return;}
       const m=this.max(),dx=(e.clientX-d.x)/d.w*m,span=d.b-d.a;
       if(d.mode==='left')this.change(d.a+dx,d.b,'left');
       else if(d.mode==='right')this.change(d.a,d.b+dx,'right');
       else{const a=clamp(d.a+dx,0,m-span);this.change(a,a+span,'pan');}
       e.preventDefault();
     }
-    end(e){if(!this.drag||e.pointerId!==this.drag.id)return;this.drag=null;if(this.track.hasPointerCapture(e.pointerId))this.track.releasePointerCapture(e.pointerId);}
+    end(e){if(!this.drag||e.pointerId!==this.drag.id)return;this.drag=null;delete this.track.dataset.dragging;if(this.track.hasPointerCapture(e.pointerId))this.track.releasePointerCapture(e.pointerId);}
     key(e){
       if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
       e.preventDefault();const m=this.max(),[a,b]=this.range(),span=b-a,step=(e.shiftKey?5:1)*(e.key==='ArrowLeft'?-1:1);
@@ -184,6 +191,6 @@
     clearTimer(){clearTimeout(this.timer);}
     destroy(){this.clearTimer();this.abort.abort();if(inspector.owner?.surface===this.surface)inspector.hide();}
   }
-  Object.assign(root,{AtlasGesture:Gesture,AtlasTimeNavigator:TimeNavigator,AtlasFullscreen:fullscreen,AtlasInspector:inspector,AtlasDialogDismiss:bindDismiss,AtlasZoomRange:zoomRange});
+  Object.assign(root,{AtlasGesture:Gesture,AtlasTimeNavigator:TimeNavigator,AtlasAxisControls:axisControls,AtlasApplyZoomAxis:applyZoomAxis,AtlasFullscreen:fullscreen,AtlasInspector:inspector,AtlasDialogDismiss:bindDismiss,AtlasZoomRange:zoomRange});
   if(typeof module!=='undefined')module.exports={zoomRange,clamp};
 })(globalThis);
