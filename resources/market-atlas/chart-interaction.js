@@ -103,8 +103,8 @@
     }
     down(e){
       if(e.button!==0)return;const rect=this.track.getBoundingClientRect(),m=this.max();if(rect.width<1||m<1)return;
-      const x=clamp(e.clientX-rect.left,0,rect.width),value=x/rect.width*m,edge=Math.min(18,Math.max(12,rect.width*.035));
-      let [a,b]=this.range(),mode='pan';
+      const x=clamp(e.clientX-rect.left,0,rect.width),value=x/rect.width*m;
+      let [a,b]=this.range(),mode='pan';const edge=Math.min(10,Math.max(5,(b-a)/m*rect.width*.2));
       if(Math.abs(x-a/m*rect.width)<=edge)mode='left';
       else if(Math.abs(x-b/m*rect.width)<=edge)mode='right';
       else if(value<a||value>b){const span=b-a;a=clamp(value-span/2,0,m-span);b=a+span;this.change(a,b,'pan');}
