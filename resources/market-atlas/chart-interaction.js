@@ -79,7 +79,7 @@
     constructor(host,{getRange,getLength,getDates,onChange}){
       Object.assign(this,{getRange,getLength,getDates,onChange});this.abort=new AbortController();
       this.el=document.createElement('div');this.el.className='atlas-time-nav';
-      this.el.innerHTML='<div class="atlas-time-meta" aria-hidden="true"><span class="atlas-time-first"></span><span class="atlas-time-selected"></span><span class="atlas-time-last"></span></div><div class="atlas-time-track" tabindex="0" role="slider" aria-label="时间导航，拖动窗口移动日期、拖动两端调整范围"><div class="atlas-time-window"><i class="atlas-time-grip is-start"></i><i class="atlas-time-grip is-end"></i></div></div>';
+      this.el.innerHTML='<div class="atlas-time-track" tabindex="0" role="slider" aria-label="时间导航，拖动窗口移动日期、拖动两端调整范围"><div class="atlas-time-window"><i class="atlas-time-grip is-start"></i><i class="atlas-time-grip is-end"></i></div></div>';
       host.append(this.el);this.track=this.el.querySelector('.atlas-time-track');this.window=this.track.firstElementChild;
       const signal=this.abort.signal;
       this.track.addEventListener('pointerdown',e=>this.down(e),{signal});
@@ -95,8 +95,6 @@
       const m=this.max(),[a,b]=this.range(),start=m?a/m*100:0,end=m?b/m*100:100;
       this.window.style.left=start+'%';this.window.style.width=Math.max(0,end-start)+'%';
       const dates=this.getDates(),first=dates[Math.max(0,Math.floor(a))]||'',last=dates[Math.min(dates.length-1,Math.ceil(b))]||'';
-      const short=t=>/^\d{4}-\d{2}/.test(t)?t.slice(2,7).replace('-','.'):String(t).slice(2,6);
-      this.el.querySelector('.atlas-time-first').textContent=short(dates[0]||'');this.el.querySelector('.atlas-time-last').textContent=short(dates.at(-1)||'');this.el.querySelector('.atlas-time-selected').textContent=short(first)+' — '+short(last);
       this.track.title=first+' — '+last+'（拖动中间移动，拖动两端缩放）';
       this.track.setAttribute('aria-valuemin','0');this.track.setAttribute('aria-valuemax',String(m));
       this.track.setAttribute('aria-valuenow',String(Math.round(a)));this.track.setAttribute('aria-valuetext',first+' 至 '+last);
