@@ -83,3 +83,23 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 .chart-label .chart-unit,.mini-chart-head .chart-unit{font-size:inherit;font-weight:400;white-space:nowrap;color:var(--muted)}
 .plot-toolbar .chart-label{color:var(--ink)}
 .readout-row .readout-unit.is-percent{font-size:.85em;margin-left:1px;color:inherit;opacity:.8}
+
+
+/* Thin visible time overview; touch hit area remains large enough to drag. */
+.atlas-time-nav{width:100%;height:28px;padding:9px 0 7px;min-width:0;user-select:none;-webkit-user-select:none;touch-action:none}
+.atlas-time-track{position:relative;width:100%;height:10px;border-radius:3px;background:color-mix(in srgb,var(--muted) 16%,transparent);cursor:crosshair;touch-action:none;outline-offset:2px}
+.atlas-time-window{position:absolute;top:1px;height:8px;background:color-mix(in srgb,var(--plot-blue) 22%,transparent);border:1px solid var(--plot-blue);border-radius:2px;box-sizing:border-box;pointer-events:none}
+.atlas-time-grip{position:absolute;top:-3px;height:13px;width:3px;border-radius:2px;background:var(--plot-blue)}
+.atlas-time-grip.is-start{left:0}.atlas-time-grip.is-end{right:0}
+.atlas-time-track:focus-visible{outline:2px solid var(--plot-blue)}
+.heatmap-host>.atlas-time-nav{width:calc(100% - 122px);margin-left:122px}
+.state-bundle>.atlas-time-nav{margin-top:3px}
+.zoom-axis-picker{display:none!important}
+@media(max-width:760px){
+  .atlas-app .zoom-axis-picker{display:block!important;width:58px;min-width:58px;max-width:58px;min-height:34px;height:34px;margin-right:2px;padding:3px 2px;font-size:11px;border:1px solid var(--line);background:transparent;border-radius:3px}
+  .atlas-app .plot-toolbar{min-width:0;gap:5px}
+  .atlas-app .plot-actions{gap:0;min-width:0}
+  .atlas-app .plot-actions button{min-width:31px;padding:6px 5px}
+  .heatmap-host>.atlas-time-nav{width:calc(100% - 85px);margin-left:85px}
+  .atlas-time-nav{height:31px;padding-top:10px;padding-bottom:8px}
+}

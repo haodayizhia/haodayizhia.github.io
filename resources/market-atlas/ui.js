@@ -64,7 +64,7 @@
     S.ranges=mergeRanges(S.ranges,sameSource?value.ranges:[]);S.yRanges=mergeRanges(S.yRanges,sameSource?value.yRanges:[]);
     S.cursor=rolling&&value.date===value.end?S.market.dates.length-1:Math.max(0,S.market.dates.indexOf(value.date));$('atlasPeriod').value=value.period||'63';
     applyRoute(S.view,S.view==='industry'?S.industry:S.view==='stock'?S.code:'');updateSummary();await renderView();if(epoch!==navigationEpoch)return;
-    if(sameSource)restoreCharts(value.charts);window.scrollTo({left:value.scroll?.[0]||0,top:value.scroll?.[1]||0,behavior:'instant'});
+    if(sameSource)restoreCharts(value.charts);S.stateTimeNav?.update();window.scrollTo({left:value.scroll?.[0]||0,top:value.scroll?.[1]||0,behavior:'instant'});
     if(value.fullscreen){const host=$(value.fullscreen);if(host)AtlasFullscreen.open(host,S.view==='industry'?S.industry:'图表详情');}
     scheduleNavigation();
   }
@@ -90,10 +90,10 @@
   }
   function notice(text,error=false){$('atlasNotice').textContent=text||'';$('atlasNotice').hidden=!text;$('atlasNotice').classList.toggle('is-error',error);}
   function stop(){S.charts.forEach(c=>c.pause?.());clearInterval(S.timer);S.timer=null;const b=$('atlasReplay');if(b){b.textContent='回放';b.setAttribute('aria-pressed','false');}}
-  function dispose(){AtlasFullscreen.close();AtlasInspector.hide();S.charts.forEach(c=>c.destroy());S.charts=[];}
+  function dispose(){AtlasFullscreen.close();AtlasInspector.hide();S.stateTimeNav?.destroy();S.stateTimeNav=null;S.charts.forEach(c=>c.destroy());S.charts=[];}
   function applyRange(start,end,origin){
     scheduleNavigation();S.ranges.set(rangeKey(),{dates:[start,end],view:[...origin.view],total:origin.dates.length});
-    for(const chart of S.charts)if(chart!==origin&&chart.setDateRange){if(chart.dates.length===origin.dates.length)chart.setRange(...origin.view);else chart.setDateRange(start,end);}
+    for(const chart of S.charts)if(chart!==origin&&chart.setDateRange){if(chart.dates.length===origin.dates.length)chart.setRange(...origin.view);else chart.setDateRange(start,end);}S.stateTimeNav?.update();
   }
   function graph(id,options){
     const scope=S.view==='industry'?S.industry:S.view==='stock'?S.code:'',yKey=rangeKey()+'-'+id+'-'+(S.view==='stock'?'price':metric())+'-'+(S.view==='stock'?'linear':S.scale)+'-'+scope+(S.view==='industry'&&metric()==='relative'?'-'+S.benchmark:'');
@@ -186,10 +186,11 @@
   }
   function renderState(){
     const groups=[{label:'参与面',unit:'%',domain:[0,100],metrics:[['站上MA20','breadth',palette[0]],['当日上涨','up',palette[1]],['上涨5日均值','up_smooth',palette[2]]]},{label:'20日年化波动',unit:'%',metrics:[['年化波动','vol',palette[3]]]},{label:'成交额',unit:'亿元',metrics:[['成交额','amount',palette[0]]]}];
-    $('marketChart').innerHTML=`<div class="state-bundle"><div class="plot-toolbar"><div><span class="state-title">同日联动</span></div><div class="plot-actions"><button data-state-action="out" aria-label="缩小图表">−</button><button data-state-action="in" aria-label="放大图表">＋</button><button data-state-action="reset">复原</button><button data-state-action="expand">⛶ 全屏</button></div></div><div class="chart-readout"></div>${groups.map((_,i)=>`<div id="stateChart${i}"></div>`).join('')}</div>`;
+    $('marketChart').innerHTML=`<div class="state-bundle"><div class="plot-toolbar"><div><span class="state-title">同日联动</span></div><div class="plot-actions"><select class="zoom-axis-picker" data-state-axis aria-label="缩放方向" title="缩放方向"><option value="both">双轴</option><option value="x">横向</option><option value="y">纵向</option></select><button data-state-action="out" aria-label="缩小图表">−</button><button data-state-action="in" aria-label="放大图表">＋</button><button data-state-action="reset">复原</button><button data-state-action="expand">⛶ 全屏</button></div></div><div class="chart-readout"></div>${groups.map((_,i)=>`<div id="stateChart${i}"></div>`).join('')}</div>`;
     const allRows=i=>groups.flatMap(g=>g.metrics.map(([name,key,color])=>({name,value:S.market.pool[key][i],unit:g.unit,color})));
     groups.forEach((g,i)=>graph('stateChart'+i,{dates:S.market.dates,series:g.metrics.map(([name,key,color],j)=>({id:key,name,values:S.market.pool[key],color,reference:j===0})),unit:g.unit,domain:g.domain,label:g.label,compact:true,hideDates:i<2,inspectionRows:allRows,readoutHost:$('marketChart').querySelector('.chart-readout')}));
-    $('marketChart').querySelectorAll('[data-state-action]').forEach(b=>b.addEventListener('click',()=>{const action=b.dataset.stateAction,first=S.charts[0];if(action==='in'||action==='out'){const factor=action==='in'?1.7:1/1.7;S.charts.slice(1).forEach(c=>c.zoomY(factor));first.zoom(factor);}if(action==='reset')S.charts.forEach(c=>c.reset());if(action==='expand')AtlasFullscreen.open($('marketChart').firstElementChild,'同日联动');}));
+    $('marketChart').querySelectorAll('[data-state-action]').forEach(b=>b.addEventListener('click',()=>{const action=b.dataset.stateAction,first=S.charts[0];if(action==='in'||action==='out'){const factor=action==='in'?1.7:1/1.7,axis=$('marketChart').querySelector('[data-state-axis]')?.value||'both';if(axis!=='x')S.charts.slice(1).forEach(c=>c.zoomY(factor));first.zoom(factor,null,axis);}if(action==='reset')S.charts.forEach(c=>c.reset());if(action==='expand')AtlasFullscreen.open($('marketChart').firstElementChild,'同日联动');}));
+    S.stateTimeNav=new AtlasTimeNavigator($('marketChart').firstElementChild,{getRange:()=>S.charts[0]?.view||[0,S.market.dates.length-1],getLength:()=>S.market.dates.length,getDates:()=>S.market.dates,onChange:(a,b)=>S.charts[0]?.setRange(a,b,true)});
     if(matchMedia('(max-width:600px)').matches)requestAnimationFrame(()=>{const bundle=$('marketChart').firstElementChild;if(bundle&&bundle.getBoundingClientRect().height<innerHeight-60)window.scrollBy({top:bundle.getBoundingClientRect().top-54,behavior:'smooth'});});
   }
   function rememberStocks(all=S.history?.stocks.length>0&&S.stocks.size===S.history.stocks.length){
