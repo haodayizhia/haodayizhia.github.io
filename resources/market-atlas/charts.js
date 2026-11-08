@@ -45,7 +45,7 @@
   class Chart {
     constructor(host,options) {
       this.host=host;Object.assign(this,{unit:'%',label:'',kind:'lines',stock:null,log:false,compact:false,onInspect:()=>{},onRange:()=>{},onYRange:()=>{},inspectionActive:false},options);
-      this.id=++chartId;this.index=this.dates.length-1;this.view=[0,Math.max(0,this.dates.length-1)];this.axisValue=null;this.revision=0;
+      this.id=++chartId;this.index=this.dates.length-1;this.view=[0,Math.max(0,this.dates.length-1)];this.resetView=[...this.view];this.axisValue=null;this.revision=0;
       this.abort=new AbortController();
       host.classList.add('chart-host');
       const heading=escape(this.label)+(this.unit?`<small class="chart-unit">（${escape(this.unit)}）</small>`:'');
@@ -94,7 +94,7 @@
       if(this.yView&&yStart){const shift=dy/this.g.height*(yStart[1]-yStart[0]);this.yView=yStart.map(v=>v+shift);this.onYRange(this.yView);}
       if(this.canPanX())this.setRange(a,a+span,true);else{this.sceneKey='';this.draw();}
     }
-    reset(){this.yView=null;this.onYRange(null);this.setRange(0,this.dates.length-1,true);}
+    reset(){this.yView=null;this.onYRange(null);const [a,b]=this.resetView||[0,this.dates.length-1];this.setRange(a,b,true);this.onReset?.(this);}
     setSeries(series){if(!series.some(s=>s.id===this.pinned))this.pinned=null;if(!series.some(s=>s.id===this.focus))this.focus=null;this.series=series;this.revision++;this.sceneKey='';this.draw();}
     setIndex(index,{reveal=false}={}) {
       this.index=clamp(index,0,this.dates.length-1);this.axisValue=null;

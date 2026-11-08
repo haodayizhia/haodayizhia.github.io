@@ -23,7 +23,7 @@
   }
   function captureNavigation(){
     if(!S.market)return null;
-    const charts=S.charts.map(c=>({host:c.host.id,index:c.index,focus:c.focus,axisValue:c.axisValue,view:c.view&&[...c.view],yView:c.yView&&[...c.yView],row:c.row,cellWidth:c.cellWidth,fitted:c.fitted,scrollLeft:c.surface.scrollLeft,scrollTop:c.surface.scrollTop,pinned:c.pinned,domain:c.domain&&[...c.domain],zoomed:c.zoomed}));
+    const charts=S.charts.map(c=>({host:c.host.id,index:c.index,focus:c.focus,axisValue:c.axisValue,view:c.view&&[...c.view],yView:c.yView&&[...c.yView],row:c.row,cellWidth:c.cellWidth,fitted:c.fitted,resetIndex:c.resetIndex,scrollLeft:c.surface.scrollLeft,scrollTop:c.surface.scrollTop,pinned:c.pinned,domain:c.domain&&[...c.domain],zoomed:c.zoomed}));
     return{dataset:S.datasetKey,...Object.fromEntries(navigationFields.map(k=>[k,S[k]])),start:S.market.dates[0],end:S.market.dates.at(-1),date:S.market.dates[S.cursor],period:$('atlasPeriod').value,selected:[...S.selected],stockSelections:[...S.stockSelections],ranges:[...S.ranges],yRanges:[...S.yRanges],charts,scroll:[scrollX,scrollY],fullscreen:AtlasFullscreen.host?.id||''};
   }
   // Keep ordinary chart interaction out of the browser navigation pipeline.
@@ -46,7 +46,7 @@
   function restoreCharts(states=[]){
     for(const saved of states){const c=S.charts.find(c=>c.host.id===saved.host);if(!c)continue;
       if(c instanceof Chart){if(saved.view)c.setRange(...saved.view);if(saved.yView)c.setYRange(saved.yView,true);c.setIndex(Math.min(saved.index,c.dates.length-1));c.focus=saved.focus;c.pinned=saved.pinned;c.axisValue=saved.axisValue;c.updateOverlay();c.updateValues();}
-      else if(c instanceof AtlasMaps.Heatmap){c.pinned=saved.pinned;c.fitted=saved.fitted;c.cellWidth=saved.cellWidth;c.row=saved.row<c.rows.length?saved.row:undefined;c.draw();c.setIndex(saved.index);c.surface.scrollLeft=saved.scrollLeft||0;c.surface.scrollTop=saved.scrollTop||0;}
+      else if(c instanceof AtlasMaps.Heatmap){c.pinned=saved.pinned;c.fitted=saved.fitted;c.cellWidth=saved.cellWidth;c.resetIndex=Number.isInteger(saved.resetIndex)?Math.max(0,Math.min(saved.resetIndex,c.dates.length-1)):c.resetIndex;c.row=saved.row<c.rows.length?saved.row:undefined;c.draw();c.setIndex(saved.index);c.surface.scrollLeft=saved.scrollLeft||0;c.surface.scrollTop=saved.scrollTop||0;}
       else{c.setIndex(saved.index);c.focus=saved.focus;c.pinned=saved.pinned;c.domain=saved.domain;c.zoomed=saved.zoomed;c.fillIndustryPicker();c.draw();}
     }
   }
@@ -97,7 +97,7 @@
   }
   function graph(id,options){
     const scope=S.view==='industry'?S.industry:S.view==='stock'?S.code:'',yKey=rangeKey()+'-'+id+'-'+(S.view==='stock'?'price':metric())+'-'+(S.view==='stock'?'linear':S.scale)+'-'+scope+(S.view==='industry'&&metric()==='relative'?'-'+S.benchmark:'');
-    const chart=new Chart($(id),{...options,onDismiss:(keep,origin)=>S.charts.filter(c=>c!==origin).forEach(c=>c.clearInspection?.(keep)),onYRange:range=>{scheduleNavigation();if(range)S.yRanges.set(yKey,[...range]);else S.yRanges.delete(yKey);},onInspect:(i,origin)=>observeDate(options.dates[i],origin),onRange:(a,b)=>applyRange(a,b,chart)});
+    const chart=new Chart($(id),{...options,onDismiss:(keep,origin)=>S.charts.filter(c=>c!==origin).forEach(c=>c.clearInspection?.(keep)),onYRange:range=>{scheduleNavigation();if(range)S.yRanges.set(yKey,[...range]);else S.yRanges.delete(yKey);},onInspect:(i,origin)=>observeDate(options.dates[i],origin),onRange:(a,b)=>applyRange(a,b,chart),onReset:()=>{S.ranges.delete(rangeKey());scheduleNavigation();}});
     const range=S.ranges.get(rangeKey());if(range){if(range.total===chart.dates.length)chart.setRange(...range.view);else chart.setDateRange(...range.dates);}
     if(S.yRanges.has(yKey))chart.setYRange(S.yRanges.get(yKey));chart.setIndex(S.cursor,{reveal:true});S.charts.push(chart);return chart;
   }
@@ -261,7 +261,9 @@
       const stock=await AtlasData.request('/api/stock',{...query(),code:S.code});if(ticket!==S.renderSeq||S.view!=='stock')return;S.stock=stock;
       const series=[{id:'price',name:'收盘价',values:stock.close,reference:true,color:'var(--plot-main)'},...['ma5','ma10','ma20'].map((key,i)=>({id:key,name:key.toUpperCase(),values:stock[key],color:[palette[0],palette[1],palette[3]][i]}))];
       const chart=graph('stockPriceChart',{dates:stock.dates,series,stock,unit:'元',kind:S.stockMode,label:info.name+'日线'});
-      if(!S.ranges.has(rangeKey())&&S.stockSpan!=='all'){const start=Math.max(0,S.cursor-S.stockSpan+1);chart.setRange(start,Math.min(stock.dates.length-1,start+S.stockSpan-1));}
+      const selectedDate=S.market.dates[S.cursor],stockIndex=Math.max(0,stock.dates.findLastIndex(date=>date<=selectedDate));chart.setIndex(stockIndex,{reveal:true});
+      const start=S.stockSpan==='all'?0:Math.max(0,stockIndex-S.stockSpan+1),end=S.stockSpan==='all'?stock.dates.length-1:Math.min(stock.dates.length-1,start+S.stockSpan-1);chart.resetView=[start,end];
+      if(!S.ranges.has(rangeKey()))chart.setRange(start,end);
     }catch(error){notice(error.message,true);}
   }
   function searchStocks(){

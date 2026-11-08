@@ -19,7 +19,7 @@
       this.observer=new ResizeObserver(()=>this.draw());this.observer.observe(this.surface);window.addEventListener('resize',()=>this.draw(),{signal:this.abort.signal});this.draw();
     }
     destroy(){this.gesture.destroy();this.observer.disconnect();this.abort.abort();}
-    setIndex(index){this.index=index;this.updateCursor();if(this.firstPosition&&this.cellWidth){this.surface.scrollLeft=Math.max(0,(index+1)*this.cellWidth-this.surface.clientWidth);this.firstPosition=false;}}
+    setIndex(index){this.index=clamp(index,0,this.dates.length-1);this.updateCursor();if(this.firstPosition&&this.cellWidth){this.resetIndex=this.index;this.surface.scrollLeft=Math.max(0,(this.index+1)*this.cellWidth-this.surface.clientWidth);this.firstPosition=false;}}
     renderNames(){this.names.innerHTML=this.rows.map((r,i)=>`<button data-heat-row="${i}" title="查看${esc(r.name)} ${esc(r.detail||'')}">${esc(r.name)} ↗</button>`).join('');}
     setRows(rows){const id=this.rows[this.row]?.id||this.rows[this.row]?.name;this.rows=rows;if(!rows.some(r=>(r.id||r.name)===this.pinned))this.pinned=null;const row=rows.findIndex(r=>(r.id||r.name)===id);this.row=row<0?undefined:row;this.renderNames();this.draw();}
     draw() {
@@ -37,7 +37,7 @@
       if(this.host.classList.contains('is-fullscreen')){const h=Math.max(160,this.host.parentElement.clientHeight-185-this.readout.getBoundingClientRect().height);this.surface.style.maxHeight=h+'px';this.names.parentElement.style.maxHeight=h+'px';}else{this.surface.style.maxHeight='';this.names.parentElement.style.maxHeight='';}
       this.host.dataset.columns=this.dates.length;this.host.dataset.rows=this.rows.length;this.updateCursor();
     }
-    reset(){const width=this.surface.clientWidth,fit=width/this.dates.length;this.cellWidth=Math.max(fit,Math.min(8,Math.max(4,width/60)));this.fitted=this.cellWidth<=fit+.001;this.draw();this.surface.scrollLeft=Math.max(0,(this.index+1)*this.cellWidth-width);}
+    reset(){const width=this.surface.clientWidth;if(!width||!this.dates.length)return;const fit=width/this.dates.length;this.cellWidth=Math.max(fit,Math.min(8,Math.max(4,width/60)));this.fitted=this.cellWidth<=fit+.001;this.index=clamp(this.resetIndex??this.dates.length-1,0,this.dates.length-1);this.onInspect?.(this.index,this);this.draw();this.surface.scrollLeft=Math.max(0,(this.index+1)*this.cellWidth-width);this.surface.scrollTop=0;}
     zoom(factor,p) {
       const r=this.surface.getBoundingClientRect(),x=p?clamp(p.x-r.left,0,r.width):r.width,anchor=(this.surface.scrollLeft+x)/this.cellWidth;
       const min=this.surface.clientWidth/this.dates.length;this.cellWidth=clamp(this.cellWidth*factor,min,40);this.fitted=this.cellWidth<=min+.001;this.draw();this.surface.scrollLeft=anchor*this.cellWidth-x;
