@@ -27,7 +27,7 @@
     const at=t*this.s+i,before=at-this.s,r=(this.close[at]/this.close[before]-1)*100;
     if(this.close[at]>0&&this.close[before]>0&&valid(r)&&r>-100){this.ret[at]=r;observations++;if(Math.abs(r)>50){large++;if(records.length<20)records.push({code:meta.stocks[i].code,name:meta.stocks[i].name,date:meta.dates[t],price_return:r,csv_quoted_return:valid(this.quoted[at])?this.quoted[at]:null});}}
    }
-   if(!observations)throw Error('数据中没有可计算的相邻交易日收益，请检查价格与日期。');
+   if(!observations&&!meta.allowEmptyGroup)throw Error('数据中没有可计算的相邻交易日收益，请检查价格与日期。');
    this.groups=new Map();meta.stocks.forEach((stock,i)=>{if(!this.groups.has(stock.industry))this.groups.set(stock.industry,[]);this.groups.get(stock.industry).push(i);});
    this.order=[...this.groups].sort((a,b)=>b[1].length-a[1].length||(a[0]<b[0]?-1:a[0]>b[0]?1:0));
    this.codes=new Map(meta.stocks.map((stock,i)=>[stock.code,i]));
