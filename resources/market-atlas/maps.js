@@ -5,25 +5,27 @@
   function rgb(text){if(text.trim().startsWith('#')){let h=text.trim().slice(1);if(h.length===3)h=[...h].map(c=>c+c).join('');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16));}return(text.match(/[\d.]+/g)||[0,0,0]).slice(0,3).map(Number);}
   class Heatmap {
     constructor(host,options) {
-      this.host=host;Object.assign(this,{rowHeight:30,index:options.dates.length-1},options);this.fitted=true;this.rowType=this.rowType||'行业';this.abort=new AbortController();host.classList.add('heatmap-host');
-      host.innerHTML=toolbar('完整研究区间 · 双指缩放时间')+'<div class="chart-readout"></div><p class="heat-empty plot-empty" hidden>当前样本没有可显示数据，请调整区间或样本口径。</p><div class="heat-layout"><div class="heat-corner">行业</div><div class="heat-head"><canvas></canvas></div><div class="heat-names"><div></div></div><div class="heat-scroll"><div class="heat-stage"><canvas aria-label="完整行业时间热力图" tabindex="0"></canvas><div class="heat-cursor"></div><div class="heat-selection" hidden></div></div></div></div><p class="map-caption"></p>';
+      this.host=host;Object.assign(this,{rowHeight:30,index:options.dates.length-1},options);this.fitted=false;this.firstPosition=true;this.rowType=this.rowType||'行业';this.abort=new AbortController();host.classList.add('heatmap-host');
+      host.innerHTML=toolbar('时间轴滚轮或双指缩放 · 向左浏览历史')+'<div class="chart-readout"></div><p class="heat-empty plot-empty" hidden>当前样本没有可显示数据，请调整区间或样本口径。</p><div class="heat-layout"><div class="heat-corner">行业</div><div class="heat-head" title="在时间轴上滚轮缩放日期"><canvas></canvas></div><div class="heat-names"><div></div></div><div class="heat-scroll"><div class="heat-stage"><canvas aria-label="完整行业时间热力图" tabindex="0"></canvas><div class="heat-cursor"></div><div class="heat-selection" hidden></div></div></div></div><p class="map-caption"></p>';
       this.surface=host.querySelector('.heat-scroll');this.canvas=this.surface.querySelector('canvas');this.stage=this.surface.firstElementChild;this.header=host.querySelector('.heat-head canvas');this.names=host.querySelector('.heat-names>div');root.AtlasInspector.mount(this);
       this.renderNames();this.names.addEventListener('click',e=>{const b=e.target.closest('[data-heat-row]');if(b)this.onOpenSeries?.(this.rows[Number(b.dataset.heatRow)].id||this.rows[Number(b.dataset.heatRow)].name);},{signal:this.abort.signal});
       host.querySelector('.heat-corner').textContent=this.rowType;
       host.addEventListener('click',e=>{const a=e.target.closest('[data-map-action]')?.dataset.mapAction;if(a==='in')this.zoom(1.8);if(a==='out')this.zoom(1/1.8);if(a==='reset')this.reset();if(a==='expand')root.AtlasFullscreen.open(host,this.label||this.rowType+'时间热力图');},{signal:this.abort.signal});
       this.surface.addEventListener('scroll',()=>{this.header.style.transform=`translateX(${-this.surface.scrollLeft}px)`;this.names.style.transform=`translateY(${-this.surface.scrollTop}px)`;},{passive:true,signal:this.abort.signal});
+       host.querySelector('.heat-head').addEventListener('wheel',e=>{e.preventDefault();this.zoom(Math.exp(-e.deltaY*.002),{x:e.clientX,y:e.clientY});},{passive:false,signal:this.abort.signal});
+       this.surface.addEventListener('wheel',e=>{if(!e.ctrlKey&&!e.metaKey)return;e.preventDefault();this.zoom(Math.exp(-e.deltaY*.002),{x:e.clientX,y:e.clientY});},{passive:false,signal:this.abort.signal});
       this.gesture=new root.AtlasGesture(this.surface,{owner:this,dismiss:keep=>this.clearInspection(keep),wheel:false,inspect:p=>this.inspect(p),tap:p=>this.select(p),zoom:(f,p)=>this.zoom(f,p),reset:()=>this.reset(),canPan:()=>false});
       this.canvas.addEventListener('keydown',e=>{if(e.key==='Escape'){this.clearInspection();return;}if(e.key==='Enter'&&this.rows[this.row]){e.preventDefault();this.onOpenSeries?.(this.rows[this.row].id||this.rows[this.row].name);return;}if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();this.inspectionActive=true;if(e.key==='ArrowUp'||e.key==='ArrowDown')this.pinned=null;this.index=clamp(this.index+(e.key==='ArrowLeft'?-1:e.key==='ArrowRight'?1:0),0,this.dates.length-1);this.row=clamp((this.row??0)+(e.key==='ArrowUp'?-1:e.key==='ArrowDown'?1:0),0,this.rows.length-1);this.onInspect?.(this.index,this);this.updateCursor();const r=this.surface.getBoundingClientRect();this.show({x:r.left+r.width/2,y:r.top+50});},{signal:this.abort.signal});
       this.observer=new ResizeObserver(()=>this.draw());this.observer.observe(this.surface);window.addEventListener('resize',()=>this.draw(),{signal:this.abort.signal});this.draw();
     }
     destroy(){this.gesture.destroy();this.observer.disconnect();this.abort.abort();}
-    setIndex(index){this.index=index;this.updateCursor();}
+    setIndex(index){this.index=index;this.updateCursor();if(this.firstPosition&&this.cellWidth){this.surface.scrollLeft=Math.max(0,(index+1)*this.cellWidth-this.surface.clientWidth);this.firstPosition=false;}}
     renderNames(){this.names.innerHTML=this.rows.map((r,i)=>`<button data-heat-row="${i}" title="查看${esc(r.name)} ${esc(r.detail||'')}">${esc(r.name)} ↗</button>`).join('');}
     setRows(rows){const id=this.rows[this.row]?.id||this.rows[this.row]?.name;this.rows=rows;if(!rows.some(r=>(r.id||r.name)===this.pinned))this.pinned=null;const row=rows.findIndex(r=>(r.id||r.name)===id);this.row=row<0?undefined:row;this.renderNames();this.draw();}
     draw() {
       const empty=!this.rows.length;this.host.querySelector('.heat-empty').hidden=!empty;this.host.querySelector('.heat-layout').hidden=empty;if(empty){this.host.dataset.columns=this.dates.length;this.host.dataset.rows='0';this.row=undefined;this.focus=null;root.AtlasInspector.render(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index)});return;}
       const width=this.surface.clientWidth;if(!width)return;
-      const fit=width/this.dates.length;if(!this.cellWidth||this.fitted)this.cellWidth=fit;
+      const fit=width/this.dates.length;if(!this.cellWidth){this.cellWidth=Math.max(fit,Math.min(8,Math.max(4,width/60)));this.fitted=this.cellWidth<=fit+.001;}else if(this.fitted)this.cellWidth=fit;
       const w=Math.max(width,Math.ceil(this.cellWidth*this.dates.length)),h=this.rows.length*this.rowHeight;
       const style=getComputedStyle(this.host),base=rgb(style.getPropertyValue('--surface')),rise=rgb(style.getPropertyValue('--rise')),fall=rgb(style.getPropertyValue('--fall'));
       this.canvas.width=w;this.canvas.height=h;this.canvas.style.width=w+'px';this.canvas.style.height=h+'px';this.stage.style.width=w+'px';this.stage.style.height=h+'px';
@@ -35,9 +37,9 @@
       if(this.host.classList.contains('is-fullscreen')){const h=Math.max(160,this.host.parentElement.clientHeight-185-this.readout.getBoundingClientRect().height);this.surface.style.maxHeight=h+'px';this.names.parentElement.style.maxHeight=h+'px';}else{this.surface.style.maxHeight='';this.names.parentElement.style.maxHeight='';}
       this.host.dataset.columns=this.dates.length;this.host.dataset.rows=this.rows.length;this.updateCursor();
     }
-    reset(){this.fitted=true;this.surface.scrollLeft=0;this.draw();}
+    reset(){const width=this.surface.clientWidth,fit=width/this.dates.length;this.cellWidth=Math.max(fit,Math.min(8,Math.max(4,width/60)));this.fitted=this.cellWidth<=fit+.001;this.draw();this.surface.scrollLeft=Math.max(0,(this.index+1)*this.cellWidth-width);}
     zoom(factor,p) {
-      const r=this.surface.getBoundingClientRect(),x=p?clamp(p.x-r.left,0,r.width):r.width/2,anchor=(this.surface.scrollLeft+x)/this.cellWidth;
+      const r=this.surface.getBoundingClientRect(),x=p?clamp(p.x-r.left,0,r.width):r.width,anchor=(this.surface.scrollLeft+x)/this.cellWidth;
       const min=this.surface.clientWidth/this.dates.length;this.cellWidth=clamp(this.cellWidth*factor,min,40);this.fitted=this.cellWidth<=min+.001;this.draw();this.surface.scrollLeft=anchor*this.cellWidth-x;
     }
     updateCursor(){this.host.querySelector('.chart-date').textContent=this.dates[this.index];this.surface.querySelector('.heat-cursor').hidden=!this.inspectionActive;this.surface.querySelector('.heat-cursor').style.left=(this.index+.5)*this.cellWidth+'px';const cell=this.surface.querySelector('.heat-selection');cell.hidden=!this.inspectionActive||this.row===undefined;if(this.row!==undefined){Object.assign(cell.style,{left:this.index*this.cellWidth+'px',top:this.row*this.rowHeight+'px',width:Math.max(2,this.cellWidth)+'px',height:this.rowHeight-3+'px'});}this.focus=this.rows[this.row]?.id||this.rows[this.row]?.name;root.AtlasInspector.render(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index,this.row),focus:this.focus});}
