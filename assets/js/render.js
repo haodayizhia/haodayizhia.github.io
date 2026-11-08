@@ -42,6 +42,8 @@
   let markup='', title='BRO · 世间有价，星空无主';
   if (page === 'home') {
     markup=`<section class="hero" aria-labelledby="hero-title"><div class="sky-day" aria-hidden="true"></div><div class="sky-stars" aria-hidden="true"></div><div class="hero-content"><h1 id="hero-title"><span>世间有价</span><span class="comma">，</span><span>星空无主</span></h1><div class="hero-links"><a href="./articles.html">文章 <span aria-hidden="true">↗</span></a><a href="./resources.html">资源 <span aria-hidden="true">↗</span></a></div></div></section><div class="content-width home-content" id="latest"><section aria-labelledby="latest-heading"><div class="section-heading"><h2 id="latest-heading">最近文章</h2><a class="text-link" href="./articles.html">全部文章 →</a></div>${articles.length?`<div class="article-list">${articles.slice(0,5).map(articleRow).join('')}</div>`:empty('暂无文章。')}</section>${resources.length?`<section class="home-resources"><div class="section-heading"><h2>精选资源</h2><a class="text-link" href="./resources.html">全部资源 →</a></div><div class="resource-grid">${resources.slice(0,3).map(resourceCard).join('')}</div></section>`:''}</div>`;
+  } else if (page === 'atlas') {
+    title='股市图谱 · BRO';markup=heading('股市图谱','沿时间观察市场，自由选择对比对象。',{parent:'资源',href:'./resources.html',label:'可视化'});
   } else if (page === 'articles') {
     title='文章 · BRO'; markup=`<section class="page page--collection">${heading('文章')}${articles.length?`<div class="article-list">${articles.map(articleRow).join('')}</div>`:empty('暂无文章。')}</section>`;
   } else if (page === 'resources') {
