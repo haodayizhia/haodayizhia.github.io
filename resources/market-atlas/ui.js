@@ -103,7 +103,7 @@
   }
   function observeDate(date,origin){
     if(!S.market)return;const i=S.market.dates.indexOf(date);if(i<0)return;S.cursor=i;
-    for(const chart of S.charts)if(chart!==origin&&!chart.independentDate){const j=chart.dates.indexOf(date);if(j>=0){chart.inspectionActive=origin.inspectionActive;chart.setIndex(j,{reveal:true});}}
+    for(const chart of S.charts)if(chart!==origin&&!chart.independentDate){const j=chart.dates.indexOf(date);if(j>=0){chart.inspectionActive=origin?.inspectionActive??false;chart.setIndex(j,{reveal:true});}}
     updateSummary();if($('stateDate'))$('stateDate').textContent=date;
     if($('atlasCompareDialog').open)renderComparison();
   }
