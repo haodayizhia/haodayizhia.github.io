@@ -35,6 +35,12 @@
   }
   const linePatterns=['','8 3','3 3','10 3 2 3','1 3','12 4','6 3 1 3','2 2 8 2'];
   function seriesStyle(index){return{color:`var(--plot-c${index%12+1})`,dash:linePatterns[Math.floor(index/12)%linePatterns.length]};}
+  // Selection controls visibility, not emphasis. The focused stock is the only
+  // non-benchmark line at full strength, even for industries with <=12 stocks.
+  function traceOpacity(count,focus,reference,active){
+    if(reference||active||count<=1)return 1;
+    return focus?0.22:count>12?0.55:0.68;
+  }
   function rankLatest(items,value){return [...items].sort((a,b)=>{const x=value(a),y=value(b);return(finite(y)?1:0)-(finite(x)?1:0)||(finite(x)&&finite(y)?y-x:0)||String(a.name||a.code||'').localeCompare(String(b.name||b.code||''),'zh-CN');});}
   function zoomDomain(range,factor,anchor=.5){
     if(!range?.every(finite)||range[1]<=range[0]||!finite(factor)||factor<=0)return range&&[...range];
@@ -277,7 +283,7 @@
       }
       if(finite(value)&&this.Y(value)>=g.top&&this.Y(value)<=g.bottom){const y=this.Y(value),tagWidth=Math.max(g.left-5,Math.ceil(measureAxis([number(value)])+10));html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${tagWidth}" height="22" rx="2"/><text class="axis-tag-text" x="${tagWidth-5}" y="${y+4}" text-anchor="end">${number(value)}</text>`;}
       if(this.brush){const left=clamp(Math.min(...this.brush),g.left,g.right),right=clamp(Math.max(...this.brush),g.left,g.right);html+=`<rect class="zoom-brush" x="${left}" y="${g.top}" width="${right-left}" height="${g.height}"/>`;}
-      layer.innerHTML=html;const styleKey=this.revision+'|'+focus;if(this.lastStyleKey!==styleKey){const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===focus,reference=references.has(line.dataset.series);line.style.opacity=this.series.length>12&&!reference&&!active?(focus?'.22':'.55'):'1';line.style.strokeWidth=active?'2.5':'';}this.lastStyleKey=styleKey;}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
+      layer.innerHTML=html;const styleKey=this.revision+'|'+focus;if(this.lastStyleKey!==styleKey){const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===focus,reference=references.has(line.dataset.series);line.style.opacity=String(traceOpacity(this.series.length,!!focus,reference,active));line.style.strokeWidth=active?'2.5':'';}this.lastStyleKey=styleKey;}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
     }
     updateValues() {
       const i=this.index,time=this.host.querySelector('.chart-date');if(time)time.textContent=this.dates[i];
@@ -287,6 +293,6 @@
       this.values.innerHTML=this.series.map(s=>`<div><dt><i style="background:${s.color||'var(--plot-main)'}"></i>${escape(s.name)}</dt><dd>${number(s.values[i])}<small>${finite(s.values[i])?escape(this.unit):''}</small></dd>${s.removable?`<button data-remove-series="${escape(s.id)}" aria-label="移除${escape(s.name)}">×</button>`:''}</div>`).join('');
     }
   }
-  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,zoomDomain,nearestPolylineSegment};
-  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,zoomDomain,nearestPolylineSegment};
+  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,traceOpacity,zoomDomain,nearestPolylineSegment};
+  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,traceOpacity,zoomDomain,nearestPolylineSegment};
 })(globalThis);

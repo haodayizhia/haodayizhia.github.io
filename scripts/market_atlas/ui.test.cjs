@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,zoomDomain}=require('../../resources/market-atlas/charts.js');
+const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceOpacity,zoomDomain}=require('../../resources/market-atlas/charts.js');
 const{rotationTrail,rotationSettings}=require('../../resources/market-atlas/maps.js');
 const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
 
@@ -27,6 +27,17 @@ test('market chart entry offers all-selection and removes the global date picker
  assert.doesNotMatch(html,/<input[^>]+type=["']range["']/);assert.doesNotMatch(html,/inspect-lock|id="atlasDate"|class="date-control"/);assert.ok(html.includes('id="selectAllComparison"'));
  for(const name of ['chart-interaction.js','maps.js'])assert.ok(html.includes('./resources/market-atlas/'+name));
 });
+test('industry curve emphasis is independent of selected stock count',()=>{
+ for(const size of [2,3,11,12,13,166]){
+  const idle=traceOpacity(size,false,false,false),dim=traceOpacity(size,true,false,false);
+  assert.ok(idle>0&&idle<1,'Default stock line unexpectedly highlighted for '+size+' series');
+  assert.ok(dim<idle,'Unfocused stock must fade when another stock receives focus');
+  assert.equal(traceOpacity(size,true,false,true),1,'Focused stock must be prominent');
+  assert.equal(traceOpacity(size,true,true,false),1,'Industry and pool benchmarks stay visible');
+ }
+ assert.equal(traceOpacity(1,false,false,false),1,'A single isolated curve stays legible');
+});
+
 test('mobile chart preserves the vertical axis and a usable plotting area',()=>{
  for(const width of [264,288,318,342,760,1200])for(const labelWidth of [18,24,36,64]){const g=geometry(width,300,labelWidth);assert.ok(g.left>=labelWidth+7);assert.ok(g.width>=width-Math.max(38,labelWidth+16));assert.equal(width-g.right,6);assert.ok(g.bottom>g.top+180);}
  assert.equal(axisNumber(-50),'-50');assert.equal(axisNumber(0),'0');assert.equal(axisNumber(.25),'0.25');assert.equal(axisNumber(.00002),'0.00002');assert.notEqual(axisNumber(1000010),axisNumber(1000015));
