@@ -41,6 +41,32 @@
     anchor=clamp(anchor,0,1);const width=clamp((range[1]-range[0])/factor,1e-9,1e12),pivot=range[0]+(range[1]-range[0])*anchor;
     return[pivot-width*anchor,pivot+width*(1-anchor)];
   }
+
+  // Measure the mouse/touch distance to actual painted segments, not only daily samples.
+  // A missing endpoint breaks the polyline (exactly as the SVG path() function does).
+  function nearestPolylineSegment(series, X, Y, x, y, fractionalIndex, count, radius=12){
+    if(!finite(fractionalIndex)||count<1)return null;
+    let best=null;
+    const consider=(s,x0,y0,x1,y1)=>{
+      if(![x0,y0,x1,y1].every(finite))return;
+      const dx=x1-x0,dy=y1-y0,scale=dx*dx+dy*dy;
+      const t=scale>0?clamp(((x-x0)*dx+(y-y0)*dy)/scale,0,1):0;
+      const distance=Math.hypot(x-(x0+t*dx),y-(y0+t*dy));
+      if(distance<=radius&&(!best||distance<best.distance))best={id:s.id,series:s,distance};
+    };
+    const start=Math.max(0,Math.floor(fractionalIndex)-1);
+    const end=Math.min(count-2,Math.ceil(fractionalIndex)+1);
+    for(const s of series){
+      if(s.reference||!s.id)continue;
+      const v=s.values;if(!v)continue;
+      if(count===1&&finite(v[0]))consider(s,X(0),Y(v[0]),X(0),Y(v[0]));
+      for(let i=start;i<=end;i++){
+        if(!finite(v[i])||!finite(v[i+1]))continue;
+        consider(s,X(i),Y(v[i]),X(i+1),Y(v[i+1]));
+      }
+    }
+    return best;
+  }
   let chartId=0;
   class Chart {
     constructor(host,options) {
@@ -57,7 +83,12 @@
         owner:this,dismiss:keep=>{this.clearInspection(keep);this.onDismiss?.(keep,this);},inspect:p=>this.inspect(p),tap:p=>this.select(p),
         start:()=>{this.dragView=[...this.view];this.dragY=[this.lo,this.hi];this.panMove=null;},
         drag:(p,start)=>{if(start.shift){this.brush=[this.local(start).x,this.local(p).x];this.updateOverlay();}else if(this.canPan())this.previewPan(p.x-start.x,p.y-start.y);else this.inspect(p);},
-        end:(p,start)=>{if(start?.shift&&this.brush&&Math.abs(this.brush[1]-this.brush[0])>12){const a=this.indexAt(Math.min(...this.brush)),b=this.indexAt(Math.max(...this.brush));this.setRange(a,b,true);}else if(start&&Math.hypot(p.x-start.x,p.y-start.y)<7)this.select(p);else this.finishPan();this.brush=null;this.updateOverlay();},
+        end:(p,start)=>{const distance=start?Math.hypot(p.x-start.x,p.y-start.y):0;
+          if(start?.shift&&this.brush&&Math.abs(this.brush[1]-this.brush[0])>12){this.cancelPan();const a=this.indexAt(Math.min(...this.brush)),b=this.indexAt(Math.max(...this.brush));this.setRange(a,b,true);}
+          else if(start&&distance<7){this.cancelPan();if(!start.shift)this.select(p);}
+          else this.finishPan();
+          this.brush=null;this.updateOverlay();
+        },
         cancel:()=>{this.brush=null;this.cancelPan();},finishTouch:()=>this.finishPan(),canPan:()=>this.canPan(),zoom:(factor,p,wheel)=>this.zoom(factor,p,wheel?this.axisAt(p):this.zoomAxis),panPinch:(dx,dy)=>this.pan(dx,[...this.view],dy,[this.lo,this.hi]),reset:()=>this.reset()
       });
       this.observer=new ResizeObserver(()=>{this.draw();this.navigator?.update();});this.observer.observe(this.surface);
@@ -129,7 +160,7 @@
       if(yStart&&Math.abs(dy)>2){const shift=dy/this.g.height*(yStart[1]-yStart[0]);this.yView=yStart.map(v=>v+shift);this.onYRange(this.yView);}
       if(this.canPanX()&&Math.abs(this.view[0]-a)>1e-5)this.setRange(a,a+span,true);else{this.sceneKey='';this.draw();}
     }
-    reset(){this.yView=null;this.onYRange(null);const [a,b]=this.resetView||[0,this.dates.length-1];this.setRange(a,b,true);this.onReset?.(this);}
+    reset(){this.cancelPan();this.yView=null;this.onYRange(null);const [a,b]=this.resetView||[0,this.dates.length-1];this.setRange(a,b,true);this.onReset?.(this);}
     setSeries(series){if(!series.some(s=>s.id===this.pinned))this.pinned=null;if(!series.some(s=>s.id===this.focus))this.focus=null;this.series=series;this.revision++;this.sceneKey='';this.draw();}
     setIndex(index,{reveal=false}={}) {
       this.index=clamp(index,0,this.dates.length-1);this.axisValue=null;
@@ -145,16 +176,25 @@
       return this.series.map(s=>({id:s.id,name:s.name,detail:s.detail,canOpen:!!this.onOpenSeries&&!s.reference,openLabel:this.openLabel,value:s.values[this.index],color:s.color,dash:s.dash,unit:this.unit}));
     }
     clearInspection(keepReadout=false){this.inspectionActive=false;this.axisValue=null;this.brush=null;if(!keepReadout){this.focus=null;this.pinned=null;}this.updateOverlay();this.updateValues();}
-    select(p){
+    // Do not open the readout on an empty click: doing so changed the layout between
+    // the first and second click and prevented the native dblclick reset gesture.
+    select(p,pointerType='mouse'){
+      if(!this.hasData)return;
+      const hit=this.hitSeries(p,pointerType==='touch'?22:12);
       this.inspect(p,true);
-      const q=this.local(p),line=this.series.find(s=>s.id===this.focus),close=line&&finite(line.values[this.index])&&Math.abs(this.Y(line.values[this.index])-q.y)<=14;
-      if(!close&&this.series.length>6){
-        this.focus=null;this.pinned=null;this.updateOverlay();this.updateValues();
-        const toggle=this.readout?.querySelector('.readout-toggle');
-        if(toggle&&!this.readout.classList.contains('is-expanded'))toggle.click();
-        return;
-      }
-      this.pinned=this.pinned===this.focus?null:this.focus;this.updateOverlay();this.updateValues();
+      if(!hit){this.focus=this.pinned||null;this.updateOverlay();this.updateValues();return;}
+      this.focus=hit.id;
+      this.pinned=this.pinned===hit.id?null:hit.id;
+      this.updateOverlay();this.updateValues();
+    }
+    hitSeries(p,radius=12){
+      if(!this.g||!this.hasData)return null;
+      const q=this.local(p),g=this.g;
+      if(q.x<g.left||q.x>g.right||q.y<g.top||q.y>g.bottom)return null;
+      const fractional=clamp(this.view[0]+(q.x-(this.plotXLeft??g.left))/(this.plotXWidth??g.width)*(this.view[1]-this.view[0]),0,this.dates.length-1);
+      // The candle's price is a bar, not a connecting line; exclude it from line hits.
+      const visible=this.kind==='candles'?this.series.filter(s=>s.id!=='price'):this.series;
+      return nearestPolylineSegment(visible,this.X,this.Y,q.x,q.y,fractional,this.dates.length,radius);
     }
     focusSeries(id){
       const series=this.series.find(s=>s.id===id);if(!series)return;
@@ -166,7 +206,12 @@
       if(!this.hasData||!this.g)return;this.inspectionActive=true;const q=this.local(p);
       if(q.x<0||q.x>this.w||q.y<0||q.y>this.h)return;
       this.index=this.indexAt(q.x);const t=clamp((this.g.bottom-q.y)/this.g.height,0,1);this.axisValue=this.inverse(this.lo+t*(this.hi-this.lo));
-      this.focus=!force&&this.pinned?this.pinned:this.series.filter(s=>!s.reference&&finite(s.values[this.index])&&this.Y(s.values[this.index])>=this.g.top&&this.Y(s.values[this.index])<=this.g.bottom).sort((a,b)=>Math.abs(this.Y(a.values[this.index])-q.y)-Math.abs(this.Y(b.values[this.index])-q.y))[0]?.id;
+      const segment=this.hitSeries(p,13);
+      // Keep the original nearest-day fallback for readouts away from a line; when
+      // near a visible segment, the interpolated geometric hit always takes priority.
+      this.focus=!force&&this.pinned?this.pinned:segment?.id||
+        this.series.filter(s=>!s.reference&&finite(s.values[this.index])&&this.Y(s.values[this.index])>=this.g.top&&this.Y(s.values[this.index])<=this.g.bottom)
+          .sort((a,b)=>Math.abs(this.Y(a.values[this.index])-q.y)-Math.abs(this.Y(b.values[this.index])-q.y))[0]?.id;
       this.onInspect(this.index,this);this.updateOverlay();this.updateValues();
       root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.getRows(),x:p.x,y:p.y,axis:`纵轴 ${number(this.axisValue)}${this.unit}`});
     }
@@ -242,6 +287,6 @@
       this.values.innerHTML=this.series.map(s=>`<div><dt><i style="background:${s.color||'var(--plot-main)'}"></i>${escape(s.name)}</dt><dd>${number(s.values[i])}<small>${finite(s.values[i])?escape(this.unit):''}</small></dd>${s.removable?`<button data-remove-series="${escape(s.id)}" aria-label="移除${escape(s.name)}">×</button>`:''}</div>`).join('');
     }
   }
-  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,zoomDomain};
-  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,zoomDomain};
+  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,zoomDomain,nearestPolylineSegment};
+  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,zoomDomain,nearestPolylineSegment};
 })(globalThis);

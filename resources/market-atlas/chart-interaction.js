@@ -164,7 +164,7 @@
         this.mouse={...point(e),shift:e.shiftKey};surface.setPointerCapture(e.pointerId);handlers.start?.(point(e),e.shiftKey);
       });
       on('pointermove',e=>{if(e.pointerType==='touch')return;this.mouse?handlers.drag?.(point(e),this.mouse):handlers.inspect?.(point(e));});
-      on('pointerup',e=>{if(e.pointerType==='touch')return;handlers.end?.(point(e),this.mouse);this.mouse=null;});
+      on('pointerup',e=>{if(e.pointerType==='touch'||!this.mouse)return;handlers.end?.(point(e),this.mouse);this.mouse=null;});
       on('pointercancel',()=>{this.mouse=null;handlers.cancel?.();});
       on('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse){handlers.dismiss?.(true);inspector.hide();}});
       const owner=handlers.owner;
@@ -204,7 +204,7 @@
       on('touchend',e=>{
         this.clearTimer();const touch=this.touch;if(!touch)return;
         if(touch.pinch){if(!e.touches.length)this.touch=null;return;}
-        if(!e.touches.length){if(!touch.moved&&!touch.long){const now=performance.now();if(this.lastTap&&now-this.lastTap.time<280&&Math.hypot(touch.last.x-this.lastTap.x,touch.last.y-this.lastTap.y)<24){handlers.reset?.();this.lastTap=null;}else{handlers.tap?.(touch.last);this.lastTap={time:now,...touch.last};}}inspector.settle();handlers.finishTouch?.();surface.classList.remove('press-inspecting');this.touch=null;}
+        if(!e.touches.length){if(!touch.moved&&!touch.long){const now=performance.now();if(this.lastTap&&now-this.lastTap.time<280&&Math.hypot(touch.last.x-this.lastTap.x,touch.last.y-this.lastTap.y)<24){handlers.reset?.();this.lastTap=null;}else{handlers.tap?.(touch.last,'touch');this.lastTap={time:now,...touch.last};}}inspector.settle();handlers.finishTouch?.();surface.classList.remove('press-inspecting');this.touch=null;}
       });
       on('touchcancel',()=>{this.clearTimer();this.touch=null;surface.classList.remove('press-inspecting');handlers.cancel?.();});
     }
