@@ -55,17 +55,51 @@
       this.svg.addEventListener('keydown',e=>this.key(e),{signal:this.abort.signal});
       this.gesture=new root.AtlasGesture(this.surface,{
         owner:this,dismiss:keep=>{this.clearInspection(keep);this.onDismiss?.(keep,this);},inspect:p=>this.inspect(p),tap:p=>this.select(p),
-        start:()=>{this.dragView=[...this.view];this.dragY=[this.lo,this.hi];},
-        drag:(p,start)=>{if(start.shift){this.brush=[this.local(start).x,this.local(p).x];this.updateOverlay();}else if(this.canPan()){this.pan(p.x-start.x,this.dragView,p.y-start.y,this.dragY);}else this.inspect(p);},
-        end:(p,start)=>{if(start?.shift&&this.brush&&Math.abs(this.brush[1]-this.brush[0])>12){const a=this.indexAt(Math.min(...this.brush)),b=this.indexAt(Math.max(...this.brush));this.setRange(a,b,true);}else if(start&&Math.hypot(p.x-start.x,p.y-start.y)<7)this.select(p);this.brush=null;this.updateOverlay();},
-        cancel:()=>{this.brush=null;},canPan:()=>this.canPan(),zoom:(factor,p,wheel)=>this.zoom(factor,p,wheel?this.axisAt(p):this.zoomAxis),panPinch:(dx,dy)=>this.pan(dx,[...this.view],dy,[this.lo,this.hi]),reset:()=>this.reset()
+        start:()=>{this.dragView=[...this.view];this.dragY=[this.lo,this.hi];this.panMove=null;},
+        drag:(p,start)=>{if(start.shift){this.brush=[this.local(start).x,this.local(p).x];this.updateOverlay();}else if(this.canPan())this.previewPan(p.x-start.x,p.y-start.y);else this.inspect(p);},
+        end:(p,start)=>{if(start?.shift&&this.brush&&Math.abs(this.brush[1]-this.brush[0])>12){const a=this.indexAt(Math.min(...this.brush)),b=this.indexAt(Math.max(...this.brush));this.setRange(a,b,true);}else if(start&&Math.hypot(p.x-start.x,p.y-start.y)<7)this.select(p);else this.finishPan();this.brush=null;this.updateOverlay();},
+        cancel:()=>{this.brush=null;this.cancelPan();},finishTouch:()=>this.finishPan(),canPan:()=>this.canPan(),zoom:(factor,p,wheel)=>this.zoom(factor,p,wheel?this.axisAt(p):this.zoomAxis),panPinch:(dx,dy)=>this.pan(dx,[...this.view],dy,[this.lo,this.hi]),reset:()=>this.reset()
       });
       this.observer=new ResizeObserver(()=>{this.draw();this.navigator?.update();});this.observer.observe(this.surface);
       window.addEventListener('resize',()=>{this.draw();this.navigator?.update();},{signal:this.abort.signal});this.draw();if(!this.compact)this.navigator=new root.AtlasTimeNavigator(host,{getRange:()=>this.view,getLength:()=>this.dates.length,getDates:()=>this.dates,onChange:(a,b)=>this.setRange(a,b,true)});
     }
-    destroy(){this.navigator?.destroy();this.gesture.destroy();this.observer.disconnect();this.abort.abort();}
+    destroy(){this.cancelPan();this.navigator?.destroy();this.gesture.destroy();this.observer.disconnect();this.abort.abort();}
     canPan(){return this.canPanX()||!!this.yView;}
     canPanX(){return this.view[1]-this.view[0]<this.dates.length-1-.1;}
+
+    // Move painted geometry at animation-frame rate; synchronize axes on release.
+    previewPan(dx,dy){
+      if(Math.hypot(dx,dy)<3)return;
+      this.panMove={dx,dy};
+      if(this.panFrame)return;
+      this.panFrame=requestAnimationFrame(()=>{
+        this.panFrame=0;const move=this.panMove;if(!move||!this.g)return;
+        const width=this.plotXWidth||this.g.width,span=this.dragView[1]-this.dragView[0];
+        const offset=this.canPanX()&&span>0?(this.dragView[0]-clamp(this.dragView[0]-move.dx/width*span,0,this.dates.length-1-span))/span*width:0;
+        this.svg.querySelector('.plot-data')?.setAttribute('transform','translate('+offset+' '+move.dy+')');
+        this.svg.querySelector('.plot-volume')?.setAttribute('transform','translate('+offset+' 0)');
+        this.surface.classList.add('is-panning');
+        const overlay=this.svg.querySelector('.plot-overlay');if(overlay)overlay.style.opacity='0';
+      });
+    }
+    finishPan(){
+      const move=this.panMove;
+      if(this.panFrame){cancelAnimationFrame(this.panFrame);this.panFrame=0;}
+      this.panMove=null;this.surface.classList.remove('is-panning');
+      const overlay=this.svg.querySelector('.plot-overlay');if(overlay)overlay.style.opacity='';
+      if(move&&Math.hypot(move.dx,move.dy)>=3)this.pan(move.dx,this.dragView,move.dy,this.dragY);
+      else this.resetPanPreview();
+    }
+    resetPanPreview(){
+      this.svg.querySelector('.plot-data')?.removeAttribute('transform');
+      this.svg.querySelector('.plot-volume')?.removeAttribute('transform');
+    }
+    cancelPan(){
+      if(this.panFrame){cancelAnimationFrame(this.panFrame);this.panFrame=0;}
+      this.panMove=null;this.surface?.classList.remove('is-panning');
+      const overlay=this.svg?.querySelector('.plot-overlay');if(overlay)overlay.style.opacity='';
+      this.resetPanPreview();
+    }
     local(p){const r=this.surface.getBoundingClientRect();return {x:p.x-r.left,y:p.y-r.top};}
     axisAt(p){if(!p||!this.g)return this.zoomAxis;const q=this.local(p);if(q.x<this.g.left)return 'y';if(q.y>(this.stock?this.h-32:this.g.bottom))return 'x';return this.zoomAxis;}
     indexAt(x){return clamp(Math.round(this.view[0]+(x-(this.plotXLeft??this.g.left))/(this.plotXWidth??this.g.width)*(this.view[1]-this.view[0])),Math.ceil(this.view[0]),Math.floor(this.view[1]));}
@@ -92,8 +126,8 @@
     zoomY(factor,p){this.zoom(factor,p,'y');}
     pan(dx,start,dy=0,yStart){
       if(!start)return;const span=start[1]-start[0],a=clamp(start[0]-dx/(this.plotXWidth??this.g.width)*span,0,this.dates.length-1-span);
-      if(this.yView&&yStart){const shift=dy/this.g.height*(yStart[1]-yStart[0]);this.yView=yStart.map(v=>v+shift);this.onYRange(this.yView);}
-      if(this.canPanX())this.setRange(a,a+span,true);else{this.sceneKey='';this.draw();}
+      if(yStart&&Math.abs(dy)>2){const shift=dy/this.g.height*(yStart[1]-yStart[0]);this.yView=yStart.map(v=>v+shift);this.onYRange(this.yView);}
+      if(this.canPanX()&&Math.abs(this.view[0]-a)>1e-5)this.setRange(a,a+span,true);else{this.sceneKey='';this.draw();}
     }
     reset(){this.yView=null;this.onYRange(null);const [a,b]=this.resetView||[0,this.dates.length-1];this.setRange(a,b,true);this.onReset?.(this);}
     setSeries(series){if(!series.some(s=>s.id===this.pinned))this.pinned=null;if(!series.some(s=>s.id===this.focus))this.focus=null;this.series=series;this.revision++;this.sceneKey='';this.draw();}
@@ -154,21 +188,21 @@
       let html=`<defs><clipPath id="plotClip${this.id}"><rect x="${g.left}" y="${g.top}" width="${g.width}" height="${g.height}"/></clipPath></defs>`;
       for(const v of axisTicks){const y=g.bottom-(v-this.lo)/(this.hi-this.lo)*g.height;html+=`<path class="grid-line" d="M${g.left},${y}H${g.right}"/><text class="axis-label" x="${g.left-7}" y="${y+4}" text-anchor="end">${axisNumber(this.inverse(v))}</text>`;}
       if(!this.hideDates){const n=this.w<500?3:5;for(let k=0;k<n;k++){const i=clamp(Math.round(this.view[0]+k/(n-1)*(this.view[1]-this.view[0])),0,this.dates.length-1);html+=`<text class="axis-label" x="${g.left+k/(n-1)*g.width}" y="${this.h-9}" text-anchor="${k===0?'start':k===n-1?'end':'middle'}">${this.dates[i].slice(2)}</text>`;}}
-      html+=`<g clip-path="url(#plotClip${this.id})">`;
+      html+=`<g clip-path="url(#plotClip${this.id})"><g class="plot-data">`;
       const completeBar=(i,width)=>this.X(i)-width/2>=g.left+.5&&this.X(i)+width/2<=g.right-.5;
       if(this.kind==='candles'&&this.stock) {
         const s=this.stock,cw=Math.max(1,Math.min(15,this.plotXWidth/Math.max(1,b-a+1)*.65));
         for(let i=a;i<=b;i++){if(!completeBar(i,cw))continue;const c=s.close[i],o=s.open[i],h=s.high[i],l=s.low[i],color=c>=o?'var(--rise)':'var(--fall)';if([c,o,h,l].every(finite))html+=`<path d="M${this.X(i)},${this.Y(h)}V${this.Y(l)}" stroke="${color}"/><rect x="${this.X(i)-cw/2}" y="${Math.min(this.Y(o),this.Y(c))}" width="${cw}" height="${Math.max(1,Math.abs(this.Y(o)-this.Y(c)))}" fill="${color}"/>`;else if(finite(c))html+=`<circle cx="${this.X(i)}" cy="${this.Y(c)}" r="1.6" fill="var(--plot-main)"/>`;}
       }
       for(const s of this.series){if(this.kind==='candles'&&s.id==='price')continue;html+=`<path class="data-line" d="${path(s.values,this.X,this.Y,Math.max(0,a-1),Math.min(this.dates.length-1,b+1))}" data-series="${escape(s.id)}" stroke-dasharray="${s.dash||''}" stroke="${s.color||'var(--plot-main)'}" stroke-width="${s.reference?2.3:this.series.length>12?1:1.7}"/>`;}
-      html+='</g>';
+      html+='</g></g>';
       if(this.stock&&this.kind==='candles') {
         const volume=this.stock.volume.some(finite)?this.stock.volume:this.stock.amount,unit=this.stock.volume.some(finite)?'万股':'亿元',top=g.bottom+16,bottom=this.h-34;let max=0;
         for(let i=a;i<=b;i++)if(finite(volume[i]))max=Math.max(max,volume[i]);
         html+=`<text class="axis-unit" x="${g.left}" y="${top+10}">${unit==='万股'?'成交量':'成交额'} / ${unit}</text>`;
-        for(let i=a;i<=b;i++)if(finite(volume[i])&&max>0){const h=volume[i]/max*(bottom-top-14),cw=Math.max(1,Math.min(14,this.plotXWidth/(b-a+1)*.65));if(!completeBar(i,cw))continue;html+=`<rect x="${this.X(i)-cw/2}" y="${bottom-h}" width="${cw}" height="${h}" fill="${this.stock.daily[i]>=0?'var(--rise)':'var(--fall)'}" opacity=".45"/>`;}
+        html+='<g class="plot-volume">';for(let i=a;i<=b;i++)if(finite(volume[i])&&max>0){const h=volume[i]/max*(bottom-top-14),cw=Math.max(1,Math.min(14,this.plotXWidth/(b-a+1)*.65));if(!completeBar(i,cw))continue;html+=`<rect x="${this.X(i)-cw/2}" y="${bottom-h}" width="${cw}" height="${h}" fill="${this.stock.daily[i]>=0?'var(--rise)':'var(--fall)'}" opacity=".45"/>`;}html+='</g>';
       }
-      this.lastStyleKey=null;this.svg.innerHTML=html+'<g class="plot-overlay"></g>';this.svg.setAttribute('aria-label',this.label+'；点按或长按查值，双指或滚轮缩放，双击复原。');
+      this.lastStyleKey=null;this.svg.innerHTML=html+'<g class="plot-overlay"></g>';this.surface.classList.toggle('can-pan',this.canPan());this.svg.setAttribute('aria-label',this.label+'；点按或长按查值，双指或滚轮缩放，双击复原。');
       this.svg.dataset.start=String(this.view[0]);this.svg.dataset.end=String(this.view[1]);this.updateOverlay();this.updateValues();
     }
     updateOverlay() {

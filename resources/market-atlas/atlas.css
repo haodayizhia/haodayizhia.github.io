@@ -121,3 +121,7 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
   .atlas-app .plot-actions .zoom-modes button{font-size:10px;min-width:30px;padding-inline:5px}
   .zoom-mode-label{margin-right:auto;align-self:center}
 }
+
+/* Chart navigation remains discoverable when enlarged. */
+.chart-canvas.can-pan .chart-input{cursor:grab}
+.chart-canvas.is-panning .chart-input{cursor:grabbing}
