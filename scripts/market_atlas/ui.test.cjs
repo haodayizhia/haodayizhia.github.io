@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceOpacity,zoomDomain}=require('../../resources/market-atlas/charts.js');
+const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceOpacity,clusteredYRange,zoomDomain}=require('../../resources/market-atlas/charts.js');
 const{rotationTrail,rotationSettings}=require('../../resources/market-atlas/maps.js');
 const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
 
@@ -26,6 +26,21 @@ test('market chart entry offers all-selection and removes the global date picker
  const root=path.resolve(__dirname,'../..'),html=fs.readFileSync(path.join(root,'market-atlas.html'),'utf8');
  assert.doesNotMatch(html,/<input[^>]+type=["']range["']/);assert.doesNotMatch(html,/inspect-lock|id="atlasDate"|class="date-control"/);assert.ok(html.includes('id="selectAllComparison"'));
  for(const name of ['chart-interaction.js','maps.js'])assert.ok(html.includes('./resources/market-atlas/'+name));
+});
+test('a lone extreme stock does not compress all other industry traces',()=>{
+ const sample=[
+  {id:'pool',reference:true,values:[0,-10,-5,0,3]},
+  {id:'sector',reference:true,values:[0,-8,-18,-7,5]},
+  ...Array.from({length:9},(_,i)=>({id:'regular-'+i,values:[0,-3-i,-8-i,-20-i,12-i]})),
+  {id:'extreme',name:'极端股票',values:[0,20,70,150,215]}
+ ];
+ const focused=clusteredYRange(sample,0,4);
+ assert.ok(focused,'Extreme stock should trigger a focused viewport');
+ assert.deepEqual(focused.excluded,['极端股票']);
+ assert.ok(focused.range[0]<-28&&focused.range[1]>12&&focused.range[1]<100);
+ assert.equal(sample.at(-1).values.at(-1),215,'All original values are kept');
+ assert.equal(clusteredYRange(sample.slice(0,6),0,4),null);
+ assert.equal(clusteredYRange(sample.map(s=>({...s,values:s.values.map(v=>Math.min(v,13))})),0,4),null);
 });
 test('industry curve emphasis is independent of selected stock count',()=>{
  for(const size of [2,3,11,12,13,166]){

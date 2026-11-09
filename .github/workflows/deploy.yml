@@ -81,3 +81,5 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+        with:
+          timeout: 1200000 # Pages can require over 10 minutes to sync historical market data
