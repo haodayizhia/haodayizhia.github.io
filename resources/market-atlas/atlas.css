@@ -134,3 +134,6 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 .readout-identity .readout-jump{flex:0 0 auto;min-width:22px;text-align:center;text-decoration:none}
 .readout-identity .readout-jump:hover{text-decoration:underline}
 @media(max-width:760px){.atlas-app .readout-focus{min-height:32px;padding-block:6px}.readout-identity .readout-jump{min-width:26px}}
+
+/* Keep the inspection area stable while the focused line changes on narrow screens. */
+@media(max-width:760px){.chart-readout[data-many="true"] .readout-primary{min-height:52px}}
