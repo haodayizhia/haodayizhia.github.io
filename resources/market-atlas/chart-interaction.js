@@ -81,8 +81,10 @@
            container.innerHTML=ordered.map(row).join('');
            container.scrollTop=scroll;el.listOwner=owner;el.listStamp=stamp;
          }
-         for(const button of container.querySelectorAll('[data-focus-series]'))
+         for(const button of container.querySelectorAll('[data-focus-series]')){
            button.setAttribute('aria-pressed',String(button.dataset.focusSeries===owner.pinned));
+           button.closest('.readout-row')?.classList.toggle('is-focused',button.dataset.focusSeries===focus);
+         }
        };if(el.classList.contains('is-expanded'))el.renderAll();
     },
     show(owner,data){this.owner=owner;this.render(owner,{...data,focus:owner.focus});},
