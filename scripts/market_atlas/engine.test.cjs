@@ -1,6 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {AtlasEngine,fields}=require('../../resources/market-atlas/engine.js');
+const {nearestPolylineSegment}=require('../../resources/market-atlas/charts.js');
 const {CSVParser,dateValue}=require('../../resources/market-atlas/csv.js');
 const fixture=require('./parity-fixture.json');
 const engine=new AtlasEngine(structuredClone(fixture.meta),Object.fromEntries(fields.map(f=>[f,Float32Array.from(fixture.arrays[f],v=>v===null?NaN:v)])));
@@ -30,4 +31,15 @@ test('local CSV import computes real data and rejects invalid schemas',async()=>
  await assert.rejects(globalThis.importAtlasCsv([new File([body.replaceAll('000001.SZ','600001.SH')],'000001.SZ.csv')],'directory'),/不一致/);
  await assert.rejects(globalThis.importAtlasCsv([new File([body],'000001.SZ.csv'),new File([body],'000001.SZ.csv')],'directory'),/同名/);
  assert.equal(imported.meta.source_kind,'merged');assert.equal(imported.s,1);
+});
+
+test('line hit testing uses actual segments halfway between observations',()=>{
+ const steep={id:'steep',values:[0,100,0,100]},other={id:'other',values:[130,130,130,130]};
+ const X=i=>i*100,Y=v=>v;
+ assert.equal(nearestPolylineSegment([steep,other],X,Y,50,50,.5,4,11)?.id,'steep');
+ assert.equal(nearestPolylineSegment([steep,other],X,Y,150,50,1.5,4,11)?.id,'steep');
+ assert.equal(nearestPolylineSegment([steep,other],X,Y,50,79,.5,4,10),null,'Off-segment clicks should not select an unrelated line');
+ assert.equal(nearestPolylineSegment([{id:'ref',reference:true,values:[0,100]},{id:'actual',values:[0,100]}],X,Y,50,50,.5,2,11)?.id,'actual','Reference curves should not steal selection');
+ assert.equal(nearestPolylineSegment([{id:'gap',values:[0,NaN,100]}],X,Y,50,50,.5,3,60),null,'An unavailable observation must break the line');
+ assert.equal(nearestPolylineSegment([{id:'one',values:[10]}],X,Y,0,10,0,1,6)?.id,'one','A single visible sample is selectable');
 });

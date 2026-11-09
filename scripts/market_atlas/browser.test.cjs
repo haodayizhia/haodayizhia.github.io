@@ -132,6 +132,49 @@ const server=http.createServer((req,res)=>{
   await desktop.locator('[data-display=rotation]').click();await desktop.waitForFunction(()=>AtlasWorkspace.state.charts[0]?.independentDate);await desktop.locator('.scatter-host').scrollIntoViewIfNeeded();
   pts=await desktop.evaluate(()=>{const c=AtlasWorkspace.state.charts[0],r=c.surface.getBoundingClientRect(),p=[...c.points].sort((a,b)=>a.x-b.x);return[p[0],p.at(-1)].map(p=>({x:r.x+c.X(p.x),y:r.y+c.Y(p.y)}));});await desktop.mouse.move(pts[0].x,pts[0].y);const d=await desktop.evaluate(()=>AtlasWorkspace.state.charts[0].focus);await desktop.mouse.move(pts[1].x,pts[1].y);assert.notEqual(await desktop.evaluate(()=>AtlasWorkspace.state.charts[0].focus),d);await desktop.screenshot({path:path.join(out,'1440-rotation-hover.png'),fullPage:true});const rotationDrill=await desktop.locator('.readout-drill').boundingBox();await desktop.mouse.move(rotationDrill.x+rotationDrill.width/2,rotationDrill.y+rotationDrill.height/2);assert.equal(await desktop.locator('.rotation-trail,.point-label').count(),0);assert.equal(await desktop.locator('.readout-drill').isVisible(),true);await desktop.locator('.interaction-note').click();assert.equal(await desktop.evaluate(()=>!!AtlasWorkspace.state.charts[0].focus),false);
   await desktop.locator('button[data-theme]').click();assert.equal(await desktop.locator('#atlasPeriod').evaluate(el=>getComputedStyle(el).colorScheme),'light');await desktop.close();
+  // Independent, intentionally steep multi-line chart. Its midpoint is far from both daily endpoints.
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>{
+    const host=document.createElement('section');host.id='atlas-hit-fixture';host.style.cssText='margin:10px auto;width:100%;max-width:390px';
+    document.querySelector('.atlas-app').append(host);
+    const dates=Array.from({length:20},(_,i)=>'2026-01-'+String(i+1).padStart(2,'0'));
+    const series=[{id:'steep',name:'两日之间的陡峭曲线',values:dates.map((_,i)=>i%2?100:0),color:'#c23535'},...Array.from({length:7},(_,i)=>({id:'other-'+i,name:'其他行业 '+i,values:dates.map(()=>105+i),color:'#238767'}))];
+    window.atlasHitFixture=new AtlasCharts.Chart(host,{dates,series,label:'线段命中与双击测试',unit:'%'});
+  });
+  await page.locator('#atlas-hit-fixture .chart-canvas').scrollIntoViewIfNeeded();
+  const hitPoint=await page.evaluate(()=>{
+    const c=window.atlasHitFixture,r=c.surface.getBoundingClientRect();
+    const x=c.X(10.5),y=(c.Y(c.series[0].values[10])+c.Y(c.series[0].values[11]))/2;
+    return{x:r.left+x,y:r.top+y,dayDistance:Math.min(Math.abs(y-c.Y(c.series[0].values[10])),Math.abs(y-c.Y(c.series[0].values[11])))};
+  });
+  assert.ok(hitPoint.dayDistance>30,'Fixture does not exercise the gap between daily points');
+  await page.mouse.move(hitPoint.x,hitPoint.y);
+  await page.waitForFunction(()=>window.atlasHitFixture.focus==='steep',null,{timeout:3000});
+  await page.mouse.click(hitPoint.x,hitPoint.y);
+  assert.equal(await page.evaluate(()=>window.atlasHitFixture.pinned),'steep','Clicking the visible segment midpoint did not select its line');
+  await page.evaluate(()=>window.atlasHitFixture.clearInspection());
+  await touch('touchStart',[hitPoint]);await touch('touchEnd',[]);
+  assert.equal(await page.evaluate(()=>window.atlasHitFixture.pinned),'steep','Tapping the segment midpoint did not select its line');
+  await page.evaluate(()=>window.atlasHitFixture.clearInspection());
+  const blankPoint=await page.evaluate(()=>{const c=window.atlasHitFixture,r=c.surface.getBoundingClientRect();return{x:r.left+c.X(10.5),y:r.top+c.g.bottom-4};});
+  await page.mouse.click(blankPoint.x,blankPoint.y);
+  assert.equal(await page.locator('#atlas-hit-fixture .readout-all').isHidden(),true,'Blank click expanded the readout');
+  assert.equal(await page.locator('#atlas-hit-fixture .readout-toggle').getAttribute('aria-expanded'),'false','Blank click toggled the readout');
+  await page.evaluate(()=>window.atlasHitFixture.zoom(1.7,null,'both'));
+  assert.ok(await page.evaluate(()=>!!window.atlasHitFixture.yView&&window.atlasHitFixture.canPanX()));
+  await page.mouse.dblclick(blankPoint.x,blankPoint.y);
+  assert.ok(await page.evaluate(()=>{
+    const c=window.atlasHitFixture;return c.yView===null&&c.view[0]===c.resetView[0]&&c.view[1]===c.resetView[1]&&!c.panMove;
+  }),'Mouse double-click did not fully reset both zoom axes');
+  assert.equal(await page.locator('#atlas-hit-fixture .readout-toggle').getAttribute('aria-expanded'),'false','Double-click unexpectedly expanded the readout');
+  await page.evaluate(()=>window.atlasHitFixture.zoom(1.7,null,'both'));
+  await touch('touchStart',[blankPoint]);await touch('touchEnd',[]);
+  await touch('touchStart',[blankPoint]);await touch('touchEnd',[]);
+  assert.ok(await page.evaluate(()=>{
+    const c=window.atlasHitFixture;return c.yView===null&&c.view[0]===c.resetView[0]&&c.view[1]===c.resetView[1];
+  }),'Touch double-tap did not reset zoom');
+  await page.evaluate(()=>{window.atlasHitFixture.destroy();document.getElementById('atlas-hit-fixture').remove();delete window.atlasHitFixture;});
+
   assert.equal(await page.evaluate(()=>window.atlasHistoryWrites),1,'Ordinary interactions re-entered the browser history pipeline');assert.equal(documents,1,'Chart interactions reloaded the document');assert.deepEqual(await page.evaluate(()=>window.atlasAddressWrites),[],'Chart interactions rewrote the browser address');
   for(const mode of ['light','dark']){await page.goto(base+'/index.html');if(await page.evaluate(()=>document.documentElement.dataset.theme)!==mode)await page.locator('button[data-theme]').click();assert.equal(await page.locator('.resource-card').evaluate(el=>getComputedStyle(el).backgroundColor),'rgba(0, 0, 0, 0)');}
   assert.deepEqual(errors,[]);console.log('PASS: default/select all, outside dismissal, state-only history without address writes, nonoverlapping docked readouts, complete values, zoom/fullscreen, latest ranking, independent 1/5/10/20/60-day rotation timeline/playback, immediate touch/mouse feedback, weekly trails, linked state, native dropdown themes and responsive layouts.');
