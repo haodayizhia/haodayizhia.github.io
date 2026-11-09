@@ -125,3 +125,12 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 /* Chart navigation remains discoverable when enlarged. */
 .chart-canvas.can-pan .chart-input{cursor:grab}
 .chart-canvas.is-panning .chart-input{cursor:grabbing}
+
+/* Readout list doubles as a precise series picker on crowded dates; the separate arrow opens details. */
+.readout-identity{display:flex;align-items:center;min-width:0;gap:5px}
+.atlas-app .readout-focus{min-width:0;max-width:100%;flex:1;padding:3px 2px;min-height:27px;text-align:left;font:inherit;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:transparent;border:0;border-radius:3px;cursor:pointer}
+.atlas-app .readout-focus:hover,.atlas-app .readout-focus[aria-pressed="true"]{background:color-mix(in srgb,var(--plot-blue) 10%,transparent);color:var(--plot-blue)}
+.readout-row.is-focused>.readout-identity>.readout-focus{font-weight:650}
+.readout-identity .readout-jump{flex:0 0 auto;min-width:22px;text-align:center;text-decoration:none}
+.readout-identity .readout-jump:hover{text-decoration:underline}
+@media(max-width:760px){.atlas-app .readout-focus{min-height:32px;padding-block:6px}.readout-identity .readout-jump{min-width:26px}}

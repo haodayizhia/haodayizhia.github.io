@@ -145,7 +145,23 @@
       return this.series.map(s=>({id:s.id,name:s.name,detail:s.detail,canOpen:!!this.onOpenSeries&&!s.reference,openLabel:this.openLabel,value:s.values[this.index],color:s.color,dash:s.dash,unit:this.unit}));
     }
     clearInspection(keepReadout=false){this.inspectionActive=false;this.axisValue=null;this.brush=null;if(!keepReadout){this.focus=null;this.pinned=null;}this.updateOverlay();this.updateValues();}
-    select(p){this.inspect(p,true);this.pinned=this.pinned===this.focus?null:this.focus;this.updateOverlay();this.updateValues();}
+    select(p){
+      this.inspect(p,true);
+      const q=this.local(p),line=this.series.find(s=>s.id===this.focus),close=line&&finite(line.values[this.index])&&Math.abs(this.Y(line.values[this.index])-q.y)<=14;
+      if(!close&&this.series.length>6){
+        this.focus=null;this.pinned=null;this.updateOverlay();this.updateValues();
+        const toggle=this.readout?.querySelector('.readout-toggle');
+        if(toggle&&!this.readout.classList.contains('is-expanded'))toggle.click();
+        return;
+      }
+      this.pinned=this.pinned===this.focus?null:this.focus;this.updateOverlay();this.updateValues();
+    }
+    focusSeries(id){
+      const series=this.series.find(s=>s.id===id);if(!series)return;
+      this.inspectionActive=true;this.focus=id;this.pinned=this.pinned===id?null:id;
+      const value=series.values[this.index];this.axisValue=finite(value)?value:null;
+      this.updateOverlay();this.updateValues();
+    }
     inspect(p,force=false) {
       if(!this.hasData||!this.g)return;this.inspectionActive=true;const q=this.local(p);
       if(q.x<0||q.x>this.w||q.y<0||q.y>this.h)return;
