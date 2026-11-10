@@ -50,7 +50,9 @@ async function publishedManifest(url,signal){
    throw Error('公开数据清单不完整。');
   filled+=chunk.count;
  }
- if(filled!==n)throw Error('行情交易日不完整。');
+ if(meta.storage==='industries'){
+  if((meta.chunks||[]).length||!meta.industriesBundle||!meta.markets||!meta.preview)throw Error('行业数据清单不完整。');
+ }else if(filled!==n)throw Error('行情交易日不完整。');
  // Metadata is immediately usable, before the historical price matrices have loaded.
  const groups=new Map();
  for(const stock of meta.stocks)groups.set(stock.industry,(groups.get(stock.industry)||0)+1);
@@ -83,6 +85,39 @@ async function ensurePublished(query,id){
  const revision=sourceRevision;
  const run=async()=>{
   if(engine&&coveredStart<=wantedStart&&coveredEnd>=wantedEnd)return;
+  if(publicMeta.storage==='industries'){
+   // Rare full-market operations (e.g. complete-cohort mode and snapshot export)
+   // rebuild the original matrix from verified industry bundles on demand.
+   const n=dates.length,s=publicMeta.stocks.length;
+   const groups=new Map();
+   publicMeta.stocks.forEach((stock,index)=>{
+    if(!groups.has(stock.industry))groups.set(stock.industry,[]);
+    groups.get(stock.industry).push(index);
+   });
+   const arrays=Object.fromEntries(AtlasFields.map(field=>[field,new Float32Array(n*s)]));
+   let loaded=0;
+   for(const [industry,indices] of groups){
+    if(revision!==sourceRevision)throw Error('已切换到更新的数据源。');
+    const info=publicMeta.industriesBundle?.[industry],count=indices.length,size=n*count;
+    if(!info||info.count!==count||info.length!==size*AtlasFields.length*4)
+     throw Error('行业数据缺失，无法恢复完整行情：'+industry);
+    const values=new Float32Array(await verifiedAsset(info));
+    if(revision!==sourceRevision)throw Error('已切换到更新的数据源。');
+    for(let field=0;field<AtlasFields.length;field++){
+     const destination=arrays[AtlasFields[field]],fieldStart=field*size;
+     for(let day=0;day<n;day++){
+      const input=fieldStart+day*count,output=day*s;
+      for(let k=0;k<count;k++)destination[output+indices[k]]=values[input+k];
+     }
+    }
+    loaded++;
+    postMessage({id,progress:{percent:Math.round(loaded/groups.size*100),message:'正在准备完整历史行情…'}});
+   }
+   const next=new AtlasEngine({...publicMeta,quality:{...publicMeta.quality}},arrays);
+   if(revision!==sourceRevision)throw Error('已切换到更新的数据源。');
+   engine=next;coveredStart=0;coveredEnd=n-1;
+   return;
+  }
   const first=Math.min(coveredStart<0?wantedStart:coveredStart,wantedStart);
   const last=Math.max(coveredEnd<0?wantedEnd:coveredEnd,wantedEnd);
   const chunks=publicMeta.chunks.filter(e=>e.start<=last&&e.start+e.count>first);

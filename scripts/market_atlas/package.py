@@ -38,6 +38,10 @@ def package(source=SOURCE, target=TARGET):
     meta = json.loads(manifest_path.read_text(encoding='utf-8'))
     if meta.get('format') != 1 or len(meta.get('fields', [])) != 9:
         raise ValueError('Unsupported MarketAtlas data format.')
+    # Full-history industry bundles already contain every stock field; keep only one
+    # copy in the published site, while the source retains monthly files for Git deltas.
+    industry_storage = (meta['fields'] == ['close', 'amount', 'turnover', 'ma20', 'quoted', 'open', 'high', 'low', 'volume']
+                        and bool(meta.get('quality')) and all('industry' in stock for stock in meta['stocks']))
     target.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix='.atlas-package-', dir=target.parent))
     try:
@@ -51,15 +55,17 @@ def package(source=SOURCE, target=TARGET):
             digest = hashlib.sha256(raw).hexdigest()
             if entry['start'] != position or len(raw) != entry['count'] * len(meta['stocks']) * 9 * 4 or digest != entry['sha256']:
                 raise ValueError('MarketAtlas chunk integrity check failed: ' + name)
-            filename = Path(name).stem + '.' + digest[:16] + '.bin.gz'
-            zipped = gzip.compress(raw, compresslevel=6, mtime=0)
-            (staging / filename).write_bytes(zipped)
-            chunks.append(dict(entry, file=filename, bytes=len(zipped)))
+            if not industry_storage:
+                filename = Path(name).stem + '.' + digest[:16] + '.bin.gz'
+                zipped = gzip.compress(raw, compresslevel=6, mtime=0)
+                (staging / filename).write_bytes(zipped)
+                chunks.append(dict(entry, file=filename, bytes=len(zipped)))
             position += entry['count']
         if position != len(meta['dates']):
             raise ValueError('MarketAtlas trading days are incomplete.')
         meta['chunks'] = chunks
-        if meta['fields'] == ['close', 'amount', 'turnover', 'ma20', 'quoted', 'open', 'high', 'low', 'volume'] and meta.get('quality') and all('industry' in stock for stock in meta['stocks']):
+        if industry_storage:
+            meta['storage'] = 'industries'
             node = shutil.which('node')
             if not node:
                 raise RuntimeError('Node.js is required to build the precomputed market and industry assets.')
@@ -67,7 +73,8 @@ def package(source=SOURCE, target=TARGET):
             meta.update(json.loads(info))
         (staging / 'manifest.json').write_text(json.dumps(meta, ensure_ascii=False, separators=(',', ':'), allow_nan=False) + '\n', encoding='utf-8')
         replace_directory(staging, target)
-        print(f'MarketAtlas: {len(meta["stocks"]):,} stocks, {len(meta["dates"])} sessions, {sum(c["bytes"] for c in chunks)/1024**2:.1f} MiB compressed; through {meta["dates"][-1]}.')
+        total = sum(f.stat().st_size for f in target.glob('*.gz'))
+        print(f'MarketAtlas: {len(meta["stocks"]):,} stocks, {len(meta["dates"])} sessions, {total/1024**2:.1f} MiB published; through {meta["dates"][-1]}.')
     finally:
         if staging.exists():
             shutil.rmtree(staging)
