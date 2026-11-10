@@ -78,6 +78,7 @@
     constructor(host,options) {
       this.host=host;Object.assign(this,{unit:'%',label:'',kind:'lines',stock:null,log:false,compact:false,onInspect:()=>{},onRange:()=>{},onYRange:()=>{},inspectionActive:false},options);
       this.zoomAxis='both';this.id=++chartId;this.index=this.dates.length-1;this.view=[0,Math.max(0,this.dates.length-1)];this.resetView=[...this.view];this.axisValue=null;this.revision=0;
+      this.pinnedSet=new Set(this.pinned?[this.pinned]:[]);
       this.abort=new AbortController();
       host.classList.add('chart-host');
       const heading=escape(this.label)+(this.unit?`<small class="chart-unit">（${escape(this.unit)}）</small>`:'');
@@ -86,7 +87,7 @@
       host.addEventListener('click',e=>{const mode=e.target.closest('[data-zoom-axis]');if(mode){this.zoomAxis=mode.dataset.zoomAxis;root.AtlasApplyZoomAxis(host,this.zoomAxis);return;}const action=e.target.closest('[data-chart-action]')?.dataset.chartAction;if(action==='in')this.zoom(1.7,null,this.zoomAxis);if(action==='out')this.zoom(1/1.7,null,this.zoomAxis);if(action==='reset')this.reset();if(action==='expand')root.AtlasFullscreen.open(this.host,this.label);const remove=e.target.closest('[data-remove-series]');if(remove)this.onRemove?.(remove.dataset.removeSeries);},{signal:this.abort.signal});
       this.svg.addEventListener('keydown',e=>this.key(e),{signal:this.abort.signal});
       this.gesture=new root.AtlasGesture(this.surface,{
-        owner:this,dismiss:keep=>{this.clearInspection(keep);this.onDismiss?.(keep,this);},inspect:p=>this.inspect(p),tap:(p,pointerType)=>this.select(p,pointerType),
+        owner:this,dismiss:()=>{this.clearInspection(true);this.onDismiss?.(true,this);},inspect:p=>this.inspect(p),tap:(p,pointerType)=>this.select(p,pointerType),
         start:()=>{this.dragView=[...this.view];this.dragY=[this.lo,this.hi];this.panMove=null;},
         drag:(p,start)=>{if(start.shift){this.brush=[this.local(start).x,this.local(p).x];this.updateOverlay();}else if(this.canPan())this.previewPan(p.x-start.x,p.y-start.y);else this.inspect(p);},
         end:(p,start)=>{const distance=start?Math.hypot(p.x-start.x,p.y-start.y):0;
@@ -167,8 +168,14 @@
       if(this.canPanX()&&Math.abs(this.view[0]-a)>1e-5)this.setRange(a,a+span,true);else{this.sceneKey='';this.draw();}
     }
     reset(){this.cancelPan();this.yView=null;this.onYRange(null);const [a,b]=this.resetView||[0,this.dates.length-1];this.setRange(a,b,true);this.onReset?.(this);}
-    setSeries(series){if(!series.some(s=>s.id===this.pinned))this.pinned=null;if(!series.some(s=>s.id===this.focus))this.focus=null;this.series=series;this.revision++;this.sceneKey='';this.draw();}
-    setIndex(index,{reveal=false}={}) {
+    setSeries(series){
+      const valid=new Set(series.map(s=>s.id));
+      this.pinnedSet=new Set([...this.pinnedSet].filter(id=>valid.has(id)));
+      if(!this.pinnedSet.has(this.pinned))this.pinned=[...this.pinnedSet].at(-1)||null;
+      if(!valid.has(this.focus))this.focus=this.pinned;
+      this.series=series;this.revision++;this.sceneKey='';this.draw();
+    }
+        setIndex(index,{reveal=false}={}) {
       this.index=clamp(index,0,this.dates.length-1);this.axisValue=null;
       if(reveal&&(index<this.view[0]||index>this.view[1])){const span=this.view[1]-this.view[0],a=clamp(index-span/2,0,this.dates.length-1-span);this.setRange(a,a+span,true);}
       this.updateOverlay();this.updateValues();
@@ -181,8 +188,21 @@
       }
       return this.series.map(s=>({id:s.id,name:s.name,detail:s.detail,canOpen:!!this.onOpenSeries&&!s.reference,openLabel:this.openLabel,value:s.values[this.index],color:s.color,dash:s.dash,unit:this.unit}));
     }
-    clearInspection(keepReadout=false){this.inspectionActive=false;this.axisValue=null;this.brush=null;if(!keepReadout){this.focus=null;this.pinned=null;}this.updateOverlay();this.updateValues();}
-    // Do not open the readout on an empty click: doing so changed the layout between
+    clearInspection(keepPins=false){
+      this.inspectionActive=false;this.axisValue=null;this.brush=null;
+      if(!keepPins){this.pinnedSet.clear();this.pinned=null;this.onSelectionChange?.();}
+      this.focus=keepPins?this.pinned:null;
+      this.updateOverlay();this.updateValues();
+    }
+    togglePin(id){
+      const had=this.pinnedSet.has(id);
+      if(this.compact)this.pinnedSet.clear(); // Linked state charts still use one active metric.
+      if(!this.compact&&had)this.pinnedSet.delete(id);
+      else if(!had)this.pinnedSet.add(id);
+      this.pinned=this.pinnedSet.has(id)?id:[...this.pinnedSet].at(-1)||null;
+      this.onSelectionChange?.();
+    }
+        // Do not open the readout on an empty click: doing so changed the layout between
     // the first and second click and prevented the native dblclick reset gesture.
     select(p,pointerType='mouse'){
       if(!this.hasData)return;
@@ -190,7 +210,7 @@
       this.inspect(p,true);
       if(!hit){this.focus=this.pinned||null;this.updateOverlay();this.updateValues();return;}
       this.focus=hit.id;
-      this.pinned=this.pinned===hit.id?null:hit.id;
+      this.togglePin(hit.id);
       this.updateOverlay();this.updateValues();
     }
     hitSeries(p,radius=12){
@@ -204,7 +224,7 @@
     }
     focusSeries(id){
       const series=this.series.find(s=>s.id===id);if(!series)return;
-      this.inspectionActive=true;this.focus=id;this.pinned=this.pinned===id?null:id;
+      this.inspectionActive=true;this.focus=id;this.togglePin(id);
       const value=series.values[this.index];this.axisValue=finite(value)?value:null;
       this.updateOverlay();this.updateValues();
     }
@@ -215,10 +235,11 @@
       const segment=this.hitSeries(p,13);
       // Keep the original nearest-day fallback for readouts away from a line; when
       // near a visible segment, the interpolated geometric hit always takes priority.
-      this.focus=!force&&this.pinned?this.pinned:segment?.id||(this.strictHit?null:
+      // Hover is temporary and independent of fixed selections.
+      this.focus=segment?.id||(this.strictHit?null:
         this.series.filter(s=>!s.reference&&finite(s.values[this.index])&&this.Y(s.values[this.index])>=this.g.top&&this.Y(s.values[this.index])<=this.g.bottom)
-          .sort((a,b)=>Math.abs(this.Y(a.values[this.index])-q.y)-Math.abs(this.Y(b.values[this.index])-q.y))[0]?.id);
-      this.onInspect(this.index,this);this.updateOverlay();this.updateValues();
+          .sort((a,b)=>Math.abs(this.Y(a.values[this.index])-q.y)-Math.abs(this.Y(b.values[this.index])-q.y))[0]?.id)||this.pinned;
+            this.onInspect(this.index,this);this.updateOverlay();this.updateValues();
       root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.getRows(),x:p.x,y:p.y,axis:`纵轴 ${number(this.axisValue)}${this.unit}`});
     }
     key(e) {
@@ -274,18 +295,38 @@
     }
     updateOverlay() {
       const layer=this.svg.querySelector('.plot-overlay');if(!layer||!this.hasData)return;
-      const i=this.index,g=this.g,focus=this.inspectionActive?this.focus:null,value=this.inspectionActive?(this.axisValue??this.series[0]?.values[i]):null;let html='';
+      const i=this.index,g=this.g,focus=this.inspectionActive?this.focus:null;
+      const value=this.inspectionActive?(this.axisValue??this.series[0]?.values[i]):null;
+      const highlighted=new Set(this.pinnedSet);if(focus)highlighted.add(focus);
+      let html='';
+      // Pinned traces remain on top of dense charts even when the mouse leaves.
+      if(this.series.length>6&&highlighted.size)for(const s of this.series)if(s.reference||highlighted.has(s.id))
+        html+=`<path class="focus-trace" d="${path(s.values,this.X,this.Y,Math.max(0,Math.floor(this.view[0])-1),Math.min(this.dates.length-1,Math.ceil(this.view[1])+1))}" clip-path="url(#plotClip${this.id})" fill="none" stroke="${s.color||'var(--plot-main)'}" stroke-width="${traceWidth(!!s.reference,highlighted.has(s.id))}" stroke-dasharray="${s.dash||''}"/>`;
       if(this.inspectionActive&&i>=this.view[0]&&i<=this.view[1]){
         const x=this.X(i);
-        if(this.series.length>6)for(const s of this.series)if(s.reference||s.id===focus)html+=`<path class="focus-trace" d="${path(s.values,this.X,this.Y,Math.max(0,Math.floor(this.view[0])-1),Math.min(this.dates.length-1,Math.ceil(this.view[1])+1))}" clip-path="url(#plotClip${this.id})" fill="none" stroke="${s.color||'var(--plot-main)'}" stroke-width="${traceWidth(!!s.reference,s.id===focus)}" stroke-dasharray="${s.dash||''}"/>`;
         html+=`<path class="crosshair" d="M${x},${g.top}V${this.stock?this.h-34:g.bottom}"/>`;
-        for(const s of this.series)if((this.series.length<=8||s.reference||s.id===focus)&&finite(s.values[i])&&this.Y(s.values[i])>=g.top&&this.Y(s.values[i])<=g.bottom)html+=`<circle cx="${x}" cy="${this.Y(s.values[i])}" r="3.2" fill="${s.color||'var(--plot-main)'}" stroke="var(--bg)" stroke-width="1.3"/>`;
+        for(const s of this.series)if((this.series.length<=8||s.reference||highlighted.has(s.id))&&finite(s.values[i])&&this.Y(s.values[i])>=g.top&&this.Y(s.values[i])<=g.bottom)
+          html+=`<circle cx="${x}" cy="${this.Y(s.values[i])}" r="3.2" fill="${s.color||'var(--plot-main)'}" stroke="var(--bg)" stroke-width="1.3"/>`;
       }
-      if(finite(value)&&this.Y(value)>=g.top&&this.Y(value)<=g.bottom){const y=this.Y(value),tagWidth=Math.max(g.left-5,Math.ceil(measureAxis([number(value)])+10));html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${tagWidth}" height="22" rx="2"/><text class="axis-tag-text" x="${tagWidth-5}" y="${y+4}" text-anchor="end">${number(value)}</text>`;}
+      if(finite(value)&&this.Y(value)>=g.top&&this.Y(value)<=g.bottom){
+        const y=this.Y(value),tagWidth=Math.max(g.left-5,Math.ceil(measureAxis([number(value)])+10));
+        html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${tagWidth}" height="22" rx="2"/><text class="axis-tag-text" x="${tagWidth-5}" y="${y+4}" text-anchor="end">${number(value)}</text>`;
+      }
       if(this.brush){const left=clamp(Math.min(...this.brush),g.left,g.right),right=clamp(Math.max(...this.brush),g.left,g.right);html+=`<rect class="zoom-brush" x="${left}" y="${g.top}" width="${right-left}" height="${g.height}"/>`;}
-      layer.innerHTML=html;const styleKey=this.revision+'|'+focus;if(this.lastStyleKey!==styleKey){const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===focus,reference=references.has(line.dataset.series);line.style.opacity=String(this.stock?1:this.compact?(focus&&!active?0.2:1):traceOpacity(this.series.length,!!focus,reference,active));line.style.strokeWidth=active?String(traceWidth(reference,true)):'';}this.lastStyleKey=styleKey;}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
+      layer.innerHTML=html;
+      const styleKey=this.revision+'|'+focus+'|'+[...this.pinnedSet].join('|');
+      if(this.lastStyleKey!==styleKey){
+        const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));
+        for(const line of this.svg.querySelectorAll('[data-series]')){
+          const active=highlighted.has(line.dataset.series),reference=references.has(line.dataset.series);
+          line.style.opacity=String(this.stock?1:this.compact?(highlighted.size&&!active?0.2:1):traceOpacity(this.series.length,highlighted.size>0,reference,active));
+          line.style.strokeWidth=active?String(traceWidth(reference,true)):'';
+        }
+        this.lastStyleKey=styleKey;
+      }
+      this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
     }
-    updateValues() {
+        updateValues() {
       const i=this.index,time=this.host.querySelector('.chart-date');if(time)time.textContent=this.dates[i];
       const range=this.host.querySelector('.chart-window');if(range)range.textContent=this.canPanX()?`${this.dates[Math.ceil(this.view[0])]} — ${this.dates[Math.floor(this.view[1])]}`:'';
       root.AtlasInspector.render(this,{date:this.dates[i],rows:this.getRows(),focus:this.focus});
