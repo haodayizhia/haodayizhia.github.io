@@ -103,7 +103,7 @@
   }
   function observeDate(date,origin){
     if(!S.market)return;const i=S.market.dates.indexOf(date);if(i<0)return;S.cursor=i;
-    for(const chart of S.charts)if(chart!==origin&&!chart.independentDate){const j=chart.dates.indexOf(date);if(j>=0){chart.inspectionActive=origin?.inspectionActive??false;chart.setIndex(j,{reveal:true});}}
+    for(const chart of S.charts)if(chart!==origin&&!chart.independentDate){const j=chart.dates.indexOf(date);if(j>=0){if(S.view==='market'&&S.display==='state'&&origin instanceof Chart){chart.focus=null;chart.pinned=null;}chart.inspectionActive=origin?.inspectionActive??false;chart.setIndex(j,{reveal:true});}}
     updateSummary();if($('stateDate'))$('stateDate').textContent=date;
     if($('atlasCompareDialog').open)renderComparison();
   }
@@ -187,8 +187,14 @@
   function renderState(){
     const groups=[{label:'参与面',unit:'%',domain:[0,100],metrics:[['站上MA20','breadth',palette[0]],['当日上涨','up',palette[1]],['上涨5日均值','up_smooth',palette[2]]]},{label:'20日年化波动',unit:'%',metrics:[['年化波动','vol',palette[3]]]},{label:'成交额',unit:'亿元',metrics:[['成交额','amount',palette[0]]]}];
     $('marketChart').innerHTML=`<div class="state-bundle"><div class="plot-toolbar"><div><span class="state-title">同日联动</span></div><div class="plot-actions">${AtlasAxisControls('time')}<button data-state-action="out" aria-label="缩小图表">−</button><button data-state-action="in" aria-label="放大图表">＋</button><button data-state-action="reset">复原</button><button data-state-action="expand">⛶ 全屏</button></div></div><div class="chart-readout"></div>${groups.map((_,i)=>`<div id="stateChart${i}"></div>`).join('')}</div>`;
-    const allRows=i=>groups.flatMap(g=>g.metrics.map(([name,key,color])=>({name,value:S.market.pool[key][i],unit:g.unit,color})));
-    groups.forEach((g,i)=>graph('stateChart'+i,{dates:S.market.dates,series:g.metrics.map(([name,key,color],j)=>({id:key,name,values:S.market.pool[key],color,reference:j===0})),unit:g.unit,domain:g.domain,label:g.label,compact:true,hideDates:i<2,inspectionRows:allRows,readoutHost:$('marketChart').querySelector('.chart-readout')}));
+    const allRows=i=>groups.flatMap(g=>g.metrics.map(([name,key,color])=>({id:key,name,value:S.market.pool[key][i],unit:g.unit,color})));
+    const focusLinkedMetric=id=>{
+      const target=S.charts.find(c=>c instanceof Chart&&c.series.some(s=>s.id===id));
+      if(!target)return;
+      for(const c of S.charts)if(c!==target){c.focus=null;c.pinned=null;c.inspectionActive=false;c.updateOverlay();c.updateValues();}
+      target.focusSeries(id);
+    };
+    groups.forEach((g,i)=>graph('stateChart'+i,{dates:S.market.dates,series:g.metrics.map(([name,key,color])=>({id:key,name,values:S.market.pool[key],color})),unit:g.unit,domain:g.domain,label:g.label,compact:true,strictHit:true,hideDates:i<2,inspectionRows:allRows,onFocusSeries:focusLinkedMetric,readoutHost:$('marketChart').querySelector('.chart-readout')}));
     $('marketChart').querySelector('.state-bundle .plot-actions').addEventListener('click',e=>{const mode=e.target.closest('[data-zoom-axis]');if(mode){AtlasApplyZoomAxis($('marketChart').firstElementChild,mode.dataset.zoomAxis);return;}const b=e.target.closest('[data-state-action]');if(!b)return;const action=b.dataset.stateAction,first=S.charts[0];if(action==='in'||action==='out'){const factor=action==='in'?1.7:1/1.7,axis=$('marketChart').querySelector('.state-bundle .zoom-modes [aria-pressed="true"]')?.dataset.zoomAxis||'both';if(axis!=='x')S.charts.slice(1).forEach(c=>c.zoomY(factor));first.zoom(factor,null,axis);}if(action==='reset')S.charts.forEach(c=>c.reset());if(action==='expand')AtlasFullscreen.open($('marketChart').firstElementChild,'同日联动');});
     S.stateTimeNav=new AtlasTimeNavigator($('marketChart').firstElementChild,{getRange:()=>S.charts[0]?.view||[0,S.market.dates.length-1],getLength:()=>S.market.dates.length,getDates:()=>S.market.dates,onChange:(a,b)=>S.charts[0]?.setRange(a,b,true)});
     if(matchMedia('(max-width:600px)').matches)requestAnimationFrame(()=>{const bundle=$('marketChart').firstElementChild;if(bundle&&bundle.getBoundingClientRect().height<innerHeight-60)window.scrollBy({top:bundle.getBoundingClientRect().top-54,behavior:'smooth'});});

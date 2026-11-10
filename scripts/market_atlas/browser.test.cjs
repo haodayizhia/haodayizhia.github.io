@@ -124,6 +124,38 @@ const server=http.createServer((req,res)=>{
   await page.selectOption('.rotation-industry',{index:1});await shot('390-explained-rotation');assert.equal(await page.locator('.scatter-host .atlas-time-nav').count(),0,'Rotation already has one date slider');await page.locator('.scatter-host [data-zoom-axis="x"]').click();const rot1=await state(()=>[...AtlasWorkspace.state.charts[0].domain]);await page.locator('.scatter-host [data-map-action=in]').click();const rot2=await state(()=>[...AtlasWorkspace.state.charts[0].domain]);assert.ok(rot2[1]-rot2[0]<rot1[1]-rot1[0]&&rot2[2]===rot1[2]&&rot2[3]===rot1[3],'Rotation horizontal zoom altered vertical axis');await page.locator('.scatter-host [data-zoom-axis="y"]').click();await page.locator('.scatter-host [data-map-action=in]').click();const rot3=await state(()=>[...AtlasWorkspace.state.charts[0].domain]);assert.ok(Math.abs((rot3[1]-rot3[0])-(rot2[1]-rot2[0]))<1e-7&&rot3[3]-rot3[2]<rot2[3]-rot2[2],'Rotation vertical zoom altered horizontal axis');await page.locator('.scatter-host [data-map-action=reset]').click();
   await page.locator('[data-map-action=expand]').click();await outsidePlot(page.locator('#atlasChartDialog .chart-readout'),page.locator('#atlasChartDialog .chart-canvas'));box=await page.locator('#atlasChartDialog .chart-canvas').boundingBox();assert.ok(box.y+box.height<=844);await backdrop('#atlasChartDialog');
   await page.locator('[data-display=state]').click();await page.waitForTimeout(500);assert.equal(await page.locator('.atlas-chart').count(),3);
+  // Three breadth curves have equal status; MA20 must not be an unselectable reference.
+  const stateInitial=await state(()=>AtlasWorkspace.state.charts.map(c=>({
+    ids:c.series.map(s=>s.id),referenceIds:c.series.filter(s=>s.reference).map(s=>s.id),
+    opacities:[...c.svg.querySelectorAll('path[data-series]')].map(p=>Number(p.style.opacity))
+  })));
+  assert.deepEqual(stateInitial[0].ids,['breadth','up','up_smooth']);
+  assert.ok(stateInitial.every(c=>c.referenceIds.length===0&&c.opacities.every(o=>o===1)),'State metrics must be equally visible before focus');
+  const breadthPoint=await state(()=>{
+    const c=AtlasWorkspace.state.charts[0],s=c.series[0],r=c.surface.getBoundingClientRect();
+    for(let i=Math.floor(c.view[1]);i>=Math.ceil(c.view[0]);i--){
+      if(!Number.isFinite(s.values[i]))continue;
+      const p={x:r.x+c.X(i),y:r.y+c.Y(s.values[i])};
+      if(c.hitSeries(p,8)?.id==='breadth')return p;
+    }
+    return null;
+  });
+  assert.ok(breadthPoint,'MA20 curve cannot be selected by geometric hit testing');
+  await page.locator('#marketChart .readout-primary [data-focus-series="breadth"]').click();
+  assert.equal(await state(()=>AtlasWorkspace.state.charts[0].pinned),'breadth','Readout cannot pin MA20');
+  const breadthStyles=await state(()=>{
+    const c=AtlasWorkspace.state.charts[0],paths=[...c.svg.querySelectorAll('path[data-series]')];
+    return Object.fromEntries(c.series.map(s=>[s.id,Number(paths.find(p=>p.dataset.series===s.id).style.opacity)]));
+  });
+  assert.equal(breadthStyles.breadth,1);
+  assert.ok(breadthStyles.up<.3&&breadthStyles.up_smooth<.3,'Non-focused breadth lines did not dim');
+  await page.locator('#marketChart .readout-primary [data-focus-series="amount"]').click();
+  assert.equal(await state(()=>AtlasWorkspace.state.charts[2].pinned),'amount','Readout did not route across chart panels');
+  assert.ok(await state(()=>AtlasWorkspace.state.charts.slice(0,2).every(c=>c.pinned===null&&!c.inspectionActive)),'Previous metric kept its highlight');
+  await page.locator('#marketChart .readout-primary [data-focus-series="up"]').click();
+  assert.equal(await state(()=>AtlasWorkspace.state.charts[0].pinned),'up');
+  assert.equal(await state(()=>AtlasWorkspace.state.charts[2].pinned),null,'Switching focus did not clear the previous panel');
+  await page.locator('#marketChart .readout-unpin').click();
   assert.equal(await page.locator('.chart-readout').count(),1);assert.equal(await page.locator('.chart-readout').getAttribute('data-rows'),'5');const stateX=await state(()=>AtlasWorkspace.state.charts.map(c=>c.view));const stateScroll=await state(()=>scrollY);const zb=await page.locator('[data-state-action=in]').boundingBox();await page.mouse.click(zb.x+zb.width/2,zb.y+zb.height/2);assert.equal(await state(()=>scrollY),stateScroll);assert.ok(await page.evaluate(ranges=>AtlasWorkspace.state.charts.every((c,i)=>c.view[1]-c.view[0]<ranges[i][1]-ranges[i][0]),stateX), 'State zoom must scale both axes');assert.ok(await state(()=>AtlasWorkspace.state.charts.every(c=>c.yView)));
   for(const c of await page.locator('.chart-canvas').all()){const b=await c.boundingBox();assert.ok(b.y>=48&&b.y+b.height<=844,'State charts require paging');}
   await page.locator('[data-state-action=in]').click();const ranges=await state(()=>AtlasWorkspace.state.charts.map(c=>c.view));assert.deepEqual(ranges[0],ranges[1]);assert.deepEqual(ranges[1],ranges[2]);await page.locator('[data-state-action=reset]').click();assert.equal(await page.locator('.state-bundle .atlas-time-nav').count(),1,'State charts must share one time navigator');await page.locator('.state-bundle [data-zoom-axis="x"]').click();const stateXBefore=await state(()=>AtlasWorkspace.state.charts.map(c=>[...c.view]));await page.locator('[data-state-action=in]').click();assert.ok(await page.evaluate(before=>AtlasWorkspace.state.charts.every((c,i)=>c.view[1]-c.view[0]<before[i][1]-before[i][0]&&c.yView===null),stateXBefore),'State X-only zoom changed Y');await page.locator('.state-bundle [data-zoom-axis="y"]').click();const stateYBefore=await state(()=>AtlasWorkspace.state.charts.map(c=>[...c.view]));await page.locator('[data-state-action=in]').click();assert.deepEqual(await state(()=>AtlasWorkspace.state.charts.map(c=>c.view)),stateYBefore,'State Y-only zoom changed X');assert.ok(await state(()=>AtlasWorkspace.state.charts.every(c=>c.yView)),'State Y-only zoom missing');await page.locator('[data-state-action=reset]').click();assert.ok(await state(()=>AtlasWorkspace.state.charts.every(c=>c.yView===null&&c.view[0]===c.resetView[0]&&c.view[1]===c.resetView[1])),'Linked state charts did not reset consistently');assert.equal(await state(()=>AtlasWorkspace.state.ranges.has('market-state')),false);assert.ok(await state(()=>document.documentElement.scrollWidth<=innerWidth),'State chart reset overflow');

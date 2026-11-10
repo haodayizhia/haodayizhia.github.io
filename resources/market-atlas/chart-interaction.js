@@ -49,7 +49,7 @@
         el.querySelector('.readout-toggle').addEventListener('click',()=>{const open=el.classList.toggle('is-expanded');if(open)el.renderAll?.();el.querySelector('.readout-all').hidden=!open;el.querySelector('.readout-toggle').setAttribute('aria-expanded',String(open));el.querySelector('.readout-toggle').textContent=open?'收起列表':'全部 '+el.dataset.rows+' 项';window.dispatchEvent(new Event('resize'));});
         el.querySelector('.readout-unpin').addEventListener('click',()=>{const owner=el.owner;owner.clearInspection?.();});
         el.addEventListener('pointerdown',()=>el.owner?.pause?.());
-        el.addEventListener('click',e=>{const select=e.target.closest('[data-focus-series]');if(select){el.owner?.focusSeries?.(select.dataset.focusSeries);return;}const link=e.target.closest('[data-open-series]');if(link&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey&&e.button===0){e.preventDefault();el.owner?.onOpenSeries?.(link.dataset.openSeries);}});
+        el.addEventListener('click',e=>{const select=e.target.closest('[data-focus-series]');if(select){const owner=el.owner;if(owner?.onFocusSeries)owner.onFocusSeries(select.dataset.focusSeries);else owner?.focusSeries?.(select.dataset.focusSeries);return;}const link=e.target.closest('[data-open-series]');if(link&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey&&e.button===0){e.preventDefault();el.owner?.onOpenSeries?.(link.dataset.openSeries);}});
       }
     },
     render(owner,{date,rows,focus=owner.focus}) {
@@ -64,7 +64,7 @@
       const row=r=>{
          const label=esc(r.name)+(r.detail?'<small class="readout-code">'+esc(r.detail)+'</small>':'');
          const link=r.canOpen?'<a class="readout-open readout-jump" href="'+esc(owner.linkFor(r.id))+'" data-open-series="'+esc(r.id)+'" aria-label="'+esc(r.openLabel||owner.openLabel||'查看详情')+'：'+esc(r.name)+'" title="查看详情：'+esc(r.name)+'">↗</a>':'';
-         const selectable=!!r.id&&!!owner.series?.some(s=>s.id===r.id);
+         const selectable=!!r.id&&(!!owner.onFocusSeries||!!owner.series?.some(s=>s.id===r.id));
          const identity=selectable?'<span class="readout-identity"><button type="button" class="readout-focus" data-focus-series="'+esc(r.id)+'" aria-pressed="'+(owner.pinned===r.id)+'" title="点击关注 '+esc(r.name)+'">'+label+'</button>'+link+'</span>':
            r.canOpen?'<a class="readout-open" href="'+esc(owner.linkFor(r.id))+'" data-open-series="'+esc(r.id)+'" aria-label="'+esc(r.openLabel||owner.openLabel||'查看详情')+'：'+esc(r.name)+'">'+label+' ↗</a>':'<span title="'+esc(r.name)+'">'+label+'</span>';
          return '<div class="readout-row'+(focus===r.id?' is-focused':'')+'"><i style="color:'+(r.color||'var(--plot-main)')+';border-top:2px '+(r.dash?'dashed':'solid')+' currentColor;background:transparent"></i>'+identity+'<strong>'+(finite(r.value)?num(r.value,r.digits??2):'—')+'<small class="readout-unit'+(r.unit==='%'?' is-percent':'')+'">'+(finite(r.value)?esc(r.unit||''):'')+'</small></strong></div>';

@@ -215,9 +215,9 @@
       const segment=this.hitSeries(p,13);
       // Keep the original nearest-day fallback for readouts away from a line; when
       // near a visible segment, the interpolated geometric hit always takes priority.
-      this.focus=!force&&this.pinned?this.pinned:segment?.id||
+      this.focus=!force&&this.pinned?this.pinned:segment?.id||(this.strictHit?null:
         this.series.filter(s=>!s.reference&&finite(s.values[this.index])&&this.Y(s.values[this.index])>=this.g.top&&this.Y(s.values[this.index])<=this.g.bottom)
-          .sort((a,b)=>Math.abs(this.Y(a.values[this.index])-q.y)-Math.abs(this.Y(b.values[this.index])-q.y))[0]?.id;
+          .sort((a,b)=>Math.abs(this.Y(a.values[this.index])-q.y)-Math.abs(this.Y(b.values[this.index])-q.y))[0]?.id);
       this.onInspect(this.index,this);this.updateOverlay();this.updateValues();
       root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.getRows(),x:p.x,y:p.y,axis:`纵轴 ${number(this.axisValue)}${this.unit}`});
     }
@@ -283,7 +283,7 @@
       }
       if(finite(value)&&this.Y(value)>=g.top&&this.Y(value)<=g.bottom){const y=this.Y(value),tagWidth=Math.max(g.left-5,Math.ceil(measureAxis([number(value)])+10));html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${tagWidth}" height="22" rx="2"/><text class="axis-tag-text" x="${tagWidth-5}" y="${y+4}" text-anchor="end">${number(value)}</text>`;}
       if(this.brush){const left=clamp(Math.min(...this.brush),g.left,g.right),right=clamp(Math.max(...this.brush),g.left,g.right);html+=`<rect class="zoom-brush" x="${left}" y="${g.top}" width="${right-left}" height="${g.height}"/>`;}
-      layer.innerHTML=html;const styleKey=this.revision+'|'+focus;if(this.lastStyleKey!==styleKey){const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===focus,reference=references.has(line.dataset.series);line.style.opacity=String(this.stock?1:traceOpacity(this.series.length,!!focus,reference,active));line.style.strokeWidth=active?String(traceWidth(reference,true)):'';}this.lastStyleKey=styleKey;}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
+      layer.innerHTML=html;const styleKey=this.revision+'|'+focus;if(this.lastStyleKey!==styleKey){const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===focus,reference=references.has(line.dataset.series);line.style.opacity=String(this.stock?1:this.compact?(focus&&!active?0.2:1):traceOpacity(this.series.length,!!focus,reference,active));line.style.strokeWidth=active?String(traceWidth(reference,true)):'';}this.lastStyleKey=styleKey;}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
     }
     updateValues() {
       const i=this.index,time=this.host.querySelector('.chart-date');if(time)time.textContent=this.dates[i];
