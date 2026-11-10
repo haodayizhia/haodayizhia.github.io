@@ -45,6 +45,16 @@ const server=http.createServer((req,res)=>{
   await candidates.nth(5).click();
   assert.equal(await state(()=>AtlasWorkspace.state.charts[0].pinned),chosen,'Readout row did not pin curve');
   assert.equal(await page.locator('#marketChart .readout-all [data-focus-series][aria-pressed="true"]').count(),1);
+  // Moving out of the plot and the whole chart must not undo an explicit single-curve pin.
+  await page.locator('#marketChart .chart-canvas').dispatchEvent('pointerleave',{pointerType:'mouse'});
+  await page.locator('#marketChart .chart-host').dispatchEvent('pointerleave',{pointerType:'mouse'});
+  const afterLeave=await state(()=>{const c=AtlasWorkspace.state.charts[0],line=[...c.svg.querySelectorAll('[data-series]')].find(e=>e.dataset.series===c.pinned);return{pinned:c.pinned,inspection:c.inspectionActive,opacity:Number(line?.style.opacity),width:Number(line?.style.strokeWidth)};});
+  assert.equal(afterLeave.pinned,chosen,'Pointer leaving the window must preserve the pinned curve');
+  assert.equal(afterLeave.inspection,false,'Pointer leaving must clear temporary inspection');
+  assert.equal(afterLeave.opacity,1,'Pinned curve should stay highlighted when pointer leaves');
+  assert.ok(afterLeave.width>=2.5,'Pinned curve should keep its emphasis after leave');
+  assert.equal(await page.locator('#marketChart .plot-overlay .crosshair,#marketChart .plot-overlay .axis-tag').count(),0,'Temporary crosshairs should disappear on leave');
+  assert.equal(await page.locator('#marketChart .readout-drill').isVisible(),true,'Pinned curve detail link should remain reachable');
   const nextChosen=await candidates.nth(2).getAttribute('data-focus-series');
   await candidates.nth(2).click();
   assert.equal(await state(()=>AtlasWorkspace.state.charts[0].pinned),nextChosen,'Switching crowded curves requires clicking graph');

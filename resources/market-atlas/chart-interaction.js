@@ -172,7 +172,8 @@
         const outside=e=>{if(!owner.host.contains(e.target)&&!owner.readout?.contains(e.target))handlers.dismiss?.(false);};
         document.addEventListener('pointerdown',outside,{signal});
         document.addEventListener('touchstart',outside,{passive:true,signal});
-        owner.host.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse&&!owner.readout?.contains(e.relatedTarget))handlers.dismiss?.(false);},{signal});
+        // Leaving the chart is not an explicit unpin action. Only the transient crosshair clears.
+        owner.host.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse&&!owner.readout?.contains(e.relatedTarget))handlers.dismiss?.(true);},{signal});
       }
       if(handlers.wheel!==false)on('wheel',e=>{e.preventDefault();handlers.zoom?.(Math.exp(-e.deltaY*.002),point(e),true);},{passive:false});
       on('dblclick',e=>{e.preventDefault();handlers.reset?.();});

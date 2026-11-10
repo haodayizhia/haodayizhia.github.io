@@ -274,7 +274,7 @@
     }
     updateOverlay() {
       const layer=this.svg.querySelector('.plot-overlay');if(!layer||!this.hasData)return;
-      const i=this.index,g=this.g,focus=this.inspectionActive?this.focus:null,value=this.inspectionActive?(this.axisValue??this.series[0]?.values[i]):null;let html='';
+      const i=this.index,g=this.g,focus=(this.inspectionActive?this.focus:null)||this.pinned||null,value=this.inspectionActive?(this.axisValue??this.series[0]?.values[i]):null;let html='';
       if(this.inspectionActive&&i>=this.view[0]&&i<=this.view[1]){
         const x=this.X(i);
         if(this.series.length>6)for(const s of this.series)if(s.reference||s.id===focus)html+=`<path class="focus-trace" d="${path(s.values,this.X,this.Y,Math.max(0,Math.floor(this.view[0])-1),Math.min(this.dates.length-1,Math.ceil(this.view[1])+1))}" clip-path="url(#plotClip${this.id})" fill="none" stroke="${s.color||'var(--plot-main)'}" stroke-width="${traceWidth(!!s.reference,s.id===focus)}" stroke-dasharray="${s.dash||''}"/>`;
