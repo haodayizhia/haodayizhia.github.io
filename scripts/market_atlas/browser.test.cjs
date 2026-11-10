@@ -126,6 +126,13 @@ const server=http.createServer((req,res)=>{
   await touch('touchStart',[pts[0]]);const f=await state(()=>AtlasWorkspace.state.charts[0].focus);assert.ok(f);
   await touch('touchMove',[pts[1]]);await page.waitForFunction(name=>AtlasWorkspace.state.charts[0].focus!==name,f,{timeout:2000});await touch('touchEnd',[]);assert.notEqual(await state(()=>AtlasWorkspace.state.charts[0].focus),f,'Rotation finger movement has no feedback');await page.locator('.interaction-note').tap();assert.equal(await page.locator('.rotation-trail,.point-label').count(),0);assert.equal(await state(()=>!!AtlasWorkspace.state.charts[0].focus),false);
   await page.selectOption('.rotation-industry',{index:1});assert.ok(await state(()=>!!AtlasWorkspace.state.charts[0].pinned));assert.equal(await page.locator('.rotation-trail').count(),1);
+  const pinnedRotation=await state(()=>AtlasWorkspace.state.charts[0].pinned);
+  await page.locator('.scatter-host .chart-canvas').dispatchEvent('pointerleave',{pointerType:'mouse'});
+  await page.locator('.scatter-host').dispatchEvent('pointerleave',{pointerType:'mouse'});
+  const afterRotationLeave=await state(()=>{const c=AtlasWorkspace.state.charts[0];return{pinned:c.pinned,focus:c.focus,inspection:c.inspectionActive};});
+  assert.deepEqual(afterRotationLeave,{pinned:pinnedRotation,focus:pinnedRotation,inspection:true},'Rotation pin must survive pointer leave');
+  assert.equal(await page.locator('.scatter-host .rotation-trail').count(),1,'Pinned rotation trail must remain visible');
+  assert.equal(await page.locator('.scatter-host .readout-drill').isVisible(),true,'Pinned rotation detail must remain available');
   assert.equal(await state(()=>AtlasWorkspace.state.charts[0].trailStep),1);await shot('390-5-day-rotation');for(const n of ['1','10','20']){await page.selectOption('.rotation-window',n);await page.waitForFunction(n=>AtlasWorkspace.state.charts[0]?.lookback===Number(n),n);assert.equal(await state(()=>AtlasWorkspace.state.charts[0].lag),n==='1'?1:5);}await page.selectOption('.rotation-industry',{index:1});const samples=await state(()=>AtlasWorkspace.state.charts[0].trail);assert.ok(samples.length<=5);for(let i=1;i<samples.length;i++)assert.equal(samples[i].index-samples[i-1].index,5);
   const domain=await state(()=>AtlasWorkspace.state.charts[0].domain);await page.locator('.rotation-timeline input').focus();await page.keyboard.press('ArrowLeft');assert.equal(await state(()=>AtlasWorkspace.state.charts[0].index),total-2);assert.ok((await state(()=>AtlasWorkspace.state.charts[0].domain)).every(Number.isFinite));
   assert.equal(await state(()=>AtlasWorkspace.state.cursor),beforeGlobal);const index=await state(()=>AtlasWorkspace.state.charts[0].index);await state(()=>AtlasWorkspace.observeDate(AtlasWorkspace.state.market.dates[1]));assert.equal(await state(()=>AtlasWorkspace.state.charts[0].index),index);
@@ -184,6 +191,15 @@ const server=http.createServer((req,res)=>{
   await desktop.locator('[data-display=heat]').click();const wheelStart=await desktop.evaluate(()=>AtlasWorkspace.state.charts[0].cellWidth);await desktop.locator('.heat-head').hover();await desktop.mouse.wheel(0,-180);await desktop.waitForFunction(w=>AtlasWorkspace.state.charts[0].cellWidth>w,wheelStart);await desktop.locator('[data-display=lines]').click();
   await desktop.locator('[data-display=rotation]').click();await desktop.waitForFunction(()=>AtlasWorkspace.state.charts[0]?.independentDate);await desktop.locator('.scatter-host').scrollIntoViewIfNeeded();
   pts=await desktop.evaluate(()=>{const c=AtlasWorkspace.state.charts[0],r=c.surface.getBoundingClientRect(),p=[...c.points].sort((a,b)=>a.x-b.x);return[p[0],p.at(-1)].map(p=>({x:r.x+c.X(p.x),y:r.y+c.Y(p.y)}));});await desktop.mouse.move(pts[0].x,pts[0].y);const d=await desktop.evaluate(()=>AtlasWorkspace.state.charts[0].focus);await desktop.mouse.move(pts[1].x,pts[1].y);assert.notEqual(await desktop.evaluate(()=>AtlasWorkspace.state.charts[0].focus),d);await desktop.screenshot({path:path.join(out,'1440-rotation-hover.png'),fullPage:true});const rotationDrill=await desktop.locator('.readout-drill').boundingBox();await desktop.mouse.move(rotationDrill.x+rotationDrill.width/2,rotationDrill.y+rotationDrill.height/2);assert.equal(await desktop.locator('.rotation-trail,.point-label').count(),0);assert.equal(await desktop.locator('.readout-drill').isVisible(),true);await desktop.locator('.interaction-note').click();assert.equal(await desktop.evaluate(()=>!!AtlasWorkspace.state.charts[0].focus),false);
+  const pinnedPoint=await desktop.evaluate(()=>{const c=AtlasWorkspace.state.charts[0],p=c.points[0],r=c.surface.getBoundingClientRect();return{x:r.left+c.X(p.x),y:r.top+c.Y(p.y),name:p.name};});
+  await desktop.mouse.click(pinnedPoint.x,pinnedPoint.y);
+  assert.equal(await desktop.evaluate(()=>AtlasWorkspace.state.charts[0].pinned),pinnedPoint.name,'Click should pin rotation industry');
+  await desktop.mouse.move(2,2);
+  assert.equal(await desktop.evaluate(()=>AtlasWorkspace.state.charts[0].pinned),pinnedPoint.name,'Rotation click pin lost on mouse leave');
+  assert.equal(await desktop.locator('.scatter-host .rotation-trail').count(),1,'Rotation trail lost on mouse leave');
+  assert.equal(await desktop.locator('.scatter-host .readout-drill').isVisible(),true,'Rotation drill lost on mouse leave');
+  await desktop.locator('.interaction-note').click();
+  assert.equal(await desktop.evaluate(()=>!!AtlasWorkspace.state.charts[0].pinned),false,'Explicit outside click should clear rotation pin');
   await desktop.locator('button[data-theme]').click();assert.equal(await desktop.locator('#atlasPeriod').evaluate(el=>getComputedStyle(el).colorScheme),'light');await desktop.close();
   // Independent, intentionally steep multi-line chart. Its midpoint is far from both daily endpoints.
   await page.setViewportSize({width:390,height:844});

@@ -109,7 +109,12 @@
       root.AtlasInspector.render(this,{date:this.dates[this.index],rows:point?[{id:point.name,canOpen:!!this.onOpenSeries,openLabel:'进入行业',name:point.name+' · '+this.lookback+'日超额',value:point.x,unit:'个百分点',color:'var(--plot-gold)'},{name:'近'+this.lag+'日超额改善',value:point.y,unit:'个百分点',color:'var(--plot-gold)'}]:[{name:'移动指针或拖动查看行业',value:null}]});
     }
     nearest(p){const r=this.surface.getBoundingClientRect(),x=p.x-r.left,y=p.y-r.top;let best=null,distance=Infinity;for(const point of this.points){const px=this.X(point.x),py=this.Y(point.y);if(px<this.g.left||px>this.g.right||py<this.g.top||py>this.g.bottom)continue;const d=Math.hypot(px-x,py-y);if(d<distance){distance=d;best=point;}}return best;}
-    clearInspection(keepReadout=false){this.inspectionActive=false;if(!keepReadout){this.focus='';this.pinned='';}this.draw();}
+    clearInspection(keepReadout=false){
+      // Pointer leave ends transient hover, not an explicit fixed selection.
+      if(keepReadout&&this.pinned){this.focus=this.pinned;this.inspectionActive=true;}
+      else{this.inspectionActive=false;this.focus='';if(!keepReadout)this.pinned='';}
+      this.draw();
+    }
     pick(p){this.inspectionActive=true;const point=this.nearest(p);if(point){this.pinned=this.pinned===point.name?'':point.name;this.focus=point.name;this.draw();}}
     inspect(p){const wasActive=this.inspectionActive;this.inspectionActive=true;if(this.pinned){if(!wasActive)this.draw();return;}const point=this.nearest(p);if(point&&(!wasActive||this.focus!==point.name)){this.focus=point.name;this.draw();}}
   }
