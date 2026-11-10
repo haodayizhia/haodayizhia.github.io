@@ -1,5 +1,12 @@
 (() => {
   'use strict';
+  // Online home links use the canonical root; file:// preview keeps relative paths.
+  if (location.protocol === 'http:' || location.protocol === 'https:') {
+    document.querySelectorAll('a[href="./index.html"]').forEach(link => link.setAttribute('href', '/'));
+    if (location.pathname === '/index.html') {
+      history.replaceState(history.state, '', '/' + location.search + location.hash);
+    }
+  }
   const params = new URLSearchParams(location.search);
   const searchToggle=document.querySelector('.search-toggle'),searchPanel=document.getElementById('search-panel'),searchInput=document.getElementById('search');
   const menuToggle=document.querySelector('.menu-toggle'),menu=document.getElementById('mobile-nav');

@@ -17,6 +17,11 @@ const server=http.createServer((req,res)=>{const url=new URL(req.url,'http://loc
    await page.evaluate(()=>document.fonts.ready);await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
    const m=await page.evaluate(kind=>{const rect=el=>{if(!el)return null;const r=el.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,right:r.right,center:r.x+r.width/2};},frame=document.querySelector(kind==='home'?'.home-content':kind==='atlas'?'.atlas-app':'.page'),heading=document.querySelector(kind==='home'?'.hero h1':'.page-heading'),body=document.querySelector('.reading-content>:not(.figure-card),.compact-content'),sidebar=document.querySelector('.reading-sidebar'),figure=document.querySelector('.figure-card'),footer=document.querySelector('.site-footer');return{width:innerWidth,client:document.documentElement.clientWidth,canvas:rect(document.body),scroll:document.documentElement.scrollWidth,theme:document.documentElement.dataset.theme,frame:rect(frame),brand:rect(document.querySelector('.brand')),footerX:parseFloat(getComputedStyle(footer).paddingLeft),heading:rect(heading),h1:rect(heading?.querySelector('h1')||heading),context:rect(document.querySelector('.page-context')),body:rect(body),figure:rect(figure),sidebar:sidebar&&getComputedStyle(sidebar).display!=='none'?rect(sidebar):null,links:[...document.querySelectorAll('.resource-card,.reading-actions a')].map(el=>el.getAttribute('href')),brokenImages:[...document.images].filter(img=>img.getAttribute('src')&&img.complete&&!img.naturalWidth).map(img=>img.getAttribute('src'))};},kind);
    results.push({kind,width,theme,...m});
+   if(!baseline){
+    assert.equal(await page.locator('.brand').getAttribute('href'),'/',kind+' online brand should link to canonical root');
+    const homeCrumb=page.locator('.page-context .back',{hasText:'首页'});
+    if(await homeCrumb.count())assert.equal(await homeCrumb.getAttribute('href'),'/',kind+' online breadcrumb should link to canonical root');
+   }
    if(!baseline){const tag=kind+' '+width+' '+theme;assert.equal(m.theme,theme,tag+' theme changed after navigation');assert.ok(m.scroll<=m.client+1,tag+' page overflows');assert.ok(m.frame.width<=1440.5,tag+' outer maximum');assert.ok(Math.abs(m.frame.center-m.canvas.center)<1,tag+' frame is off center');assert.ok(Math.abs(m.brand.x-m.frame.x)<1,tag+' header rail differs');assert.ok(Math.abs(m.footerX-m.frame.x)<1,tag+' footer rail differs');assert.deepEqual(m.brokenImages,[],tag+' broken media');
     if(kind==='articles')titleOrigin={title:m.h1.y,context:m.context.y};if(kind!=='home'){if(titleOrigin){assert.ok(Math.abs(m.h1.y-titleOrigin.title)<1,tag+' title vertical origin differs');assert.ok(Math.abs(m.context.y-titleOrigin.context)<1,tag+' breadcrumb vertical origin differs');}assert.ok(Math.abs(m.context.x-m.h1.x)<1,tag+' breadcrumb and title differ');const cap=['article','resource','about'].includes(kind)?960:1440;assert.ok(m.heading.width<=cap+1,tag+' heading measure');if(cap===960)assert.ok(Math.abs(m.heading.center-m.frame.center)<1,tag+' reading heading is off center');else assert.ok(Math.abs(m.heading.x-m.frame.x)<1,tag+' collection title rail differs');}
     if(m.body){assert.ok(m.body.width<=960.5,tag+' reading maximum');assert.ok(Math.abs(m.body.center-m.frame.center)<1,tag+' reading body shifted');assert.ok(Math.abs(m.body.x-m.heading.x)<1,tag+' text and reading title differ');}
@@ -45,6 +50,20 @@ const server=http.createServer((req,res)=>{const url=new URL(req.url,'http://loc
    await page.goto(base+'/search.html?q='+encodeURIComponent('https://example.com/'+ 'a'.repeat(150)));assert.equal(await page.locator('.empty-state').count(),1);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth+1),true,'Long search term overflows');
   }
   console.log((baseline?'AUDIT':'PASS')+' site '+width+'px '+theme+': eight page types'+(baseline?'':' and navigation/resource/search flows'));await context.close();
+ }
+ if(!baseline){
+  // The same pages must still navigate when opened directly from disk.
+  const localPage=await browser.newPage();
+  await localPage.goto('file://'+path.join(root,'articles.html'));
+  assert.equal(await localPage.locator('.brand').getAttribute('href'),'./index.html','local preview brand must stay relative');
+  assert.equal(await localPage.locator('.page-context .back').getAttribute('href'),'./index.html','local preview breadcrumb must stay relative');
+  await localPage.locator('.brand').click();
+  await localPage.waitForURL(/\\/index\\.html$/);
+  await localPage.close();
+  const canonicalPage=await browser.newPage();
+  await canonicalPage.goto(base+'/index.html');
+  assert.equal(new URL(canonicalPage.url()).pathname,'/','direct index.html visits should display canonical root');
+  await canonicalPage.close();
  }
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,baseline?'baseline.json':'layout-results.json'),JSON.stringify(results,null,2));
  }finally{await browser.close();server.close();}
