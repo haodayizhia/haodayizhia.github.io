@@ -5,7 +5,6 @@
   if (document.body.dataset.page !== 'atlas') {
     window.addEventListener('load', () => {
       const fonts = ['https://fontsapi.zeoseven.com/285/main/result.css'];
-      if (document.body.dataset.page === 'home') fonts.unshift('https://fontsapi.zeoseven.com/292/main/result.css');
       for (const href of fonts) {
         const sheet = document.createElement('link');
         sheet.rel = 'stylesheet';

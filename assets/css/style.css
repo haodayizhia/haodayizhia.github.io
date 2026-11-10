@@ -149,13 +149,12 @@ html.image-locked{overflow:hidden}
 
 @media(max-width:760px){.resource-card{grid-template-columns:minmax(0,1fr) auto;gap:10px 20px;padding:24px 0}.resource-mark{grid-column:1;grid-row:1}.resource-card h2{grid-column:1;grid-row:2;font-size:20px}.resource-card p{grid-column:1/-1;grid-row:3;font-size:13px}.resource-card .resource-type{grid-column:2;grid-row:2;font-size:11px}}
 
-/* Display typography: BRO is an SVG logo; body, UI, code and layout stay unchanged.
-   Only headings use the serif webfont, while the homepage motto uses WenKai.
-   Both have local/system fallbacks if external font CSS is unavailable. */
+/* Editorial typography: BRO is an SVG logo; all page geometry and UI fonts stay unchanged.
+   Headings and the hero motto use a restrained, high-contrast Chinese serif. */
 :where(.page h1, .section-heading h2, .row-title, .resource-card h2, .reading-content h2, .reading-content h3, .about-lead){
   font-family:"Noto Serif CJK","Source Han Serif SC","Noto Serif SC","Songti SC","STSong","SimSun",serif;
 }
 .hero h1{
-  font-family:"LXGW WenKai","LXGWWenKai","STKaiti","KaiTi","Kaiti SC","Songti SC","SimSun",serif;
-  letter-spacing:.08em;
+  font-family:"Noto Serif CJK","Source Han Serif SC","Noto Serif SC","Songti SC","STSong","SimSun",serif;
+  letter-spacing:.1em;
 }
