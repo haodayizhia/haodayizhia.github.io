@@ -64,7 +64,7 @@
       const primary=owner.stock?rows.filter(r=>['收盘','涨跌','最高','最低'].includes(r.name)):rows.length<=6?rows:(()=>{
          const chosen=rows.length?[rows[0]]:[];
          for(const r of rows)if(pins.has(r.id)&&!chosen.some(x=>x.id===r.id)&&chosen.length<5)chosen.push(r);
-         if(focused&&!chosen.some(x=>x.id===focused.id)&&chosen.length<6)chosen.push(focused);
+         if(!pins.size&&focused&&!chosen.some(x=>x.id===focused.id)&&chosen.length<6)chosen.push(focused);
          return chosen;
        })();
       const row=r=>{

@@ -208,6 +208,10 @@ const server=http.createServer((req,res)=>{
   await page.mouse.click(hitPoint.x,hitPoint.y);
   assert.equal(await page.evaluate(()=>window.atlasHitFixture.pinned),'steep','Clicking the visible segment midpoint did not select its line');
   const secondPoint=await page.evaluate(()=>{const c=window.atlasHitFixture,r=c.surface.getBoundingClientRect();return{x:r.left+c.X(10.5),y:r.top+c.Y(105)};});
+  const beforeHoverTop=await page.locator('#atlas-hit-fixture .chart-canvas').evaluate(el=>el.getBoundingClientRect().top);
+  await page.mouse.move(secondPoint.x,secondPoint.y);
+  const afterHoverTop=await page.locator('#atlas-hit-fixture .chart-canvas').evaluate(el=>el.getBoundingClientRect().top);
+  assert.ok(Math.abs(afterHoverTop-beforeHoverTop)<1,'Hover must not move the chart before a click');
   await page.mouse.click(secondPoint.x,secondPoint.y);
   assert.deepEqual(await page.evaluate(()=>[...window.atlasHitFixture.pinnedSet].sort()),['other-0','steep'],'Clicking another painted line must preserve both');
   await page.mouse.move(2,2);

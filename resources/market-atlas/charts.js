@@ -224,8 +224,10 @@
     }
     focusSeries(id){
       const series=this.series.find(s=>s.id===id);if(!series)return;
-      this.inspectionActive=true;this.focus=id;this.togglePin(id);
-      const value=series.values[this.index];this.axisValue=finite(value)?value:null;
+      const wasPinned=this.pinnedSet.has(id);
+      this.inspectionActive=!wasPinned;this.focus=id;this.togglePin(id);
+      if(wasPinned){this.focus=this.pinned;this.axisValue=null;}
+      else{const value=series.values[this.index];this.axisValue=finite(value)?value:null;}
       this.updateOverlay();this.updateValues();
     }
     inspect(p,force=false) {
