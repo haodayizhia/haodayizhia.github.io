@@ -1,5 +1,21 @@
 (() => {
   'use strict';
+  // BRO display fonts: lazy, non-render-blocking stylesheets, with local fallbacks.
+  // The MarketAtlas page has a self-only CSP, so preserve its existing font policy.
+  if (document.body.dataset.page !== 'atlas') {
+    window.addEventListener('load', () => {
+      const fonts = ['https://fontsapi.zeoseven.com/285/main/result.css'];
+      if (document.body.dataset.page === 'home') fonts.unshift('https://fontsapi.zeoseven.com/292/main/result.css');
+      for (const href of fonts) {
+        const sheet = document.createElement('link');
+        sheet.rel = 'stylesheet';
+        sheet.href = href;
+        sheet.media = 'print';
+        sheet.addEventListener('load', () => { sheet.media = 'all'; }, {once:true});
+        document.head.appendChild(sheet);
+      }
+    }, {once:true});
+  }
   // Online home links use the canonical root; file:// preview keeps relative paths.
   if (location.protocol === 'http:' || location.protocol === 'https:') {
     document.querySelectorAll('a[href="./index.html"]').forEach(link => link.setAttribute('href', '/'));
