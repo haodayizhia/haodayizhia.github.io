@@ -112,7 +112,7 @@
     clearInspection(keepReadout=false){
       // Pointer leave ends transient hover, not an explicit fixed selection.
       if(keepReadout&&this.pinned){this.focus=this.pinned;this.inspectionActive=true;}
-      else{this.inspectionActive=false;this.focus='';if(!keepReadout)this.pinned='';}
+      else{this.inspectionActive=false;if(!keepReadout){this.focus='';this.pinned='';}}
       this.draw();
     }
     pick(p){this.inspectionActive=true;const point=this.nearest(p);if(point){this.pinned=this.pinned===point.name?'':point.name;this.focus=point.name;this.draw();}}
