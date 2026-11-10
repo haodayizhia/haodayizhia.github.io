@@ -58,7 +58,7 @@ const server=http.createServer((req,res)=>{const url=new URL(req.url,'http://loc
   assert.equal(await localPage.locator('.brand').getAttribute('href'),'./index.html','local preview brand must stay relative');
   assert.equal(await localPage.locator('.page-context .back').getAttribute('href'),'./index.html','local preview breadcrumb must stay relative');
   await localPage.locator('.brand').click();
-  await localPage.waitForURL(/\\/index\\.html$/);
+  await localPage.waitForURL(url => url.protocol === 'file:' && url.pathname.endsWith('/index.html'));
   await localPage.close();
   const canonicalPage=await browser.newPage();
   await canonicalPage.goto(base+'/index.html');
