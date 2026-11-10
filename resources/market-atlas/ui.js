@@ -23,7 +23,7 @@
   }
   function captureNavigation(){
     if(!S.market)return null;
-    const charts=S.charts.map(c=>({host:c.host.id,index:c.index,focus:c.focus,axisValue:c.axisValue,view:c.view&&[...c.view],yView:c.yView&&[...c.yView],row:c.row,cellWidth:c.cellWidth,fitted:c.fitted,resetIndex:c.resetIndex,scrollLeft:c.surface.scrollLeft,scrollTop:c.surface.scrollTop,pinned:c.pinned,pins:c.pinnedSet?[...c.pinnedSet]:undefined,domain:c.domain&&[...c.domain],zoomed:c.zoomed,zoomedAxes:c.zoomedAxes&&{...c.zoomedAxes},zoomAxis:c.zoomAxis}));
+    const charts=S.charts.map(c=>({host:c.host.id,index:c.index,focus:c.focus,axisValue:c.axisValue,view:c.view&&[...c.view],yView:c.yView&&[...c.yView],row:c.row,cellWidth:c.cellWidth,fitted:c.fitted,resetIndex:c.resetIndex,scrollLeft:c.surface.scrollLeft,scrollTop:c.surface.scrollTop,pinned:c.pinned,domain:c.domain&&[...c.domain],zoomed:c.zoomed,zoomedAxes:c.zoomedAxes&&{...c.zoomedAxes},zoomAxis:c.zoomAxis}));
     return{dataset:S.datasetKey,...Object.fromEntries(navigationFields.map(k=>[k,S[k]])),start:S.market.dates[0],end:S.market.dates.at(-1),date:S.market.dates[S.cursor],period:$('atlasPeriod').value,selected:[...S.selected],stockSelections:[...S.stockSelections],ranges:[...S.ranges],yRanges:[...S.yRanges],charts,scroll:[scrollX,scrollY],fullscreen:AtlasFullscreen.host?.id||''};
   }
   // Keep ordinary chart interaction out of the browser navigation pipeline.
@@ -45,7 +45,7 @@
   function scheduleNavigation(){if(!navigationReady)return;clearTimeout(historyTimer);historyTimer=setTimeout(recordNavigation,400);}
   function restoreCharts(states=[]){
     for(const saved of states){const c=S.charts.find(c=>c.host.id===saved.host);if(!c)continue;
-      if(c instanceof Chart){if(saved.view)c.setRange(...saved.view);if(saved.yView)c.setYRange(saved.yView,true);c.setIndex(Math.min(saved.index,c.dates.length-1));c.pinnedSet=new Set((Array.isArray(saved.pins)?saved.pins:saved.pinned?[saved.pinned]:[]).filter(id=>c.series.some(s=>s.id===id)));c.pinned=c.pinnedSet.has(saved.pinned)?saved.pinned:[...c.pinnedSet].at(-1)||null;c.focus=c.pinned;c.axisValue=saved.axisValue;c.zoomAxis=saved.zoomAxis||'both';AtlasApplyZoomAxis(c.host,c.zoomAxis);c.updateOverlay();c.updateValues();}
+      if(c instanceof Chart){if(saved.view)c.setRange(...saved.view);if(saved.yView)c.setYRange(saved.yView,true);c.setIndex(Math.min(saved.index,c.dates.length-1));c.focus=saved.focus;c.pinned=saved.pinned;c.axisValue=saved.axisValue;c.zoomAxis=saved.zoomAxis||'both';AtlasApplyZoomAxis(c.host,c.zoomAxis);c.updateOverlay();c.updateValues();}
       else if(c instanceof AtlasMaps.Heatmap){c.pinned=saved.pinned;c.fitted=saved.fitted;c.cellWidth=saved.cellWidth;c.resetIndex=Number.isInteger(saved.resetIndex)?Math.max(0,Math.min(saved.resetIndex,c.dates.length-1)):c.resetIndex;c.row=saved.row<c.rows.length?saved.row:undefined;c.draw();c.setIndex(saved.index);c.surface.scrollLeft=saved.scrollLeft||0;c.surface.scrollTop=saved.scrollTop||0;}
       else{c.setIndex(saved.index);c.focus=saved.focus;c.pinned=saved.pinned;c.domain=saved.domain;c.zoomed=saved.zoomed;c.zoomedAxes=saved.zoomedAxes||{x:!!saved.zoomed,y:!!saved.zoomed};c.zoomAxis=saved.zoomAxis||'both';AtlasApplyZoomAxis(c.host,c.zoomAxis);c.fillIndustryPicker();c.draw();}
     }
@@ -97,13 +97,13 @@
   }
   function graph(id,options){
     const scope=S.view==='industry'?S.industry:S.view==='stock'?S.code:'',yKey=rangeKey()+'-'+id+'-'+(S.view==='stock'?'price':metric())+'-'+(S.view==='stock'?'linear':S.scale)+'-'+scope+(S.view==='industry'&&metric()==='relative'?'-'+S.benchmark:'');
-    const chart=new Chart($(id),{...options,onDismiss:(keep,origin)=>S.charts.filter(c=>c!==origin).forEach(c=>c.clearInspection?.(keep)),onSelectionChange:()=>scheduleNavigation(),onYRange:range=>{scheduleNavigation();if(range)S.yRanges.set(yKey,[...range]);else S.yRanges.delete(yKey);},onInspect:(i,origin)=>observeDate(options.dates[i],origin),onRange:(a,b)=>applyRange(a,b,chart),onReset:()=>{S.ranges.delete(rangeKey());scheduleNavigation();}});
+    const chart=new Chart($(id),{...options,onDismiss:(keep,origin)=>S.charts.filter(c=>c!==origin).forEach(c=>c.clearInspection?.(keep)),onYRange:range=>{scheduleNavigation();if(range)S.yRanges.set(yKey,[...range]);else S.yRanges.delete(yKey);},onInspect:(i,origin)=>observeDate(options.dates[i],origin),onRange:(a,b)=>applyRange(a,b,chart),onReset:()=>{S.ranges.delete(rangeKey());scheduleNavigation();}});
     const range=S.ranges.get(rangeKey());if(range){if(range.total===chart.dates.length)chart.setRange(...range.view);else chart.setDateRange(...range.dates);}
     if(S.yRanges.has(yKey))chart.setYRange(S.yRanges.get(yKey));chart.setIndex(S.cursor,{reveal:true});S.charts.push(chart);return chart;
   }
   function observeDate(date,origin){
     if(!S.market)return;const i=S.market.dates.indexOf(date);if(i<0)return;S.cursor=i;
-    for(const chart of S.charts)if(chart!==origin&&!chart.independentDate){const j=chart.dates.indexOf(date);if(j>=0){if(S.view==='market'&&S.display==='state'&&origin instanceof Chart){chart.focus=null;chart.pinned=null;chart.pinnedSet?.clear();}chart.inspectionActive=origin?.inspectionActive??false;chart.setIndex(j,{reveal:true});}}
+    for(const chart of S.charts)if(chart!==origin&&!chart.independentDate){const j=chart.dates.indexOf(date);if(j>=0){if(S.view==='market'&&S.display==='state'&&origin instanceof Chart){chart.focus=null;chart.pinned=null;}chart.inspectionActive=origin?.inspectionActive??false;chart.setIndex(j,{reveal:true});}}
     updateSummary();if($('stateDate'))$('stateDate').textContent=date;
     if($('atlasCompareDialog').open)renderComparison();
   }
@@ -156,7 +156,7 @@
   }
   async function renderMarket(ticket){
     const modes={lines:'走势',heat:'热力',rotation:'轮动',state:'状态'};
-    $('atlasContent').innerHTML=`<section class="workspace-plot"><div class="workspace-viewbar"><nav class="plot-views" aria-label="市场图表">${Object.entries(modes).map(([key,label])=>`<button data-display="${key}" aria-pressed="${S.display===key}">${label}</button>`).join('')}</nav>${compareButton()}</div><div id="marketChart"></div><p class="interaction-note">点击曲线可多选固定关注，再点取消 · 移出保留关注 · 双指/滚轮双轴缩放</p></section>`;
+    $('atlasContent').innerHTML=`<section class="workspace-plot"><div class="workspace-viewbar"><nav class="plot-views" aria-label="市场图表">${Object.entries(modes).map(([key,label])=>`<button data-display="${key}" aria-pressed="${S.display===key}">${label}</button>`).join('')}</nav>${compareButton()}</div><div id="marketChart"></div><p class="interaction-note">点曲线查值，点名称进入行业 · 图外点击退出高亮 · 双指/滚轮双轴缩放</p></section>`;
     $('atlasContent').querySelectorAll('[data-display]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.display==='heat'&&S.display!=='heat')S.cursor=S.market.dates.length-1;S.display=b.dataset.display;renderView();}));bindComparison();
     if(S.display==='lines')graph('marketChart',{dates:S.market.dates,series:marketSeries(),unit:unit(),label:titles[S.metric],log:S.scale==='log'&&S.metric==='path',onRemove:name=>toggleIndustry(name),onOpenSeries:openIndustry,linkFor:name=>routeURL('industry',name),openLabel:'进入行业'});
     if(S.display==='heat')renderHeat();if(S.display==='rotation')await renderRotation(ticket);if(S.display==='state')renderState();
@@ -191,7 +191,7 @@
     const focusLinkedMetric=id=>{
       const target=S.charts.find(c=>c instanceof Chart&&c.series.some(s=>s.id===id));
       if(!target)return;
-      for(const c of S.charts)if(c!==target){c.focus=null;c.pinned=null;c.pinnedSet?.clear();c.inspectionActive=false;c.updateOverlay();c.updateValues();}
+      for(const c of S.charts)if(c!==target){c.focus=null;c.pinned=null;c.inspectionActive=false;c.updateOverlay();c.updateValues();}
       target.focusSeries(id);
     };
     groups.forEach((g,i)=>graph('stateChart'+i,{dates:S.market.dates,series:g.metrics.map(([name,key,color])=>({id:key,name,values:S.market.pool[key],color})),unit:g.unit,domain:g.domain,label:g.label,compact:true,strictHit:true,hideDates:i<2,inspectionRows:allRows,onFocusSeries:focusLinkedMetric,readoutHost:$('marketChart').querySelector('.chart-readout')}));
