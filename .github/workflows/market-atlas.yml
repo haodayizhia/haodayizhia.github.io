@@ -2,7 +2,14 @@ name: Update MarketAtlas cloud data
 
 on:
   schedule:
-    - cron: '30 10 * * *' # 18:30 Asia/Shanghai; Actions scheduling can be delayed.
+    - cron: '37 10 * * 1-5' # 18:37 Asia/Shanghai, first attempt after A-share close.
+    - cron: '17 12 * * 1-5' # 20:17 Asia/Shanghai, retry if the first event is delayed/dropped.
+    - cron: '43 13 * * 1-5' # 21:43 Asia/Shanghai, late fallback.
+  # Changing this workflow also runs a fresh update immediately; ordinary site commits do not.
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/market-atlas.yml'
   workflow_dispatch:
 
 permissions:
@@ -68,7 +75,19 @@ jobs:
           python scripts/build.py
           node --test scripts/market_atlas/ui.test.cjs
 
+      - name: Detect new public market data
+        id: snapshot
+        run: |
+          if git diff --quiet -- data-source/market-atlas && [ -z "$(git ls-files --others --exclude-standard data-source/market-atlas)" ]; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            echo 'No newer public trading data; historical cache already restored.'
+          else
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+            echo 'New public market snapshot detected.'
+          fi
+
       - name: Save validated historical CSV cache
+        if: steps.snapshot.outputs.changed == 'true'
         uses: actions/cache/save@v5
         with:
           path: .market-atlas/raw/stock_data
