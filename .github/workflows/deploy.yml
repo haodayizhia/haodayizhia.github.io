@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -44,20 +44,6 @@ jobs:
       - name: Verify mobile chart geometry and first-paint theme boot
         run: node --test scripts/market_atlas/ui.test.cjs
 
-      - name: Install isolated browser acceptance tools
-        run: |
-          npm install --prefix "$RUNNER_TEMP/atlas-browser" --no-save --package-lock=false playwright@1.62.1
-          node "$RUNNER_TEMP/atlas-browser/node_modules/playwright/cli.js" install --with-deps chromium
-
-      - name: Verify site layouts, chart gestures and navigation journeys
-        env:
-          NODE_PATH: ${{ runner.temp }}/atlas-browser/node_modules
-          ATLAS_QA_OUTPUT: ${{ runner.temp }}/atlas-qa
-        run: |
-          node scripts/layout.test.cjs
-          node scripts/market_atlas/browser.test.cjs
-          node scripts/market_atlas/journey.test.cjs
-
       - name: Prepare static site artifact
         run: |
           mkdir -p _site
@@ -75,7 +61,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: build
     steps:
       - name: Deploy to GitHub Pages
@@ -83,3 +69,34 @@ jobs:
         uses: actions/deploy-pages@v5
         with:
           timeout: 600000 # Maximum supported by deploy-pages@v5; limit the artifact size instead
+  
+  # Browser QA remains visible but is not allowed to block validated daily data deployment.
+  ui-acceptance:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Compile content for browser acceptance
+        run: python3 scripts/build.py
+
+      - name: Install isolated browser acceptance tools without apt
+        run: |
+          npm install --prefix "$RUNNER_TEMP/atlas-browser" --no-save --package-lock=false playwright@1.62.1
+          node "$RUNNER_TEMP/atlas-browser/node_modules/playwright/cli.js" install chromium
+
+      - name: Verify site layouts, chart gestures and navigation journeys
+        env:
+          NODE_PATH: ${{ runner.temp }}/atlas-browser/node_modules
+          ATLAS_QA_OUTPUT: ${{ runner.temp }}/atlas-qa
+        run: |
+          node scripts/layout.test.cjs
+          node scripts/market_atlas/browser.test.cjs
+          node scripts/market_atlas/journey.test.cjs
