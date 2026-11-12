@@ -95,9 +95,24 @@
     scheduleNavigation();S.ranges.set(rangeKey(),{dates:[start,end],view:[...origin.view],total:origin.dates.length});
     for(const chart of S.charts)if(chart!==origin&&chart.setDateRange){if(chart.dates.length===origin.dates.length)chart.setRange(...origin.view);else chart.setDateRange(start,end);}S.stateTimeNav?.update();
   }
+  function restoreLatestInspectionDate(){
+    if(!S.market?.dates.length)return;
+    const latest=S.market.dates.at(-1);
+    S.cursor=S.market.dates.length-1;
+    // Preserve zoom ranges: update readout dates, not the user's visible time window.
+    for(const chart of S.charts){
+      if(chart.independentDate||!chart.dates?.length||!chart.setIndex)continue;
+      const i=chart.dates.indexOf(latest);
+      chart.setIndex(i>=0?i:chart.dates.length-1);
+    }
+    updateSummary();
+    if($('stateDate'))$('stateDate').textContent=latest;
+    if($('atlasCompareDialog').open)renderComparison();
+    scheduleNavigation();
+  }
   function graph(id,options){
     const scope=S.view==='industry'?S.industry:S.view==='stock'?S.code:'',yKey=rangeKey()+'-'+id+'-'+(S.view==='stock'?'price':metric())+'-'+(S.view==='stock'?'linear':S.scale)+'-'+scope+(S.view==='industry'&&metric()==='relative'?'-'+S.benchmark:'');
-    const chart=new Chart($(id),{...options,onDismiss:(keep,origin)=>S.charts.filter(c=>c!==origin).forEach(c=>c.clearInspection?.(keep)),onYRange:range=>{scheduleNavigation();if(range)S.yRanges.set(yKey,[...range]);else S.yRanges.delete(yKey);},onInspect:(i,origin)=>observeDate(options.dates[i],origin),onRange:(a,b)=>applyRange(a,b,chart),onReset:()=>{S.ranges.delete(rangeKey());scheduleNavigation();}});
+    const chart=new Chart($(id),{...options,onDismiss:(keep,origin)=>S.charts.filter(c=>c!==origin).forEach(c=>c.clearInspection?.(keep,false)),onInspectionEnd:restoreLatestInspectionDate,onYRange:range=>{scheduleNavigation();if(range)S.yRanges.set(yKey,[...range]);else S.yRanges.delete(yKey);},onInspect:(i,origin)=>observeDate(options.dates[i],origin),onRange:(a,b)=>applyRange(a,b,chart),onReset:()=>{S.ranges.delete(rangeKey());scheduleNavigation();}});
     const range=S.ranges.get(rangeKey());if(range){if(range.total===chart.dates.length)chart.setRange(...range.view);else chart.setDateRange(...range.dates);}
     if(S.yRanges.has(yKey))chart.setYRange(S.yRanges.get(yKey));chart.setIndex(S.cursor,{reveal:true});S.charts.push(chart);return chart;
   }

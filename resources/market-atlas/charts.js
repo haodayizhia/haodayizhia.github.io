@@ -181,7 +181,18 @@
       }
       return this.series.map(s=>({id:s.id,name:s.name,detail:s.detail,canOpen:!!this.onOpenSeries&&!s.reference,openLabel:this.openLabel,value:s.values[this.index],color:s.color,dash:s.dash,unit:this.unit}));
     }
-    clearInspection(keepReadout=false){this.inspectionActive=false;this.axisValue=null;this.brush=null;if(!keepReadout){this.focus=null;this.pinned=null;}this.updateOverlay();this.updateValues();}
+    clearInspection(keepReadout=false,syncDate=true){
+      const returnLatest=!keepReadout||!this.pinned;
+      this.inspectionActive=false;this.axisValue=null;this.brush=null;
+      if(!keepReadout){this.focus=null;this.pinned=null;}
+      // Exiting an inspection restores the default latest session, not just the line style.
+      // A pinned curve survives pointer leave; a full clear always restores the date.
+      if(returnLatest){
+        this.index=this.dates.length-1;
+        if(syncDate)this.onInspectionEnd?.(this);
+      }
+      this.updateOverlay();this.updateValues();
+    }
     // Do not open the readout on an empty click: doing so changed the layout between
     // the first and second click and prevented the native dblclick reset gesture.
     select(p,pointerType='mouse'){
@@ -189,8 +200,8 @@
       const hit=this.hitSeries(p,pointerType==='touch'?22:12);
       this.inspect(p,true);
       if(!hit){this.focus=this.pinned||null;this.updateOverlay();this.updateValues();return;}
-      this.focus=hit.id;
-      this.pinned=this.pinned===hit.id?null:hit.id;
+      if(this.pinned===hit.id){this.clearInspection();return;}
+      this.focus=hit.id;this.pinned=hit.id;
       this.updateOverlay();this.updateValues();
     }
     hitSeries(p,radius=12){
@@ -204,7 +215,8 @@
     }
     focusSeries(id){
       const series=this.series.find(s=>s.id===id);if(!series)return;
-      this.inspectionActive=true;this.focus=id;this.pinned=this.pinned===id?null:id;
+      if(this.pinned===id){this.clearInspection();return;}
+      this.inspectionActive=true;this.focus=id;this.pinned=id;
       const value=series.values[this.index];this.axisValue=finite(value)?value:null;
       this.updateOverlay();this.updateValues();
     }

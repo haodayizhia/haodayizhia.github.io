@@ -58,7 +58,41 @@ const server=http.createServer((req,res)=>{
   const nextChosen=await candidates.nth(2).getAttribute('data-focus-series');
   await candidates.nth(2).click();
   assert.equal(await state(()=>AtlasWorkspace.state.charts[0].pinned),nextChosen,'Switching crowded curves requires clicking graph');
+  // Regression: clearing a pinned older observation restores both the readout and global cursor.
+  const lastMarketDate=await state(()=>AtlasWorkspace.state.market.dates.at(-1));
+  await page.evaluate(()=>{
+    const c=AtlasWorkspace.state.charts[0],i=Math.max(0,c.dates.length-7);
+    c.inspectionActive=true;c.focus=c.pinned;c.setIndex(i);
+    AtlasWorkspace.observeDate(c.dates[i],c);
+  });
+  assert.notEqual(await state(()=>AtlasWorkspace.state.market.dates[AtlasWorkspace.state.cursor]),lastMarketDate);
   await page.locator('#marketChart .readout-unpin').click();
+  assert.equal(await state(()=>AtlasWorkspace.state.cursor),await state(()=>AtlasWorkspace.state.market.dates.length-1),'Clear must restore global latest date');
+  assert.equal(await state(()=>AtlasWorkspace.state.charts[0].index),await state(()=>AtlasWorkspace.state.charts[0].dates.length-1),'Clear must restore the chart index');
+  assert.equal(await page.locator('#marketChart .readout-head time').textContent(),lastMarketDate,'Clear must restore date above chart');
+  assert.equal(await state(()=>AtlasWorkspace.state.charts[0].pinned),null,'Clear must remove the pin');
+
+  // Leaving an unpinned hover must also return to latest without changing the viewport.
+  const savedView=await state(()=>[...AtlasWorkspace.state.charts[0].view]);
+  await page.evaluate(()=>{
+    const c=AtlasWorkspace.state.charts[0],i=Math.max(0,c.dates.length-6);
+    c.inspectionActive=true;c.focus=c.series.find(s=>!s.reference)?.id;
+    c.setIndex(i);AtlasWorkspace.observeDate(c.dates[i],c);c.updateOverlay();
+  });
+  await page.locator('#marketChart .chart-canvas').dispatchEvent('pointerleave',{pointerType:'mouse'});
+  assert.equal(await page.locator('#marketChart .readout-head time').textContent(),lastMarketDate,'Hover leave must restore latest date');
+  assert.equal(await state(()=>AtlasWorkspace.state.cursor),await state(()=>AtlasWorkspace.state.market.dates.length-1),'Hover leave must restore global cursor');
+  assert.deepEqual(await state(()=>[...AtlasWorkspace.state.charts[0].view]),savedView,'Exiting inspection must not reset zoom');
+
+  // Clicking the same readout item twice is also an explicit exit.
+  await candidates.nth(2).click();
+  await page.evaluate(()=>{
+    const c=AtlasWorkspace.state.charts[0],i=Math.max(0,c.dates.length-4);
+    c.setIndex(i);AtlasWorkspace.observeDate(c.dates[i],c);
+  });
+  await candidates.nth(2).click();
+  assert.equal(await state(()=>AtlasWorkspace.state.charts[0].pinned),null,'Second click must unpin');
+  assert.equal(await page.locator('#marketChart .readout-head time').textContent(),lastMarketDate,'Second click must restore latest date');
   await page.locator('#marketChart .readout-toggle').click();
   await page.locator('#openComparison').click();const ranked=await state(()=>AtlasCharts.rankLatest(AtlasWorkspace.state.market.sectors,s=>s.series.path.at(-1)).map(s=>s.name));assert.deepEqual(await page.locator('[data-pick]').evaluateAll(els=>els.map(e=>e.dataset.pick)),ranked);assert.match(await page.locator('#compareOrder').textContent(),/最新/);assert.equal(await page.locator('[data-pick]:checked').count(),sectors);
   await page.locator('#clearComparison').click();assert.equal(await page.locator('[data-pick]:checked').count(),0);
