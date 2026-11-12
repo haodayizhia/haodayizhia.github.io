@@ -216,6 +216,11 @@
       target.focusSeries(id);
     };
     groups.forEach((g,i)=>graph('stateChart'+i,{dates:S.market.dates,series:g.metrics.map(([name,key,color])=>({id:key,name,values:S.market.pool[key],color})),unit:g.unit,domain:g.domain,label:g.label,compact:true,strictHit:true,hideDates:i<2,inspectionRows:allRows,onFocusSeries:focusLinkedMetric,readoutHost:$('marketChart').querySelector('.chart-readout')}));
+    // Linked panels must share one time axis and one reset target even when Y labels
+    // leave slightly different plot widths on the individual panels.
+    const sharedWidth=Math.min(...S.charts.map(c=>c.plotXWidth??c.g.width));
+    const sharedDefault=AtlasCharts.autoVisibleRange(S.market.dates.length,sharedWidth);
+    for(const c of S.charts){c.resetView=[...sharedDefault];if(!S.ranges.has(rangeKey())&&c.dates.length>1)c.setRange(...sharedDefault);}
     $('marketChart').querySelector('.state-bundle .plot-actions').addEventListener('click',e=>{const mode=e.target.closest('[data-zoom-axis]');if(mode){AtlasApplyZoomAxis($('marketChart').firstElementChild,mode.dataset.zoomAxis);return;}const b=e.target.closest('[data-state-action]');if(!b)return;const action=b.dataset.stateAction,first=S.charts[0];if(action==='in'||action==='out'){const factor=action==='in'?1.7:1/1.7,axis=$('marketChart').querySelector('.state-bundle .zoom-modes [aria-pressed="true"]')?.dataset.zoomAxis||'both';if(axis!=='x')S.charts.slice(1).forEach(c=>c.zoomY(factor));first.zoom(factor,null,axis);}if(action==='reset')S.charts.forEach(c=>c.reset());if(action==='expand')AtlasFullscreen.open($('marketChart').firstElementChild,'同日联动');});
     S.stateTimeNav=new AtlasTimeNavigator($('marketChart').firstElementChild,{getRange:()=>S.charts[0]?.view||[0,S.market.dates.length-1],getLength:()=>S.market.dates.length,getDates:()=>S.market.dates,onChange:(a,b)=>S.charts[0]?.setRange(a,b,true)});
     if(matchMedia('(max-width:600px)').matches)requestAnimationFrame(()=>{const bundle=$('marketChart').firstElementChild;if(bundle&&bundle.getBoundingClientRect().height<innerHeight-60)window.scrollBy({top:bundle.getBoundingClientRect().top-54,behavior:'smooth'});});
