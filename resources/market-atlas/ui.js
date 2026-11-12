@@ -107,7 +107,8 @@
     }
     updateSummary();
     if($('stateDate'))$('stateDate').textContent=latest;
-    if($('atlasCompareDialog').open)renderComparison();
+    // Do not rebuild the comparison dialog during pointerdown: doing so removes
+    // its checkbox before the native change event can commit the user's selection.
     scheduleNavigation();
   }
   function graph(id,options){

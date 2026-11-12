@@ -183,11 +183,12 @@
     }
     clearInspection(keepReadout=false,syncDate=true){
       const returnLatest=!keepReadout||!this.pinned;
+      const shouldSync=syncDate&&returnLatest&&(this.inspectionActive||!!this.pinned||this.index!==this.dates.length-1);
       this.inspectionActive=false;this.axisValue=null;this.brush=null;
       if(!keepReadout){this.focus=null;this.pinned=null;}
-      // Exiting an inspection restores the default latest session, not just the line style.
-      // A pinned curve survives pointer leave; a full clear always restores the date.
-      if(returnLatest&&syncDate){
+      // Exiting an inspection restores the latest session, without reacting to every
+      // unrelated click elsewhere on the page (such as a comparison checkbox).
+      if(shouldSync){
         this.index=this.dates.length-1;
         this.onInspectionEnd?.(this);
       }
