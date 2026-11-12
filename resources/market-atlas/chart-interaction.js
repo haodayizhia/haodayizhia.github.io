@@ -131,14 +131,17 @@
     down(e){
       if(e.button!==0)return;const rect=this.track.getBoundingClientRect(),m=this.max();if(rect.width<1||m<1)return;
       const x=clamp(e.clientX-rect.left,0,rect.width),value=x/rect.width*m;
-      let [a,b]=this.range(),mode='pan';const edge=Math.min(10,Math.max(5,(b-a)/m*rect.width*.2));
-      if(Math.abs(x-a/m*rect.width)<=edge)mode='left';
-      else if(Math.abs(x-b/m*rect.width)<=edge)mode='right';
+      let [a,b]=this.range(),mode='pan';
+      // Touch uses forgiving edge zones without enlarging the visual rail.
+      const selectedWidth=(b-a)/m*rect.width;
+      const edge=e.pointerType==='touch'?Math.max(20,Math.min(26,selectedWidth*.3)):Math.min(10,Math.max(5,selectedWidth*.2));
+      const left=Math.abs(x-a/m*rect.width),right=Math.abs(x-b/m*rect.width);
+      if(Math.min(left,right)<=edge)mode=left<=right?'left':'right';
       else if(value<a||value>b){const span=b-a;a=clamp(value-span/2,0,m-span);b=a+span;this.change(a,b,'pan');}
       this.drag={id:e.pointerId,x:e.clientX,a,b,mode,w:rect.width};this.track.dataset.dragging=mode;this.track.setPointerCapture(e.pointerId);e.preventDefault();
     }
     move(e){
-      const d=this.drag;if(!d||d.id!==e.pointerId){if(!d){const r=this.track.getBoundingClientRect(),m=this.max(),[a,b]=this.range();if(m>0){const x=e.clientX-r.left,edge=Math.min(10,Math.max(5,(b-a)/m*r.width*.2));this.track.style.cursor=Math.abs(x-a/m*r.width)<=edge||Math.abs(x-b/m*r.width)<=edge?'ew-resize':x>a/m*r.width&&x<b/m*r.width?'grab':'crosshair';}}return;}
+      const d=this.drag;if(!d||d.id!==e.pointerId){if(!d&&e.pointerType!=='touch'){const r=this.track.getBoundingClientRect(),m=this.max(),[a,b]=this.range();if(m>0){const x=e.clientX-r.left,edge=Math.min(10,Math.max(5,(b-a)/m*r.width*.2));this.track.style.cursor=Math.abs(x-a/m*r.width)<=edge||Math.abs(x-b/m*r.width)<=edge?'ew-resize':x>a/m*r.width&&x<b/m*r.width?'grab':'crosshair';}}return;}
       const m=this.max(),dx=(e.clientX-d.x)/d.w*m,span=d.b-d.a;
       if(d.mode==='left')this.change(d.a+dx,d.b,'left');
       else if(d.mode==='right')this.change(d.a,d.b+dx,'right');

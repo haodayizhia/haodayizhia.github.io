@@ -93,14 +93,14 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 .atlas-app .plot-actions .zoom-modes button{min-height:30px;min-width:33px;padding:4px 7px;margin:0;border-radius:4px;font-size:11px;white-space:nowrap;color:var(--muted);line-height:1.4}
 .atlas-app .plot-actions .zoom-modes button[aria-pressed="true"]{background:var(--plot-blue);color:var(--bg);font-weight:600;box-shadow:0 1px 4px #0002}
 .atlas-app .plot-actions .zoom-modes button:not([aria-pressed="true"]):hover{background:color-mix(in srgb,var(--plot-blue) 12%,transparent);color:var(--ink)}
-/* Clean, responsive time scrubber. Dates stay on the chart axis, not duplicated here. */
-.atlas-time-nav{position:relative;box-sizing:border-box;width:100%;min-width:0;height:32px;margin-top:3px;padding:10px 0;user-select:none;-webkit-user-select:none;touch-action:pan-y}
-.atlas-time-track{position:relative;box-sizing:border-box;width:100%;height:12px;border:1px solid color-mix(in srgb,var(--muted) 22%,var(--line));border-radius:6px;background:linear-gradient(180deg,color-mix(in srgb,var(--muted) 13%,var(--bg)),color-mix(in srgb,var(--muted) 5%,var(--bg)));box-shadow:inset 0 1px 3px #0001;cursor:crosshair;touch-action:none;outline-offset:3px}
-.atlas-time-track::before{content:"";position:absolute;inset:2px;border-radius:4px;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(12.5% - 1px),color-mix(in srgb,var(--muted) 13%,transparent) calc(12.5% - 1px),color-mix(in srgb,var(--muted) 13%,transparent) 12.5%)}
-.atlas-time-window{position:absolute;top:-2px;height:14px;box-sizing:border-box;border:1px solid var(--plot-blue);border-radius:5px;background:linear-gradient(180deg,color-mix(in srgb,var(--plot-blue) 30%,var(--bg)),color-mix(in srgb,var(--plot-blue) 17%,var(--bg)));box-shadow:0 0 0 1px color-mix(in srgb,var(--plot-blue) 9%,transparent),inset 0 1px 2px #fff1;pointer-events:none}
-.atlas-time-grip{position:absolute;top:-3px;width:7px;height:18px;box-sizing:border-box;border:1px solid color-mix(in srgb,var(--plot-blue) 75%,var(--ink));border-radius:3px;background:var(--plot-blue);box-shadow:0 1px 4px #0002}
-.atlas-time-grip::after{content:"";position:absolute;top:4px;left:2px;width:1px;height:8px;background:var(--bg);opacity:.8}
-.atlas-time-grip.is-start{left:-3px}.atlas-time-grip.is-end{right:-3px}
+/* A full 44px interaction rail with a visually compact time window. */
+.atlas-time-nav{position:relative;box-sizing:border-box;width:100%;min-width:0;height:46px;margin-top:4px;padding:0;user-select:none;-webkit-user-select:none;touch-action:pan-y;overscroll-behavior-x:contain}
+.atlas-time-track{position:relative;box-sizing:border-box;width:100%;height:44px;border:0;border-radius:8px;background:transparent;cursor:grab;touch-action:none;outline-offset:2px;overscroll-behavior-x:contain}
+.atlas-time-track::before{content:"";position:absolute;left:0;right:0;top:50%;height:10px;transform:translateY(-50%);box-sizing:border-box;border:1px solid color-mix(in srgb,var(--muted) 22%,var(--line));border-radius:5px;pointer-events:none;background:linear-gradient(180deg,color-mix(in srgb,var(--muted) 13%,var(--bg)),color-mix(in srgb,var(--muted) 5%,var(--bg)));box-shadow:inset 0 1px 3px #0001}
+.atlas-time-window{position:absolute;top:50%;transform:translateY(-50%);height:16px;box-sizing:border-box;border:1px solid var(--plot-blue);border-radius:5px;background:linear-gradient(180deg,color-mix(in srgb,var(--plot-blue) 30%,var(--bg)),color-mix(in srgb,var(--plot-blue) 17%,var(--bg)));box-shadow:0 0 0 1px color-mix(in srgb,var(--plot-blue) 9%,transparent),inset 0 1px 2px #fff1;pointer-events:none}
+.atlas-time-grip{position:absolute;top:-9px;width:12px;height:32px;box-sizing:border-box;border:1px solid color-mix(in srgb,var(--plot-blue) 75%,var(--ink));border-radius:5px;background:var(--plot-blue);box-shadow:0 1px 4px #0002}
+.atlas-time-grip::after{content:"";position:absolute;top:9px;left:5px;width:1px;height:12px;background:var(--bg);opacity:.8}
+.atlas-time-grip.is-start{left:-6px}.atlas-time-grip.is-end{right:-6px}
 .atlas-time-track:hover .atlas-time-window,.atlas-time-track[data-dragging] .atlas-time-window{box-shadow:0 0 0 3px color-mix(in srgb,var(--plot-blue) 16%,transparent)}
 .atlas-time-track:focus-visible{outline:2px solid var(--plot-blue)}
 .heatmap-host>.atlas-time-nav{width:calc(100% - 122px);margin-left:122px}
@@ -113,7 +113,9 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
   .atlas-app .plot-actions .zoom-modes button{min-width:31px;padding:4px 5px;min-height:32px}
   .zoom-mode-label{font-size:10px!important}
   .heatmap-host>.atlas-time-nav{margin-left:85px;width:calc(100% - 85px)}
-  .atlas-time-nav{height:34px;margin-top:4px;padding:11px 0}
+  /* Avoid beginning horizontal drags in OS/browser back-gesture edge zones. */
+  .atlas-time-nav{height:52px;margin-top:5px;padding:3px 28px;touch-action:pan-y;overscroll-behavior-x:contain}
+  .atlas-time-track{height:44px}
 }
 @media(max-width:480px){
   .atlas-app .chart-host>.plot-toolbar,.atlas-app .scatter-host>.plot-toolbar,.atlas-app .state-bundle>.plot-toolbar{align-items:flex-start}
