@@ -187,9 +187,9 @@
       if(!keepReadout){this.focus=null;this.pinned=null;}
       // Exiting an inspection restores the default latest session, not just the line style.
       // A pinned curve survives pointer leave; a full clear always restores the date.
-      if(returnLatest){
+      if(returnLatest&&syncDate){
         this.index=this.dates.length-1;
-        if(syncDate)this.onInspectionEnd?.(this);
+        this.onInspectionEnd?.(this);
       }
       this.updateOverlay();this.updateValues();
     }
