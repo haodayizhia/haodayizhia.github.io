@@ -84,13 +84,16 @@ const server=http.createServer((req,res)=>{
   assert.equal(await state(()=>AtlasWorkspace.state.cursor),await state(()=>AtlasWorkspace.state.market.dates.length-1),'Hover leave must restore global cursor');
   assert.deepEqual(await state(()=>[...AtlasWorkspace.state.charts[0].view]),savedView,'Exiting inspection must not reset zoom');
 
-  // Clicking the same readout item twice is also an explicit exit.
-  await candidates.nth(2).click();
+  // Click the same immutable series ID, not a row index: sorting changes with date.
+  const toggleId=await candidates.nth(2).getAttribute('data-focus-series');
+  const toggle=page.locator('#marketChart .readout-all [data-focus-series='+JSON.stringify(toggleId)+']');
+  await toggle.click();
+  assert.equal(await state(()=>AtlasWorkspace.state.charts[0].pinned),toggleId);
   await page.evaluate(()=>{
     const c=AtlasWorkspace.state.charts[0],i=Math.max(0,c.dates.length-4);
     c.setIndex(i);AtlasWorkspace.observeDate(c.dates[i],c);
   });
-  await candidates.nth(2).click();
+  await toggle.click();
   assert.equal(await state(()=>AtlasWorkspace.state.charts[0].pinned),null,'Second click must unpin');
   assert.equal(await page.locator('#marketChart .readout-head time').textContent(),lastMarketDate,'Second click must restore latest date');
   await page.locator('#marketChart .readout-toggle').click();
