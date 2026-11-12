@@ -6,10 +6,10 @@ const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
 
 test('default date viewport first fits all sessions, otherwise keeps the latest',()=>{
  assert.deepEqual(autoVisibleRange(63,400,'lines'),[0,62]);
- assert.deepEqual(autoVisibleRange(63,400,'candles'),[0,62]);
+ assert.deepEqual(autoVisibleRange(63,400,'candles'),[27,62]);
  assert.deepEqual(autoVisibleRange(690,300,'lines'),[540,689]);
- assert.deepEqual(autoVisibleRange(690,300,'candles'),[640,689]);
- assert.deepEqual(autoVisibleRange(690,1200,'candles'),[490,689]);
+ assert.deepEqual(autoVisibleRange(690,300,'candles'),[663,689]);
+ assert.deepEqual(autoVisibleRange(690,1200,'candles'),[581,689]);
  assert.deepEqual(autoVisibleRange(1,300,'candles'),[0,0]);
  assert.deepEqual(autoVisibleRange(0,300,'lines'),[0,0]);
 });
