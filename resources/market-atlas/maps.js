@@ -27,7 +27,7 @@
     draw() {
       const empty=!this.rows.length;this.host.querySelector('.heat-empty').hidden=!empty;this.host.querySelector('.heat-layout').hidden=empty;if(empty){this.host.dataset.columns=this.dates.length;this.host.dataset.rows='0';this.row=undefined;this.focus=null;root.AtlasInspector.render(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index)});return;}
       const width=this.surface.clientWidth;if(!width)return;
-      const fit=width/this.dates.length;if(!this.cellWidth){this.cellWidth=Math.max(fit,Math.min(8,Math.max(4,width/60)));this.fitted=this.cellWidth<=fit+.001;}else if(this.fitted)this.cellWidth=fit;
+      const fit=width/this.dates.length;if(!this.cellWidth){this.cellWidth=fit>=4?fit:Math.max(5,Math.min(8,width/60));this.fitted=this.cellWidth<=fit+.001;}else if(this.fitted)this.cellWidth=fit;
       const w=Math.max(width,Math.ceil(this.cellWidth*this.dates.length)),h=this.rows.length*this.rowHeight;
       const style=getComputedStyle(this.host),base=rgb(style.getPropertyValue('--surface')),rise=rgb(style.getPropertyValue('--rise')),fall=rgb(style.getPropertyValue('--fall'));
       this.canvas.width=w;this.canvas.height=h;this.canvas.style.width=w+'px';this.canvas.style.height=h+'px';this.stage.style.width=w+'px';this.stage.style.height=h+'px';
@@ -39,7 +39,7 @@
       if(this.host.classList.contains('is-fullscreen')){const h=Math.max(160,this.host.parentElement.clientHeight-215-this.readout.getBoundingClientRect().height);this.surface.style.maxHeight=h+'px';this.names.parentElement.style.maxHeight=h+'px';}else{this.surface.style.maxHeight='';this.names.parentElement.style.maxHeight='';}
       this.host.dataset.columns=this.dates.length;this.host.dataset.rows=this.rows.length;this.updateCursor();this.navigator?.update();
     }
-    reset(){const width=this.surface.clientWidth;if(!width||!this.dates.length)return;const fit=width/this.dates.length;this.cellWidth=Math.max(fit,Math.min(8,Math.max(4,width/60)));this.fitted=this.cellWidth<=fit+.001;this.index=this.dates.length-1;this.onInspect?.(this.index,this);this.draw();this.surface.scrollLeft=Math.max(0,this.surface.scrollWidth-this.surface.clientWidth);this.surface.scrollTop=0;this.navigator?.update();}
+    reset(){const width=this.surface.clientWidth;if(!width||!this.dates.length)return;const fit=width/this.dates.length;this.cellWidth=fit>=4?fit:Math.max(5,Math.min(8,width/60));this.fitted=this.cellWidth<=fit+.001;this.index=this.dates.length-1;this.onInspect?.(this.index,this);this.draw();this.surface.scrollLeft=Math.max(0,this.surface.scrollWidth-this.surface.clientWidth);this.surface.scrollTop=0;this.navigator?.update();}
     zoom(factor,p) {
       const r=this.surface.getBoundingClientRect(),x=p?clamp(p.x-r.left,0,r.width):r.width,anchor=(this.surface.scrollLeft+x)/this.cellWidth;
       const min=this.surface.clientWidth/this.dates.length;this.cellWidth=clamp(this.cellWidth*factor,min,40);this.fitted=this.cellWidth<=min+.001;this.draw();this.surface.scrollLeft=anchor*this.cellWidth-x;this.navigator?.update();

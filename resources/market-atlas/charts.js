@@ -73,6 +73,15 @@
     }
     return best;
   }
+  // Prefer the whole selected research interval. Only crop to the latest sessions
+  // when individual dates would become too narrow to read.
+  function autoVisibleRange(count,width,kind='lines') {
+    const end=Math.max(0,count-1);
+    if(count<=1)return[0,end];
+    const pixelsPerDay=kind==='candles'?6:2;
+    const capacity=Math.max(12,Math.floor(Math.max(0,width)/pixelsPerDay));
+    return[Math.max(0,count-capacity),end];
+  }
   let chartId=0;
   class Chart {
     constructor(host,options) {
@@ -101,6 +110,7 @@
       window.addEventListener('resize',()=>{this.draw();this.navigator?.update();},{signal:this.abort.signal});this.draw();if(!this.compact)this.navigator=new root.AtlasTimeNavigator(host,{getRange:()=>this.view,getLength:()=>this.dates.length,getDates:()=>this.dates,onChange:(a,b)=>this.setRange(a,b,true)});
     }
     destroy(){this.cancelPan();this.navigator?.destroy();this.gesture.destroy();this.observer.disconnect();this.abort.abort();}
+    defaultView(){return autoVisibleRange(this.dates.length,this.plotXWidth??this.g?.width??this.w,this.kind);}
     canPan(){return this.canPanX()||!!this.yView;}
     canPanX(){return this.view[1]-this.view[0]<this.dates.length-1-.1;}
 
@@ -306,6 +316,6 @@
       this.values.innerHTML=this.series.map(s=>`<div><dt><i style="background:${s.color||'var(--plot-main)'}"></i>${escape(s.name)}</dt><dd>${number(s.values[i])}<small>${finite(s.values[i])?escape(this.unit):''}</small></dd>${s.removable?`<button data-remove-series="${escape(s.id)}" aria-label="移除${escape(s.name)}">×</button>`:''}</div>`).join('');
     }
   }
-  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment};
-  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment};
+  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange};
+  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange};
 })(globalThis);

@@ -1,7 +1,7 @@
 'use strict';
 (()=>{
   const {Chart,escape:esc,number:num,finite,rankLatest,seriesStyle}=AtlasCharts,$=id=>document.getElementById(id);
-  const S={meta:null,market:null,view:'market',display:'lines',metric:'path',heatMetric:'relative',window:1,mode:'dynamic',scale:'linear',cursor:0,industry:'',code:'',selected:new Set(),stocks:new Set(),charts:[],history:null,stock:null,stockSpan:60,stockMode:'candles',industryDisplay:'lines',industryMetric:'path',benchmark:'sector',stockSelections:new Map(),seq:0,renderSeq:0,ranges:new Map(),yRanges:new Map(),industryStyles:new Map(),stockStyles:new Map(),busy:false,files:[],kind:'merged',dataMode:'preview',timer:null,rotationWindow:5,rotationDate:'',rotationMarket:null};
+  const S={meta:null,market:null,view:'market',display:'lines',metric:'path',heatMetric:'relative',window:1,mode:'dynamic',scale:'linear',cursor:0,industry:'',code:'',selected:new Set(),stocks:new Set(),charts:[],history:null,stock:null,stockSpan:'auto',stockMode:'candles',industryDisplay:'lines',industryMetric:'path',benchmark:'sector',stockSelections:new Map(),seq:0,renderSeq:0,ranges:new Map(),yRanges:new Map(),industryStyles:new Map(),stockStyles:new Map(),busy:false,files:[],kind:'merged',dataMode:'preview',timer:null,rotationWindow:5,rotationDate:'',rotationMarket:null};
   const palette=['var(--plot-blue)','var(--plot-gold)','var(--plot-teal)','var(--plot-purple)','var(--plot-red)','var(--plot-slate)'];
   const titles={path:'累计收益',momentum:'窗口收益',relative:'相对强弱',breadth:'MA20广度',drawdown:'峰值回撤',vol:'年化波动',dispersion:'个股分化'};
   const metric=()=>S.view==='industry'?(S.industryDisplay==='heat'?'relative':S.industryMetric):S.view==='market'&&S.display==='rotation'?'relative':S.view==='market'&&S.display==='heat'?S.heatMetric:S.metric;
@@ -114,8 +114,13 @@
   function graph(id,options){
     const scope=S.view==='industry'?S.industry:S.view==='stock'?S.code:'',yKey=rangeKey()+'-'+id+'-'+(S.view==='stock'?'price':metric())+'-'+(S.view==='stock'?'linear':S.scale)+'-'+scope+(S.view==='industry'&&metric()==='relative'?'-'+S.benchmark:'');
     const chart=new Chart($(id),{...options,onDismiss:(keep,origin)=>S.charts.filter(c=>c!==origin).forEach(c=>c.clearInspection?.(keep,false)),onInspectionEnd:restoreLatestInspectionDate,onYRange:range=>{scheduleNavigation();if(range)S.yRanges.set(yKey,[...range]);else S.yRanges.delete(yKey);},onInspect:(i,origin)=>observeDate(options.dates[i],origin),onRange:(a,b)=>applyRange(a,b,chart),onReset:()=>{S.ranges.delete(rangeKey());scheduleNavigation();}});
-    const range=S.ranges.get(rangeKey());if(range){if(range.total===chart.dates.length)chart.setRange(...range.view);else chart.setDateRange(...range.dates);}
-    if(S.yRanges.has(yKey))chart.setYRange(S.yRanges.get(yKey));chart.setIndex(S.cursor,{reveal:true});S.charts.push(chart);return chart;
+    const defaults=chart.defaultView();chart.resetView=[...defaults];
+    const range=S.ranges.get(rangeKey());
+    if(range){if(range.total===chart.dates.length)chart.setRange(...range.view);else chart.setDateRange(...range.dates);}
+    else if(chart.dates.length>1)chart.setRange(...defaults);
+    if(S.yRanges.has(yKey))chart.setYRange(S.yRanges.get(yKey));
+    // The inspected historical date is independent of the default visible window.
+    chart.setIndex(S.cursor);S.charts.push(chart);return chart;
   }
   function observeDate(date,origin){
     if(!S.market)return;const i=S.market.dates.indexOf(date);if(i<0)return;S.cursor=i;
@@ -278,15 +283,19 @@
   }
   async function renderStock(ticket){
     const info=S.meta.stocks.find(s=>s.code===S.code);
-    $('atlasContent').innerHTML=drillPath()+`<section class="workspace-plot"><div class="stock-workspace-head"><label class="stock-search"><span class="sr-only">查找股票</span><input id="atlasStockSearch" type="search" placeholder="输入股票名称或代码" autocomplete="off"></label><div id="stockSearchResults" class="stock-search-results" hidden></div><select id="stockSpan" aria-label="日线显示范围"><option value="20" ${S.stockSpan===20?'selected':''}>20日</option><option value="60" ${S.stockSpan===60?'selected':''}>60日</option><option value="all" ${S.stockSpan==='all'?'selected':''}>全部</option></select><select id="stockMode" aria-label="价格图类型"><option value="candles">日K</option><option value="lines" ${S.stockMode==='lines'?'selected':''}>收盘价</option></select></div><div class="stock-identity">${info?`<h2>${esc(info.name)}</h2><span>${info.code} · ${esc(info.industry)}</span>`:''}</div><div id="stockPriceChart" class="${info?'':'plot-empty'}">${info?'正在读取日线…':'搜索并选择股票，查看日线、均线与成交量。'}</div></section>`;
-    $('atlasStockSearch').addEventListener('input',searchStocks);$('stockSpan').addEventListener('change',()=>{S.stockSpan=$('stockSpan').value==='all'?'all':Number($('stockSpan').value);S.ranges.delete(rangeKey());renderView();});$('stockMode').addEventListener('change',()=>{S.stockMode=$('stockMode').value;renderView();});if(!info)return;
+    $('atlasContent').innerHTML=drillPath()+`<section class="workspace-plot"><div class="stock-workspace-head"><label class="stock-search"><span class="sr-only">查找股票</span><input id="atlasStockSearch" type="search" placeholder="输入股票名称或代码" autocomplete="off"></label><div id="stockSearchResults" class="stock-search-results" hidden></div><select id="stockSpan" aria-label="日线显示范围"><option value="auto" ${S.stockSpan==='auto'?'selected':''}>自动适配</option><option value="20" ${S.stockSpan===20?'selected':''}>20日</option><option value="60" ${S.stockSpan===60?'selected':''}>60日</option><option value="all" ${S.stockSpan==='all'?'selected':''}>全部</option></select><select id="stockMode" aria-label="价格图类型"><option value="candles">日K</option><option value="lines" ${S.stockMode==='lines'?'selected':''}>收盘价</option></select></div><div class="stock-identity">${info?`<h2>${esc(info.name)}</h2><span>${info.code} · ${esc(info.industry)}</span>`:''}</div><div id="stockPriceChart" class="${info?'':'plot-empty'}">${info?'正在读取日线…':'搜索并选择股票，查看日线、均线与成交量。'}</div></section>`;
+    $('atlasStockSearch').addEventListener('input',searchStocks);$('stockSpan').addEventListener('change',()=>{S.stockSpan=['all','auto'].includes($('stockSpan').value)?$('stockSpan').value:Number($('stockSpan').value);S.ranges.delete(rangeKey());renderView();});$('stockMode').addEventListener('change',()=>{S.stockMode=$('stockMode').value;renderView();});if(!info)return;
     try{
       const stock=await AtlasData.request('/api/stock',{...query(),code:S.code});if(ticket!==S.renderSeq||S.view!=='stock')return;S.stock=stock;
       const series=[{id:'price',name:'收盘价',values:stock.close,reference:true,color:'var(--plot-main)'},...['ma5','ma10','ma20'].map((key,i)=>({id:key,name:key.toUpperCase(),values:stock[key],color:[palette[0],palette[1],palette[3]][i]}))];
       const chart=graph('stockPriceChart',{dates:stock.dates,series,stock,unit:'元',kind:S.stockMode,label:info.name+'日线'});
-      const selectedDate=S.market.dates[S.cursor],stockIndex=Math.max(0,stock.dates.findLastIndex(date=>date<=selectedDate));chart.setIndex(stockIndex,{reveal:true});
-      const start=S.stockSpan==='all'?0:Math.max(0,stockIndex-S.stockSpan+1),end=S.stockSpan==='all'?stock.dates.length-1:Math.min(stock.dates.length-1,start+S.stockSpan-1);chart.resetView=[start,end];
-      if(!S.ranges.has(rangeKey()))chart.setRange(start,end);
+      const selectedDate=S.market.dates[S.cursor],stockIndex=Math.max(0,stock.dates.findLastIndex(date=>date<=selectedDate));
+      chart.setIndex(stockIndex);
+      const end=stock.dates.length-1;
+      const start=S.stockSpan==='all'?0:typeof S.stockSpan==='number'?Math.max(0,end-S.stockSpan+1):chart.defaultView()[0];
+      chart.resetView=[start,end];
+      // A historical selection must not move the opening window to the first months.
+      if(!S.ranges.has(rangeKey())&&end>start)chart.setRange(start,end);
     }catch(error){notice(error.message,true);}
   }
   function searchStocks(){
@@ -306,10 +315,10 @@
   }
   const tabs=[...document.querySelectorAll('[data-atlas-view]')];tabs.forEach(b=>{b.id='atlasTab-'+b.dataset.atlasView;b.addEventListener('click',()=>{goView(b.dataset.atlasView);});});
   document.querySelector('.atlas-view-tabs').addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();let i=tabs.indexOf(document.activeElement);i=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;tabs[i].focus();tabs[i].click();});
-  $('atlasPeriod').addEventListener('change',()=>{if(!S.meta)return;stop();AtlasInspector.hide();const v=$('atlasPeriod').value;if(v==='custom'){$('atlasFilterDialog').showModal();return;}const dates=S.meta.dates;loadMarket(dates[v==='all'?0:Math.max(0,dates.length-Number(v))],dates.at(-1));});
+  $('atlasPeriod').addEventListener('change',()=>{if(!S.meta)return;stop();AtlasInspector.hide();const v=$('atlasPeriod').value;if(v==='custom'){$('atlasFilterDialog').showModal();return;}const dates=S.meta.dates;S.stockSpan='auto';loadMarket(dates[v==='all'?0:Math.max(0,dates.length-Number(v))],dates.at(-1));});
   $('atlasMetric').addEventListener('change',()=>{if(S.view==='market'&&S.display==='heat')S.heatMetric=$('atlasMetric').value;else if(S.view==='industry')S.industryMetric=$('atlasMetric').value;else S.metric=$('atlasMetric').value;renderView();});
   $('openAtlasFilters').addEventListener('click',()=>{stop();AtlasInspector.hide();$('openAtlasFilters').focus({preventScroll:true});$('atlasFilterDialog').showModal();});
-  $('atlasFilterForm').addEventListener('submit',e=>{e.preventDefault();const dates=S.meta.dates.filter(d=>d>=$('filterStart').value&&d<=$('filterEnd').value);if(!dates.length){$('filterError').textContent='请选择含交易日的有效区间。';return;}S.window=Number($('filterWindow').value);S.mode=$('filterCohort').value;S.scale=$('filterScale').value;$('atlasPeriod').value='custom';$('atlasFilterDialog').close();loadMarket(dates[0],dates.at(-1));});
+  $('atlasFilterForm').addEventListener('submit',e=>{e.preventDefault();const dates=S.meta.dates.filter(d=>d>=$('filterStart').value&&d<=$('filterEnd').value);if(!dates.length){$('filterError').textContent='请选择含交易日的有效区间。';return;}S.window=Number($('filterWindow').value);S.mode=$('filterCohort').value;S.scale=$('filterScale').value;$('atlasPeriod').value='custom';$('atlasFilterDialog').close();S.stockSpan='auto';loadMarket(dates[0],dates.at(-1));});
   function updateSelection(){
     if(S.view==='industry'){rememberStocks();if(S.industryDisplay==='heat')S.charts[0]?.setIndex(S.cursor);else S.charts[0]?.setSeries(industrySeries());updateStockCount();}
     else if(S.display==='lines')S.charts[0]?.setSeries(marketSeries());

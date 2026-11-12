@@ -1,9 +1,18 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain}=require('../../resources/market-atlas/charts.js');
+const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,autoVisibleRange}=require('../../resources/market-atlas/charts.js');
 const{rotationTrail,rotationSettings}=require('../../resources/market-atlas/maps.js');
 const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
 
+test('default date viewport first fits all sessions, otherwise keeps the latest',()=>{
+ assert.deepEqual(autoVisibleRange(63,400,'lines'),[0,62]);
+ assert.deepEqual(autoVisibleRange(63,400,'candles'),[0,62]);
+ assert.deepEqual(autoVisibleRange(690,300,'lines'),[540,689]);
+ assert.deepEqual(autoVisibleRange(690,300,'candles'),[640,689]);
+ assert.deepEqual(autoVisibleRange(690,1200,'candles'),[490,689]);
+ assert.deepEqual(autoVisibleRange(1,300,'candles'),[0,0]);
+ assert.deepEqual(autoVisibleRange(0,300,'lines'),[0,0]);
+});
 test('pinch zoom preserves its date anchor and stops at data boundaries',()=>{
  const next=zoomRange([0,202],203,2,.25);assert.deepEqual(next,[25.25,126.25]);
  for(const anchor of [0,.25,.5,1])for(const factor of [.01,.5,2,1000]){const [a,b]=zoomRange([40,80],203,factor,anchor);assert.ok(a>=0&&b<=202&&b-a>=5);}
