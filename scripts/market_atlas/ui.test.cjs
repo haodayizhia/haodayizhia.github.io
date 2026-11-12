@@ -4,6 +4,11 @@ const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyl
 const{rotationTrail,rotationSettings}=require('../../resources/market-atlas/maps.js');
 const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
 
+test('stock chart uses global research period and free zoom, not 20/60-day presets',()=>{
+ const ui=fs.readFileSync(path.join(__dirname,'../../resources/market-atlas/ui.js'),'utf8');
+ assert.doesNotMatch(ui,/id="stockSpan"/);
+ assert.ok(ui.includes("options.stock?[0,chart.dates.length-1]:chart.defaultView()"));
+});
 test('default date viewport first fits all sessions, otherwise keeps the latest',()=>{
  assert.deepEqual(autoVisibleRange(63,400,'lines'),[0,62]);
  assert.deepEqual(autoVisibleRange(63,400,'candles'),[27,62]);
