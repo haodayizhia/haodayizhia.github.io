@@ -267,7 +267,15 @@
     const sector=S.market.sectors.find(s=>s.name===S.industry),relative=key==='relative';if(!sector)return [];
     const base=S.benchmark==='pool'?S.market.pool.momentum:sector.series.momentum;
     const track=values=>relative?values.map((v,i)=>finite(v)&&finite(base[i])?v-base[i]:null):values;
-    const series=[{id:'pool',name:'股票池等权',values:track(relative?S.market.pool.momentum:S.market.pool[key]),color:'var(--plot-main)',reference:true},{id:'sector',name:S.industry,values:track(relative?sector.series.momentum:sector.series[key]),...style(S.industry),reference:true}];
+    // In relative mode the selected benchmark minus itself is identically zero.
+    // Draw that guide as a quiet dashed reference, not as a brightly coloured
+    // industry/stock trace that looks automatically highlighted.
+    const zeroBaseline=relative?(S.benchmark==='sector'?'sector':'pool'):null;
+    const zeroGuide={color:'var(--muted)',dash:'4 5'};
+    const series=[
+      {id:'pool',name:zeroBaseline==='pool'?'股票池等权 · 基准（0）':'股票池等权',values:track(relative?S.market.pool.momentum:S.market.pool[key]),color:zeroBaseline==='pool'?zeroGuide.color:'var(--plot-main)',dash:zeroBaseline==='pool'?zeroGuide.dash:'',reference:true},
+      {id:'sector',name:zeroBaseline==='sector'?S.industry+' · 基准（0）':S.industry,values:track(relative?sector.series.momentum:sector.series[key]),...(zeroBaseline==='sector'?zeroGuide:{...style(S.industry)}),reference:true}
+    ];
     if(S.history)rankLatest(S.history.stocks,s=>s.tracks[relative?'momentum':key]?.at(-1)).filter(s=>!selectedOnly||S.stocks.has(s.code)).forEach(stock=>series.push({id:stock.code,name:stock.name,detail:stock.code,values:track(stock.tracks[relative?'momentum':key]),...S.stockStyles.get(stock.code),removable:true}));
     return series;
   }
