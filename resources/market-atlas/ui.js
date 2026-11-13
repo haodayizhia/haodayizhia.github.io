@@ -102,7 +102,7 @@
     const nextId=id!==undefined?id:view==='industry'?S.industry:view==='stock'?S.code:'';
     // Always follow the visible market indicator on entry, even after revisiting
     // an industry with an existing stock selection. Unsupported modes use path.
-    if(view==='industry'&&previousView==='market')S.industryMetric=['path','momentum','relative','drawdown','vol'].includes(inherited)?inherited:'path';
+    if(view==='industry'&&previousView==='market'){S.industryDisplay='lines';S.industryMetric=['path','momentum','relative','drawdown','vol'].includes(inherited)?inherited:'path';}
     if(view==='industry'&&previousView==='market'&&S.display==='rotation')S.cursor=Math.max(0,S.market.dates.indexOf(S.rotationDate));
     applyRoute(view,nextId);if(range&&S.view==='industry'&&!S.ranges.has(rangeKey()))S.ranges.set(rangeKey(),range);
     const value=captureNavigation();value.charts=[];value.scroll=[0,0];value.fullscreen='';
