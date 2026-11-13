@@ -37,6 +37,16 @@
   function seriesStyle(index){return{color:`var(--plot-c${index%12+1})`,dash:linePatterns[Math.floor(index/12)%linePatterns.length]};}
   // Consistent chart styling, independent of the number of stocks.
   // Only deliberate focus changes stroke intensity; benchmarks are not preselected.
+  // Returns are compared by the ratio of compounded wealth; risk statistics
+  // and relative strength use differences in percentage points.
+  function compareMetric(metric,value,base){
+    if(!finite(value)||!finite(base))return null;
+    if(metric==='path'||metric==='momentum'){
+      const wealth=1+value/100,benchmark=1+base/100;
+      return benchmark>0&&wealth>=0?(wealth/benchmark-1)*100:null;
+    }
+    return ['relative','drawdown','vol'].includes(metric)?value-base:null;
+  }
   const traceWidth=(reference=false,focused=false)=>focused?2.5:1.2;
   function traceOpacity(count,focus,reference,active){
     if(active)return 1;
@@ -325,6 +335,6 @@
       this.values.innerHTML=this.series.map(s=>`<div><dt><i style="background:${s.color||'var(--plot-main)'}"></i>${escape(s.name)}</dt><dd>${number(s.values[i])}<small>${finite(s.values[i])?escape(this.unit):''}</small></dd>${s.removable?`<button data-remove-series="${escape(s.id)}" aria-label="移除${escape(s.name)}">×</button>`:''}</div>`).join('');
     }
   }
-  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange};
-  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange};
+  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,compareMetric,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange};
+  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,compareMetric,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange};
 })(globalThis);

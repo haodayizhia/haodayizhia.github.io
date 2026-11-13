@@ -1,11 +1,13 @@
 'use strict';
 (()=>{
-  const {Chart,escape:esc,number:num,finite,rankLatest,seriesStyle}=AtlasCharts,$=id=>document.getElementById(id);
+  const {Chart,escape:esc,number:num,finite,rankLatest,seriesStyle,compareMetric}=AtlasCharts,$=id=>document.getElementById(id);
   const S={meta:null,market:null,view:'market',display:'lines',metric:'path',heatMetric:'relative',window:1,mode:'dynamic',scale:'linear',cursor:0,industry:'',code:'',selected:new Set(),stocks:new Set(),charts:[],history:null,stock:null,stockMode:'candles',industryDisplay:'lines',industryMetric:'path',benchmark:'sector',stockSelections:new Map(),seq:0,renderSeq:0,ranges:new Map(),yRanges:new Map(),industryStyles:new Map(),stockStyles:new Map(),busy:false,files:[],kind:'merged',dataMode:'preview',timer:null,rotationWindow:5,rotationDate:'',rotationMarket:null};
   const palette=['var(--plot-blue)','var(--plot-gold)','var(--plot-teal)','var(--plot-purple)','var(--plot-red)','var(--plot-slate)'];
   const titles={path:'累计收益',momentum:'窗口收益',relative:'相对强弱',breadth:'MA20广度',drawdown:'峰值回撤',vol:'年化波动',dispersion:'个股分化'};
+  const industryTitles={path:'累计超额收益',momentum:'窗口超额收益',relative:'相对强弱',drawdown:'回撤差',vol:'波动率差'};
+  const title=()=>S.view==='industry'?industryTitles[metric()]:titles[metric()];
   const metric=()=>S.view==='industry'?(S.industryDisplay==='heat'?'relative':S.industryMetric):S.view==='market'&&S.display==='rotation'?'relative':S.view==='market'&&S.display==='heat'?S.heatMetric:S.metric;
-  const unit=key=>['relative','dispersion'].includes(key||metric())?'个百分点':'%';
+  const unit=key=>['relative','dispersion'].includes(key||metric())||S.view==='industry'&&['drawdown','vol'].includes(key||metric())?'个百分点':'%';
   const style=name=>S.industryStyles.get(name)||seriesStyle(0);
   const color=name=>style(name).color;
   const orderedSectors=(data=S.market,key=metric())=>rankLatest(data?.sectors||[],s=>s.series[key]?.at(-1));
@@ -142,7 +144,7 @@
     scheduleNavigation();
   }
   function graph(id,options){
-    const scope=S.view==='industry'?S.industry:S.view==='stock'?S.code:'',yKey=rangeKey()+'-'+id+'-'+(S.view==='stock'?'price':metric())+'-'+(S.view==='stock'?'linear':S.scale)+'-'+scope+(S.view==='industry'&&metric()==='relative'?'-'+S.benchmark:'');
+    const scope=S.view==='industry'?S.industry:S.view==='stock'?S.code:'',yKey=rangeKey()+'-'+id+'-'+(S.view==='stock'?'price':metric())+'-'+(S.view==='stock'?'linear':S.scale)+'-'+scope+(S.view==='industry'?'-'+S.benchmark:'');
     const chart=new Chart($(id),{...options,onDismiss:(keep,origin)=>S.charts.filter(c=>c!==origin).forEach(c=>c.clearInspection?.(keep,false)),onInspectionEnd:restoreLatestInspectionDate,onYRange:range=>{scheduleNavigation();if(range)S.yRanges.set(yKey,[...range]);else S.yRanges.delete(yKey);},onInspect:(i,origin)=>observeDate(options.dates[i],origin),onRange:(a,b)=>applyRange(a,b,chart),onReset:()=>{S.ranges.delete(rangeKey());scheduleNavigation();}});
     const defaults=options.stock?[0,chart.dates.length-1]:chart.defaultView();chart.resetView=[...defaults];
     const range=S.ranges.get(rangeKey());
@@ -189,7 +191,7 @@
     $('atlasMetricControl').hidden=fixed;
     const keys=heat?['relative','momentum','breadth']:S.view==='industry'?['path','momentum','relative','drawdown','vol']:Object.keys(titles);
     if(!heat&&!keys.includes(metric())){if(S.view==='industry')S.industryMetric='path';else S.metric='path';}
-    $('atlasMetric').innerHTML=keys.map(k=>`<option value="${k}" ${metric()===k?'selected':''}>${titles[k]}</option>`).join('');
+    $('atlasMetric').innerHTML=keys.map(k=>`<option value="${k}" ${metric()===k?'selected':''}>${S.view==='industry'?industryTitles[k]:titles[k]}</option>`).join('');
     $('atlasSummary').hidden=S.view!=='market'||S.display==='rotation';
   }
   async function renderView(){
@@ -202,14 +204,14 @@
   function bindComparison(){const button=$('openComparison');if(button)button.addEventListener('click',()=>{stop();AtlasInspector.hide();$('compareSearch').value='';renderComparison();button.focus({preventScroll:true});$('atlasCompareDialog').showModal();});}
   function syncComparisonChecks(){const industry=S.view==='industry',selected=industry?S.stocks:S.selected;for(const input of $('compareRows').querySelectorAll('[data-pick]'))input.checked=selected.has(input.dataset.pick);$('compareCount').textContent=`已选 ${selected.size} 项 · ${S.view==='market'&&S.display==='rotation'?S.rotationDate:S.market.dates[S.cursor]}`;}
   function marketSeries(){
-    const base=S.metric==='relative'?S.market.pool.momentum.map(v=>finite(v)?0:null):S.market.pool[S.metric];
-    return [{id:'pool',name:'股票池等权',values:base,reference:true,color:'var(--plot-main)'},...orderedSectors(S.market,S.metric).filter(s=>S.selected.has(s.name)).map(s=>({id:s.name,name:s.name,values:s.series[S.metric],...style(s.name),removable:true}))];
+    const sectors=orderedSectors(S.market,S.metric).filter(s=>S.selected.has(s.name)).map(s=>({id:s.name,name:s.name,values:s.series[S.metric],...style(s.name),removable:true}));
+    return S.metric==='relative'?sectors:[{id:'pool',name:'股票池等权',values:S.market.pool[S.metric],reference:true,color:'var(--plot-main)'},...sectors];
   }
   async function renderMarket(ticket){
     const modes={lines:'走势',heat:'热力',rotation:'轮动',state:'状态'};
     $('atlasContent').innerHTML=`<section class="workspace-plot"><div class="workspace-viewbar"><nav class="plot-views" aria-label="市场图表">${Object.entries(modes).map(([key,label])=>`<button data-display="${key}" aria-pressed="${S.display===key}">${label}</button>`).join('')}</nav>${compareButton()}</div><div id="marketChart"></div><p class="interaction-note">点曲线查值，点名称进入行业 · 图外点击退出高亮 · 双指/滚轮双轴缩放</p></section>`;
     $('atlasContent').querySelectorAll('[data-display]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.display==='heat'&&S.display!=='heat')S.cursor=S.market.dates.length-1;S.display=b.dataset.display;renderView();}));bindComparison();
-    if(S.display==='lines')graph('marketChart',{dates:S.market.dates,series:marketSeries(),unit:unit(),label:titles[S.metric],log:S.scale==='log'&&S.metric==='path',onRemove:name=>toggleIndustry(name),onOpenSeries:openIndustry,linkFor:name=>routeURL('industry',name),openLabel:'进入行业'});
+    if(S.display==='lines')graph('marketChart',{dates:S.market.dates,series:marketSeries(),unit:unit(),label:titles[S.metric],zeroGuide:S.metric==='relative',log:S.scale==='log'&&S.metric==='path',onRemove:name=>toggleIndustry(name),onOpenSeries:openIndustry,linkFor:name=>routeURL('industry',name),openLabel:'进入行业'});
     if(S.display==='heat')renderHeat();if(S.display==='rotation')await renderRotation(ticket);if(S.display==='state')renderState();
   }
   function toggleIndustry(name){
@@ -223,7 +225,7 @@
     const key=S.heatMetric,sectors=orderedSectors(S.market,key);
     const heat=new AtlasMaps.Heatmap($('marketChart'),{dates:S.market.dates,rows:sectors.map(s=>({name:s.name,values:s.series[key]})),metric:key,window:S.window,onInspect:(i,origin)=>observeDate(S.market.dates[i],origin),onOpenSeries:openIndustry,linkFor:name=>routeURL('industry',name),openLabel:'进入行业',inspectionRows:(i,row)=>{
       const hovered=sectors[row]?.name,names=new Set([hovered,...S.selected].filter(Boolean));
-      return [{name:'股票池等权',value:key==='relative'?0:S.market.pool[key][i],unit:unit(key),color:'var(--plot-main)'},...orderedSectors(S.market,key).filter(s=>names.has(s.name)).map(({name})=>({id:name,name,canOpen:true,openLabel:'进入行业',value:S.market.sectors.find(s=>s.name===name).series[key][i],unit:unit(key),color:color(name)}))];
+      return [...(key==='relative'?[]:[{name:'股票池等权',value:S.market.pool[key][i],unit:unit(key),color:'var(--plot-main)',reference:true}]),...orderedSectors(S.market,key).filter(s=>names.has(s.name)).map(({name})=>({id:name,name,canOpen:true,openLabel:'进入行业',value:S.market.sectors.find(s=>s.name===name).series[key][i],unit:unit(key),color:color(name)}))];
     }});heat.setIndex(S.cursor);S.charts.push(heat);
   }
   async function renderRotation(ticket){
@@ -264,20 +266,19 @@
     if(!saved||saved.all)rememberStocks(true);
   }
   function industrySeries(selectedOnly=true,key=metric()){
-    const sector=S.market.sectors.find(s=>s.name===S.industry),relative=key==='relative';if(!sector)return [];
-    const base=S.benchmark==='pool'?S.market.pool.momentum:sector.series.momentum;
-    const track=values=>relative?values.map((v,i)=>finite(v)&&finite(base[i])?v-base[i]:null):values;
-    // The selected relative benchmark is zero by definition: draw it as an axis guide,
-    // never as a separate curve or an all-zero value in the readout.
-    const series=relative?
-      [S.benchmark==='sector'
-        ?{id:'pool',name:'股票池等权（相对行业）',values:track(S.market.pool.momentum),color:'var(--plot-main)',reference:true}
-        :{id:'sector',name:'本行业等权（相对股票池）',values:track(sector.series.momentum),...style(S.industry),reference:true}]:
-      [
-        {id:'pool',name:'股票池等权',values:S.market.pool[key],color:'var(--plot-main)',reference:true},
-        {id:'sector',name:S.industry,values:sector.series[key],...style(S.industry),reference:true}
-      ];
-    if(S.history)rankLatest(S.history.stocks,s=>s.tracks[relative?'momentum':key]?.at(-1)).filter(s=>!selectedOnly||S.stocks.has(s.code)).forEach(stock=>series.push({id:stock.code,name:stock.name,detail:stock.code,values:track(stock.tracks[relative?'momentum':key]),...S.stockStyles.get(stock.code),removable:true}));
+    const sector=S.market.sectors.find(s=>s.name===S.industry);if(!sector)return [];
+    const source=key==='relative'?'momentum':key,base=(S.benchmark==='pool'?S.market.pool:sector.series)[source];
+    const relative=(v,i)=>compareMetric(key,v,base[i]),track=values=>values.map(relative);
+    // One actual peer reference plus constituent stocks; baseline is the zero axis.
+    const series=[S.benchmark==='sector'
+      ?{id:'pool',name:'股票池等权（相对行业）',values:track(S.market.pool[source]),color:'var(--plot-main)',reference:true}
+      :{id:'sector',name:'本行业等权（相对股票池）',values:track(sector.series[source]),...style(S.industry),reference:true}];
+    if(S.history){
+      const last=S.market.dates.length-1;
+      rankLatest(S.history.stocks,s=>relative(s.tracks[source]?.[last],last))
+        .filter(s=>!selectedOnly||S.stocks.has(s.code))
+        .forEach(stock=>series.push({id:stock.code,name:stock.name,detail:stock.code,values:track(stock.tracks[source]),...S.stockStyles.get(stock.code),removable:true}));
+    }
     return series;
   }
   function industryHeat(){
@@ -288,8 +289,7 @@
     }});heat.setIndex(S.cursor);S.charts.push(heat);
   }
   async function renderIndustry(ticket){
-    const relative=metric()==='relative';
-    $('atlasContent').innerHTML=`<section class="workspace-plot"><div class="workspace-viewbar"><label class="industry-picker"><span class="sr-only">研究行业</span><select id="industrySelect"><option value="">选择研究行业</option>${orderedSectors().map(s=>`<option value="${esc(s.name)}" ${s.name===S.industry?'selected':''}>${esc(s.name)} · ${s.size}只</option>`).join('')}</select></label>${compareButton()}</div><div class="industry-viewbar"><nav class="plot-views" aria-label="成分股视图"><button type="button" data-atlas-back aria-label="返回上一步" title="返回上一步">←</button><a class="industry-return" data-route-view="market" href="${esc(routeURL('market'))}">市场</a><button data-industry-display="lines" aria-pressed="${S.industryDisplay==='lines'}">走势</button><button data-industry-display="heat" aria-pressed="${S.industryDisplay==='heat'}">热力</button></nav>${relative?`<label class="benchmark-picker"><span>超额基准</span><select id="industryBenchmark" aria-label="成分股超额基准"><option value="sector" ${S.benchmark==='sector'?'selected':''}>本行业</option><option value="pool" ${S.benchmark==='pool'?'selected':''}>股票池</option></select></label>`:''}</div><p id="industryCoverage" class="coverage-note"></p><div id="industryChart" class="plot-empty">${S.industry?'正在读取全部成分股…':'选择行业，或从市场图的行业名称进入。'}</div>${S.industryDisplay==='lines'?'<p class="interaction-note">点股票曲线查值，点名称查看日线 · 图外点击退出高亮 · 双指双轴缩放</p>':''}</section>`;
+    $('atlasContent').innerHTML=`<section class="workspace-plot"><div class="workspace-viewbar"><label class="industry-picker"><span class="sr-only">研究行业</span><select id="industrySelect"><option value="">选择研究行业</option>${orderedSectors().map(s=>`<option value="${esc(s.name)}" ${s.name===S.industry?'selected':''}>${esc(s.name)} · ${s.size}只</option>`).join('')}</select></label>${compareButton()}</div><div class="industry-viewbar"><nav class="plot-views" aria-label="成分股视图"><button type="button" data-atlas-back aria-label="返回上一步" title="返回上一步">←</button><a class="industry-return" data-route-view="market" href="${esc(routeURL('market'))}">市场</a><button data-industry-display="lines" aria-pressed="${S.industryDisplay==='lines'}">走势</button><button data-industry-display="heat" aria-pressed="${S.industryDisplay==='heat'}">热力</button></nav><label class="benchmark-picker"><span>对比基准</span><select id="industryBenchmark" aria-label="成分股对比基准"><option value="sector" ${S.benchmark==='sector'?'selected':''}>本行业</option><option value="pool" ${S.benchmark==='pool'?'selected':''}>股票池</option></select></label></div><p id="industryCoverage" class="coverage-note"></p><div id="industryChart" class="plot-empty">${S.industry?'正在读取全部成分股…':'选择行业，或从市场图的行业名称进入。'}</div>${S.industryDisplay==='lines'?'<p class="interaction-note">点股票曲线查值，点名称查看日线 · 图外点击退出高亮 · 双指双轴缩放</p>':''}</section>`;
     $('openComparison').disabled=true;
     $('industrySelect').addEventListener('change',()=>openIndustry($('industrySelect').value));bindComparison();
     $('atlasContent').querySelectorAll('[data-industry-display]').forEach(b=>b.addEventListener('click',()=>{if(b.dataset.industryDisplay==='heat'&&S.industryDisplay!=='heat')S.cursor=S.market.dates.length-1;S.industryDisplay=b.dataset.industryDisplay;renderView();}));
@@ -306,7 +306,7 @@
       S.history=history;S.historyKey=key;prepareStocks();
       $('industryChart').classList.remove('plot-empty');$('openComparison').disabled=false;updateStockCount();
       if(S.industryDisplay==='heat')industryHeat();
-      else graph('industryChart',{dates:S.market.dates,series:industrySeries(),unit:unit(),label:S.industry+' · '+titles[metric()],zeroGuide:relative,log:S.scale==='log'&&metric()==='path',onRemove:toggleStock,onOpenSeries:openStock,linkFor:code=>routeURL('stock',code),openLabel:'查看日线'});
+      else graph('industryChart',{dates:S.market.dates,series:industrySeries(),unit:unit(),label:S.industry+' · '+title(),zeroGuide:true,log:S.scale==='log'&&metric()==='path',onRemove:toggleStock,onOpenSeries:openStock,linkFor:code=>routeURL('stock',code),openLabel:'查看日线'});
     }catch(error){if(S.pendingHistoryKey===key){S.pendingHistoryKey=null;S.pendingHistory=null;}if(ticket===S.renderSeq)notice(error.message,true);}
   }
   function updateStockCount(){
@@ -320,7 +320,7 @@
     if(industry)rows=industrySeries(false).filter(s=>!s.reference).filter(s=>!q||s.name.toLowerCase().includes(q)||s.id.toLowerCase().includes(q)).map(s=>({id:s.id,name:s.name,detail:s.detail,value:s.values[i],checked:S.stocks.has(s.id),color:s.color}));
     else rows=orderedSectors(data,metric()).filter(s=>!q||s.name.toLowerCase().includes(q)).map(s=>({id:s.name,name:s.name,detail:`有效 ${s.series.count[i]??0} / 池内 ${s.size}`,value:s.series[metric()][i],checked:S.selected.has(s.name),color:color(s.name)}));
     $('compareRows').innerHTML=rows.map(r=>`<div class="comparison-row"><label><input type="checkbox" data-pick="${esc(r.id)}" ${r.checked?'checked':''}><i style="background:${r.color}"></i><span>${esc(r.name)}<small>${esc(r.detail)}</small></span></label><span class="comparison-number">${num(r.value)}<small>${unit()}</small></span><button data-research="${esc(r.id)}">${industry?'日线':'研究'} ↗</button></div>`).join('')||'<p class="plot-empty">没有匹配结果。</p>';
-    $('compareOrder').textContent=`按最新 ${data.dates.at(-1)} ${titles[metric()]}降序 · 读数 ${data.dates[i]}`;
+    $('compareOrder').textContent=`按最新 ${data.dates.at(-1)} ${title()}降序 · 读数 ${data.dates[i]}`;
     $('compareCount').textContent=`已选 ${industry?S.stocks.size:S.selected.size} 项 · ${data.dates[i]}`;
     $('compareRows').querySelectorAll('[data-pick]').forEach(input=>input.addEventListener('change',()=>industry?toggleStock(input.dataset.pick):toggleIndustry(input.dataset.pick)));
     $('compareRows').querySelectorAll('[data-research]').forEach(b=>b.addEventListener('click',()=>{$('atlasCompareDialog').close();if(industry)openStock(b.dataset.research);else openIndustry(b.dataset.research);}));
