@@ -45,9 +45,31 @@
   function scheduleNavigation(){if(!navigationReady)return;clearTimeout(historyTimer);historyTimer=setTimeout(recordNavigation,400);}
   function restoreCharts(states=[]){
     for(const saved of states){const c=S.charts.find(c=>c.host.id===saved.host);if(!c)continue;
-      if(c instanceof Chart){if(saved.view)c.setRange(...saved.view);if(saved.yView)c.setYRange(saved.yView,true);c.setIndex(Math.min(saved.index,c.dates.length-1));c.focus=saved.focus;c.pinned=saved.pinned;c.axisValue=saved.axisValue;c.zoomAxis=saved.zoomAxis||'both';AtlasApplyZoomAxis(c.host,c.zoomAxis);c.updateOverlay();c.updateValues();}
-      else if(c instanceof AtlasMaps.Heatmap){c.pinned=saved.pinned;c.fitted=saved.fitted;c.cellWidth=saved.cellWidth;c.resetIndex=Number.isInteger(saved.resetIndex)?Math.max(0,Math.min(saved.resetIndex,c.dates.length-1)):c.resetIndex;c.row=saved.row<c.rows.length?saved.row:undefined;c.draw();c.setIndex(saved.index);c.surface.scrollLeft=saved.scrollLeft||0;c.surface.scrollTop=saved.scrollTop||0;}
-      else{c.setIndex(saved.index);c.focus=saved.focus;c.pinned=saved.pinned;c.domain=saved.domain;c.zoomed=saved.zoomed;c.zoomedAxes=saved.zoomedAxes||{x:!!saved.zoomed,y:!!saved.zoomed};c.zoomAxis=saved.zoomAxis||'both';AtlasApplyZoomAxis(c.host,c.zoomAxis);c.fillIndustryPicker();c.draw();}
+      if(c instanceof Chart){
+        if(saved.view)c.setRange(...saved.view);
+        if(saved.yView)c.setYRange(saved.yView,true);
+        c.setIndex(Math.min(saved.index,c.dates.length-1));
+        // Restore explicit fixed focus; transient pointer hover must never leak.
+        c.pinned=c.series.some(s=>s.id===saved.pinned)?saved.pinned:null;
+        c.focus=c.pinned;c.inspectionActive=false;c.axisValue=null;
+        c.zoomAxis=saved.zoomAxis||'both';AtlasApplyZoomAxis(c.host,c.zoomAxis);
+        c.updateOverlay();c.updateValues();
+      }else if(c instanceof AtlasMaps.Heatmap){
+        const row=c.rows.findIndex(r=>(r.id||r.name)===saved.pinned);
+        c.pinned=row>=0?saved.pinned:null;
+        c.inspectionActive=!!c.pinned;c.row=row>=0?row:undefined;c.focus=c.pinned;
+        c.fitted=saved.fitted;c.cellWidth=saved.cellWidth;
+        c.resetIndex=Number.isInteger(saved.resetIndex)?Math.max(0,Math.min(saved.resetIndex,c.dates.length-1)):c.resetIndex;
+        c.draw();c.setIndex(saved.index);
+        c.surface.scrollLeft=saved.scrollLeft||0;c.surface.scrollTop=saved.scrollTop||0;
+      }else{
+        c.setIndex(saved.index);
+        c.pinned=c.rows.some(r=>r.name===saved.pinned)?saved.pinned:'';
+        c.focus=c.pinned;c.inspectionActive=!!c.pinned;
+        c.domain=saved.domain;c.zoomed=saved.zoomed;c.zoomedAxes=saved.zoomedAxes||{x:!!saved.zoomed,y:!!saved.zoomed};
+        c.zoomAxis=saved.zoomAxis||'both';AtlasApplyZoomAxis(c.host,c.zoomAxis);
+        c.fillIndustryPicker();c.draw();
+      }
     }
   }
   function restoreNavigation(value,hydrate=false){const pending=restoreNavigationNow(value,hydrate);activeRestore=pending;const done=()=>{if(activeRestore===pending)activeRestore=null;};pending.then(done,done);return pending;}
@@ -78,7 +100,9 @@
     if(!S.market)return;if(view===S.view&&(id===undefined||id===(view==='industry'?S.industry:view==='stock'?S.code:'')))return;while(activeRestore||S.marketPromise)await(activeRestore||S.marketPromise);const epoch=++navigationEpoch;clearTimeout(historyTimer);recordNavigation();
     const previousView=S.view,inherited=metric(),source=S.charts[0],range=source instanceof Chart?{dates:[source.dates[Math.floor(source.view[0])],source.dates[Math.ceil(source.view[1])]],view:[...source.view],total:source.dates.length}:null;
     const nextId=id!==undefined?id:view==='industry'?S.industry:view==='stock'?S.code:'';
-    if(view==='industry'&&previousView==='market'&&!S.stockSelections.has(nextId))S.industryMetric=['path','momentum','relative','drawdown','vol'].includes(inherited)?inherited:'relative';
+    // Always follow the visible market indicator on entry, even after revisiting
+    // an industry with an existing stock selection. Unsupported modes use path.
+    if(view==='industry'&&previousView==='market')S.industryMetric=['path','momentum','relative','drawdown','vol'].includes(inherited)?inherited:'path';
     if(view==='industry'&&previousView==='market'&&S.display==='rotation')S.cursor=Math.max(0,S.market.dates.indexOf(S.rotationDate));
     applyRoute(view,nextId);if(range&&S.view==='industry'&&!S.ranges.has(rangeKey()))S.ranges.set(rangeKey(),range);
     const value=captureNavigation();value.charts=[];value.scroll=[0,0];value.fullscreen='';

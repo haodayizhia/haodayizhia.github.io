@@ -23,7 +23,7 @@
     visibleRange(){if(this.dates.length<2)return[0,0];const width=this.surface.clientWidth,cell=this.cellWidth||1,n=this.dates.length,start=clamp(this.surface.scrollLeft/cell,0,n-1);return[start,Math.max(start,clamp((this.surface.scrollLeft+width)/cell-1,0,n-1))];}
     navigate(a,b,mode){const width=this.surface.clientWidth,n=this.dates.length;if(!width||!n)return;if(mode==='left'||mode==='right'){const fit=width/n;this.cellWidth=clamp(width/Math.max(1,b-a+1),fit,40);this.fitted=this.cellWidth<=fit+.001;this.draw();}this.surface.scrollLeft=a*this.cellWidth;const index=clamp(Math.floor((this.surface.scrollLeft+width-.1)/this.cellWidth),0,n-1);if(index!==this.index){this.index=index;this.onInspect?.(index,this);this.updateCursor();}this.navigator?.update();}
     renderNames(){this.names.innerHTML=this.rows.map((r,i)=>`<button data-heat-row="${i}" title="查看${esc(r.name)} ${esc(r.detail||'')}">${esc(r.name)} ↗</button>`).join('');}
-    setRows(rows){const id=this.rows[this.row]?.id||this.rows[this.row]?.name;this.rows=rows;if(!rows.some(r=>(r.id||r.name)===this.pinned))this.pinned=null;const row=rows.findIndex(r=>(r.id||r.name)===id);this.row=row<0?undefined:row;this.renderNames();this.draw();}
+    setRows(rows){const id=this.pinned||(this.inspectionActive&&(this.rows[this.row]?.id||this.rows[this.row]?.name));this.rows=rows;if(!rows.some(r=>(r.id||r.name)===this.pinned))this.pinned=null;const row=id?rows.findIndex(r=>(r.id||r.name)===id):-1;this.row=row<0?undefined:row;this.renderNames();this.draw();}
     draw() {
       const empty=!this.rows.length;this.host.querySelector('.heat-empty').hidden=!empty;this.host.querySelector('.heat-layout').hidden=empty;if(empty){this.host.dataset.columns=this.dates.length;this.host.dataset.rows='0';this.row=undefined;this.focus=null;root.AtlasInspector.render(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index)});return;}
       const width=this.surface.clientWidth;if(!width)return;
@@ -44,9 +44,25 @@
       const r=this.surface.getBoundingClientRect(),x=p?clamp(p.x-r.left,0,r.width):r.width,anchor=(this.surface.scrollLeft+x)/this.cellWidth;
       const min=this.surface.clientWidth/this.dates.length;this.cellWidth=clamp(this.cellWidth*factor,min,40);this.fitted=this.cellWidth<=min+.001;this.draw();this.surface.scrollLeft=anchor*this.cellWidth-x;this.navigator?.update();
     }
-    updateCursor(){this.host.querySelector('.chart-date').textContent=this.dates[this.index];this.surface.querySelector('.heat-cursor').hidden=!this.inspectionActive;this.surface.querySelector('.heat-cursor').style.left=(this.index+.5)*this.cellWidth+'px';const cell=this.surface.querySelector('.heat-selection');cell.hidden=!this.inspectionActive||this.row===undefined;if(this.row!==undefined){Object.assign(cell.style,{left:this.index*this.cellWidth+'px',top:this.row*this.rowHeight+'px',width:Math.max(2,this.cellWidth)+'px',height:this.rowHeight-3+'px'});}this.focus=this.rows[this.row]?.id||this.rows[this.row]?.name;root.AtlasInspector.render(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index,this.row),focus:this.focus});}
-    clearInspection(keepReadout=false){this.inspectionActive=false;if(!keepReadout){this.row=undefined;this.focus=null;this.pinned=null;}this.updateCursor();}
-    select(p){this.inspect(p,true);this.pinned=this.pinned===this.focus?null:this.focus;this.updateCursor();}
+    updateCursor(){this.host.querySelector('.chart-date').textContent=this.dates[this.index];this.surface.querySelector('.heat-cursor').hidden=!this.inspectionActive;this.surface.querySelector('.heat-cursor').style.left=(this.index+.5)*this.cellWidth+'px';const cell=this.surface.querySelector('.heat-selection');cell.hidden=!this.inspectionActive||this.row===undefined;if(this.row!==undefined){Object.assign(cell.style,{left:this.index*this.cellWidth+'px',top:this.row*this.rowHeight+'px',width:Math.max(2,this.cellWidth)+'px',height:this.rowHeight-3+'px'});}this.focus=this.inspectionActive?(this.rows[this.row]?.id||this.rows[this.row]?.name):null;root.AtlasInspector.render(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index,this.row),focus:this.focus});}
+    clearInspection(keepReadout=false){
+      const wasInspecting=!!this.inspectionActive;
+      if(keepReadout&&this.pinned){
+        const row=this.rows.findIndex(r=>(r.id||r.name)===this.pinned);
+        this.row=row>=0?row:undefined;this.inspectionActive=row>=0;
+      }else{
+        this.inspectionActive=false;this.row=undefined;this.focus=null;this.pinned=null;
+        if(wasInspecting&&this.index!==this.dates.length-1){
+          this.index=this.dates.length-1;this.onInspect?.(this.index,this);
+        }
+      }
+      this.updateCursor();
+    }
+    select(p){
+      this.inspect(p,true);
+      if(this.pinned&&this.pinned===this.focus){this.clearInspection();return;}
+      this.pinned=this.focus||null;this.updateCursor();
+    }
     inspect(p,force=false){this.inspectionActive=true;const r=this.surface.getBoundingClientRect();this.index=clamp(Math.floor((p.x-r.left+this.surface.scrollLeft)/this.cellWidth),0,this.dates.length-1);this.row=!force&&this.pinned?this.rows.findIndex(row=>(row.id||row.name)===this.pinned):clamp(Math.floor((p.y-r.top+this.surface.scrollTop)/this.rowHeight),0,this.rows.length-1);this.onInspect?.(this.index,this);this.updateCursor();this.show(p);}
     show(p){root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index,this.row),x:p.x,y:p.y});}
   }
@@ -102,21 +118,29 @@
       if(row){let trail='',open=false;for(const p of this.trail){if(!finite(p.x)||!finite(p.y)){open=false;continue;}trail+=(open?'L':'M')+this.X(p.x)+','+this.Y(p.y);open=true;}html+=`<path class="rotation-trail" d="${trail}" fill="none" stroke="var(--plot-gold)" stroke-width="1.8" marker-end="url(#${arrow})"/>`;for(const p of this.trail)if(finite(p.x)&&finite(p.y))html+=`<circle class="trail-sample" cx="${this.X(p.x)}" cy="${this.Y(p.y)}" r="2.8" fill="var(--plot-gold)"/>`;}
       for(const p of this.points){const x=this.X(p.x),y=this.Y(p.y),chosen=this.inspectionActive&&p.name===this.focus;html+=`<g data-point="${esc(p.name)}" role="button" tabindex="0" aria-label="${esc(p.name)}，超额${num(p.x)}，改善${num(p.y)}" aria-pressed="${chosen}"><circle cx="${x}" cy="${y}" r="${chosen?6:3.5}" fill="${chosen?'var(--plot-gold)':'var(--plot-blue)'}" opacity="${chosen?1:.55}"/></g>`;}
       html+='</g>';
-      const point=this.points.find(p=>p.name===this.focus);if(point&&this.inspectionActive)html+=`<text class="point-label" x="${clamp(this.X(point.x)+10,g.left,g.right-95)}" y="${clamp(this.Y(point.y)-10,g.top+32,g.bottom-28)}">${esc(point.name)}</text>`;
+      const point=this.inspectionActive?this.points.find(p=>p.name===this.focus):null;if(point)html+=`<text class="point-label" x="${clamp(this.X(point.x)+10,g.left,g.right-95)}" y="${clamp(this.Y(point.y)-10,g.top+32,g.bottom-28)}">${esc(point.name)}</text>`;
       if(!this.points.length)html+=`<text class="axis-label" x="${(g.left+g.right)/2}" y="${(g.top+g.bottom)/2}" text-anchor="middle">${visible.length?'历史不足，向后选择交易日':'请在行业对比中选择行业'}</text>`;
       this.svg.innerHTML=html;this.svg.dataset.date=this.dates[this.index];this.svg.dataset.focus=this.inspectionActive?this.focus||'':'';this.svg.setAttribute('aria-label','行业轮动：右侧跑赢，上方改善；移动查看行业，点按固定，时间轴独立于其他图表。');
       this.host.querySelector('.rotation-industry').value=this.pinned||'';
       root.AtlasInspector.render(this,{date:this.dates[this.index],rows:point?[{id:point.name,canOpen:!!this.onOpenSeries,openLabel:'进入行业',name:point.name+' · '+this.lookback+'日超额',value:point.x,unit:'个百分点',color:'var(--plot-gold)'},{name:'近'+this.lag+'日超额改善',value:point.y,unit:'个百分点',color:'var(--plot-gold)'}]:[{name:'移动指针或拖动查看行业',value:null}]});
     }
-    nearest(p){const r=this.surface.getBoundingClientRect(),x=p.x-r.left,y=p.y-r.top;let best=null,distance=Infinity;for(const point of this.points){const px=this.X(point.x),py=this.Y(point.y);if(px<this.g.left||px>this.g.right||py<this.g.top||py>this.g.bottom)continue;const d=Math.hypot(px-x,py-y);if(d<distance){distance=d;best=point;}}return best;}
+    nearest(p,radius=28){const r=this.surface.getBoundingClientRect(),x=p.x-r.left,y=p.y-r.top;let best=null,distance=Infinity;for(const point of this.points){const px=this.X(point.x),py=this.Y(point.y);if(px<this.g.left||px>this.g.right||py<this.g.top||py>this.g.bottom)continue;const d=Math.hypot(px-x,py-y);if(d<distance){distance=d;best=point;}}return distance<=radius?best:null;}
     clearInspection(keepReadout=false){
-      // Pointer leave ends transient hover, not an explicit fixed selection.
       if(keepReadout&&this.pinned){this.focus=this.pinned;this.inspectionActive=true;}
-      else{this.inspectionActive=false;if(!keepReadout){this.focus='';this.pinned='';}}
+      else{this.inspectionActive=false;this.focus='';this.pinned='';}
       this.draw();
     }
-    pick(p){this.inspectionActive=true;const point=this.nearest(p);if(point){this.pinned=this.pinned===point.name?'':point.name;this.focus=point.name;this.draw();}}
-    inspect(p){const wasActive=this.inspectionActive;this.inspectionActive=true;if(this.pinned){if(!wasActive)this.draw();return;}const point=this.nearest(p);if(point&&(!wasActive||this.focus!==point.name)){this.focus=point.name;this.draw();}}
+    pick(p){
+      const point=this.nearest(p,32);
+      if(!point){if(!this.pinned)this.clearInspection();return;}
+      if(this.pinned===point.name){this.clearInspection();return;}
+      this.pinned=point.name;this.focus=point.name;this.inspectionActive=true;this.draw();
+    }
+    inspect(p){
+      if(this.pinned){if(!this.inspectionActive||this.focus!==this.pinned){this.focus=this.pinned;this.inspectionActive=true;this.draw();}return;}
+      const point=this.nearest(p),active=!!point,focus=point?.name||'';
+      if(this.inspectionActive!==active||this.focus!==focus){this.inspectionActive=active;this.focus=focus;this.draw();}
+    }
   }
   root.AtlasMaps={Heatmap,Scatter,rotationTrail,rotationSettings};
   if(typeof module!=='undefined')module.exports={rotationTrail,rotationSettings};

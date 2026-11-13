@@ -195,7 +195,9 @@
       const returnLatest=!keepReadout||!this.pinned;
       const shouldSync=syncDate&&returnLatest&&(this.inspectionActive||!!this.pinned||this.index!==this.dates.length-1);
       this.inspectionActive=false;this.axisValue=null;this.brush=null;
-      if(!keepReadout){this.focus=null;this.pinned=null;}
+      if(!keepReadout)this.pinned=null;
+      // A transient hover never persists after pointer exit. Keep only a pin.
+      this.focus=this.pinned||null;
       // Exiting an inspection restores the latest session, without reacting to every
       // unrelated click elsewhere on the page (such as a comparison checkbox).
       if(shouldSync){
@@ -314,7 +316,7 @@
     updateValues() {
       const i=this.index,time=this.host.querySelector('.chart-date');if(time)time.textContent=this.dates[i];
       const range=this.host.querySelector('.chart-window');if(range)range.textContent=this.canPanX()?`${this.dates[Math.ceil(this.view[0])]} — ${this.dates[Math.floor(this.view[1])]}`:'';
-      root.AtlasInspector.render(this,{date:this.dates[i],rows:this.getRows(),focus:this.focus});
+      root.AtlasInspector.render(this,{date:this.dates[i],rows:this.getRows(),focus:this.pinned||(this.inspectionActive?this.focus:null)});
       if(!this.values)return;
       this.values.innerHTML=this.series.map(s=>`<div><dt><i style="background:${s.color||'var(--plot-main)'}"></i>${escape(s.name)}</dt><dd>${number(s.values[i])}<small>${finite(s.values[i])?escape(this.unit):''}</small></dd>${s.removable?`<button data-remove-series="${escape(s.id)}" aria-label="移除${escape(s.name)}">×</button>`:''}</div>`).join('');
     }
