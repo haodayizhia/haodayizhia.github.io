@@ -267,20 +267,21 @@
     const sector=S.market.sectors.find(s=>s.name===S.industry),relative=key==='relative';if(!sector)return [];
     const base=S.benchmark==='pool'?S.market.pool.momentum:sector.series.momentum;
     const track=values=>relative?values.map((v,i)=>finite(v)&&finite(base[i])?v-base[i]:null):values;
-    // In relative mode the selected benchmark minus itself is identically zero.
-    // Draw that guide as a quiet dashed reference, not as a brightly coloured
-    // industry/stock trace that looks automatically highlighted.
-    const zeroBaseline=relative?(S.benchmark==='sector'?'sector':'pool'):null;
-    const zeroGuide={color:'var(--muted)',dash:'4 5'};
-    const series=[
-      {id:'pool',name:zeroBaseline==='pool'?'股票池等权 · 基准（0）':'股票池等权',values:track(relative?S.market.pool.momentum:S.market.pool[key]),color:zeroBaseline==='pool'?zeroGuide.color:'var(--plot-main)',dash:zeroBaseline==='pool'?zeroGuide.dash:'',reference:true},
-      {id:'sector',name:zeroBaseline==='sector'?S.industry+' · 基准（0）':S.industry,values:track(relative?sector.series.momentum:sector.series[key]),...(zeroBaseline==='sector'?zeroGuide:{...style(S.industry)}),reference:true}
-    ];
+    // The selected relative benchmark is zero by definition: draw it as an axis guide,
+    // never as a separate curve or an all-zero value in the readout.
+    const series=relative?
+      [S.benchmark==='sector'
+        ?{id:'pool',name:'股票池等权（相对行业）',values:track(S.market.pool.momentum),color:'var(--plot-main)',reference:true}
+        :{id:'sector',name:'本行业等权（相对股票池）',values:track(sector.series.momentum),...style(S.industry),reference:true}]:
+      [
+        {id:'pool',name:'股票池等权',values:S.market.pool[key],color:'var(--plot-main)',reference:true},
+        {id:'sector',name:S.industry,values:sector.series[key],...style(S.industry),reference:true}
+      ];
     if(S.history)rankLatest(S.history.stocks,s=>s.tracks[relative?'momentum':key]?.at(-1)).filter(s=>!selectedOnly||S.stocks.has(s.code)).forEach(stock=>series.push({id:stock.code,name:stock.name,detail:stock.code,values:track(stock.tracks[relative?'momentum':key]),...S.stockStyles.get(stock.code),removable:true}));
     return series;
   }
   function industryHeat(){
-    const series=industrySeries(false,'relative'),stocks=series.slice(2);
+    const series=industrySeries(false,'relative'),stocks=series.filter(s=>!s.reference);
     const heat=new AtlasMaps.Heatmap($('industryChart'),{label:S.industry+' · 全部成分股强弱热力',rowType:'股票',dates:S.market.dates,rows:stocks.map(s=>({id:s.id,name:s.name,detail:s.detail,values:s.values})),metric:'relative',window:S.window,onOpenSeries:openStock,linkFor:code=>routeURL('stock',code),openLabel:'查看日线',onInspect:(i,origin)=>observeDate(S.market.dates[i],origin),inspectionRows:(i,row)=>{
       const hovered=stocks[row]?.id;
       return series.filter(s=>s.reference||S.stocks.has(s.id)||s.id===hovered).map(s=>({id:s.id,name:s.name,detail:s.detail,value:s.values[i],color:s.color,dash:s.dash,unit:'个百分点',canOpen:!s.reference,openLabel:'查看日线'}));
@@ -305,18 +306,18 @@
       S.history=history;S.historyKey=key;prepareStocks();
       $('industryChart').classList.remove('plot-empty');$('openComparison').disabled=false;updateStockCount();
       if(S.industryDisplay==='heat')industryHeat();
-      else graph('industryChart',{dates:S.market.dates,series:industrySeries(),unit:unit(),label:S.industry+' · '+titles[metric()],log:S.scale==='log'&&metric()==='path',onRemove:toggleStock,onOpenSeries:openStock,linkFor:code=>routeURL('stock',code),openLabel:'查看日线'});
+      else graph('industryChart',{dates:S.market.dates,series:industrySeries(),unit:unit(),label:S.industry+' · '+titles[metric()],zeroGuide:relative,log:S.scale==='log'&&metric()==='path',onRemove:toggleStock,onOpenSeries:openStock,linkFor:code=>routeURL('stock',code),openLabel:'查看日线'});
     }catch(error){if(S.pendingHistoryKey===key){S.pendingHistoryKey=null;S.pendingHistory=null;}if(ticket===S.renderSeq)notice(error.message,true);}
   }
   function updateStockCount(){
     const total=S.history?.stocks.length||0,b=$('openComparison');if(b)b.querySelector('span').textContent=S.stocks.size+' / '+total;
-    if($('industryCoverage'))$('industryCoverage').textContent=!total?'当前样本口径没有成分股，请调整研究区间或切换每日有效样本。':S.industryDisplay==='heat'?`完整热力：${total}只成分股 × ${S.market.dates.length}个交易日；名称可进入日线。`:`当前显示 ${S.stocks.size} / ${total} 只成分股，另含行业和股票池两条基准。`;
+    if($('industryCoverage'))$('industryCoverage').textContent=!total?'当前样本口径没有成分股，请调整研究区间或切换每日有效样本。':S.industryDisplay==='heat'?`完整热力：${total}只成分股 × ${S.market.dates.length}个交易日；名称可进入日线。`:`已显示 ${S.stocks.size} / ${total} 只成分股。`;
   }
   function toggleStock(code){if(S.stocks.has(code))S.stocks.delete(code);else S.stocks.add(code);rememberStocks();updateSelection();}
   function renderComparison(){
     const q=$('compareSearch').value.trim().toLowerCase(),rotation=S.view==='market'&&S.display==='rotation',data=rotation&&S.rotationMarket?S.rotationMarket:S.market,date=rotation?S.rotationDate:S.market.dates[S.cursor],i=Math.max(0,data.dates.indexOf(date)),industry=S.view==='industry';$('compareTitle').textContent=industry?'选择成分股对比':'选择行业对比';
     let rows;
-    if(industry)rows=industrySeries(false).slice(2).filter(s=>!q||s.name.toLowerCase().includes(q)||s.id.toLowerCase().includes(q)).map(s=>({id:s.id,name:s.name,detail:s.detail,value:s.values[i],checked:S.stocks.has(s.id),color:s.color}));
+    if(industry)rows=industrySeries(false).filter(s=>!s.reference).filter(s=>!q||s.name.toLowerCase().includes(q)||s.id.toLowerCase().includes(q)).map(s=>({id:s.id,name:s.name,detail:s.detail,value:s.values[i],checked:S.stocks.has(s.id),color:s.color}));
     else rows=orderedSectors(data,metric()).filter(s=>!q||s.name.toLowerCase().includes(q)).map(s=>({id:s.name,name:s.name,detail:`有效 ${s.series.count[i]??0} / 池内 ${s.size}`,value:s.series[metric()][i],checked:S.selected.has(s.name),color:color(s.name)}));
     $('compareRows').innerHTML=rows.map(r=>`<div class="comparison-row"><label><input type="checkbox" data-pick="${esc(r.id)}" ${r.checked?'checked':''}><i style="background:${r.color}"></i><span>${esc(r.name)}<small>${esc(r.detail)}</small></span></label><span class="comparison-number">${num(r.value)}<small>${unit()}</small></span><button data-research="${esc(r.id)}">${industry?'日线':'研究'} ↗</button></div>`).join('')||'<p class="plot-empty">没有匹配结果。</p>';
     $('compareOrder').textContent=`按最新 ${data.dates.at(-1)} ${titles[metric()]}降序 · 读数 ${data.dates[i]}`;

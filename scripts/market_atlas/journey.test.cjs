@@ -27,28 +27,29 @@ try{for(const width of [390,1440,320]){
   assert.equal(await page.locator('#industryChart .readout-row.is-focused').count(),0);
  const count=await evaluate(()=>AtlasWorkspace.state.history.stocks.length);assert.ok(count>=12);assert.equal(await evaluate(()=>AtlasWorkspace.state.stocks.size),count);assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),count+2);assert.equal(await page.locator('#industryChart .chart-readout').getAttribute('data-rows'),String(count+2));await fit();await shot('industry-all-stocks');
  await page.selectOption('#atlasMetric','relative');await industryReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.stocks.size),count);
-  // A comparison to itself is a neutral zero guide, never an auto-highlighted yellow line.
-  const sectorBaseline=await evaluate(()=>{
-    const c=AtlasWorkspace.state.charts[0],s=c.series.find(x=>x.id==='sector'),line=c.svg.querySelector('[data-series="sector"]');
-    return{name:s.name,color:s.color,dash:s.dash,stroke:line?.getAttribute('stroke'),opacity:Number(line?.style.opacity),pin:c.pinned,active:!!c.inspectionActive,values:s.values.filter(Number.isFinite)};
+  // The selected benchmark stays on the zero axis, not in the visible series or the readout.
+  const sectorComparison=await evaluate(()=>{
+    const c=AtlasWorkspace.state.charts[0],series=c.series,other=series.find(s=>s.id==='pool');
+    return{ids:series.map(s=>s.id),name:other?.name,zero:!!c.svg.querySelector('.zero-guide'),readout:c.getRows().map(r=>r.id),pin:c.pinned,active:c.inspectionActive};
   });
-  assert.ok(sectorBaseline.name.includes('基准（0）')&&sectorBaseline.values.length>0&&sectorBaseline.values.every(v=>Math.abs(v)<1e-9),'Industry self-comparison must be zero');
-  assert.equal(sectorBaseline.color,'var(--muted)');
-  assert.equal(sectorBaseline.stroke,'var(--muted)');
-  assert.equal(sectorBaseline.dash,'4 5');
-  assert.equal(sectorBaseline.opacity,.48);
-  assert.ok(!sectorBaseline.pin&&!sectorBaseline.active,'Industry chart must not start with a pin or hover');
+  assert.ok(!sectorComparison.ids.includes('sector')&&sectorComparison.ids.includes('pool'));
+  assert.ok(sectorComparison.name.includes('相对行业')&&sectorComparison.zero);
+  assert.equal(sectorComparison.readout.length,count+1);
+  assert.ok(!sectorComparison.readout.includes('sector'));
+  assert.ok(!sectorComparison.pin&&!sectorComparison.active,'Industry chart must start without selection');
+  assert.equal(await page.locator('#industryChart .chart-readout').getAttribute('data-rows'),String(count+1));
   await page.selectOption('#industryBenchmark','pool');await industryReady();
-  const poolBaseline=await evaluate(()=>{
-    const c=AtlasWorkspace.state.charts[0],s=c.series.find(x=>x.id==='pool'),line=c.svg.querySelector('[data-series="pool"]');
-    return{name:s.name,color:s.color,dash:s.dash,stroke:line?.getAttribute('stroke'),pin:c.pinned,active:!!c.inspectionActive,values:s.values.filter(Number.isFinite)};
+  const poolComparison=await evaluate(()=>{
+    const c=AtlasWorkspace.state.charts[0],series=c.series,other=series.find(s=>s.id==='sector');
+    return{ids:series.map(s=>s.id),name:other?.name,zero:!!c.svg.querySelector('.zero-guide'),readout:c.getRows().map(r=>r.id),pin:c.pinned,active:c.inspectionActive};
   });
-  assert.ok(poolBaseline.name.includes('基准（0）')&&poolBaseline.values.length>0&&poolBaseline.values.every(v=>Math.abs(v)<1e-9),'Pool self-comparison must be zero');
-  assert.equal(poolBaseline.color,'var(--muted)');
-  assert.equal(poolBaseline.stroke,'var(--muted)');
-  assert.equal(poolBaseline.dash,'4 5');
-  assert.ok(!poolBaseline.pin&&!poolBaseline.active,'Switching benchmark should not preselect a line');
- await evaluate(()=>{const s=AtlasWorkspace.state,i=s.cursor,stock=s.history.stocks.find(x=>Number.isFinite(x.tracks.momentum[i])),c=s.charts[0],expected=stock.tracks.momentum[i]-s.market.pool.momentum[i],actual=c.series.find(x=>x.id===stock.code).values[i];if(Math.abs(actual-expected)>1e-10)throw Error('Pool benchmark mismatch');if(c.series.find(x=>x.id==='pool').values[i]!==0)throw Error('Pool reference is not zero');});
+  assert.ok(!poolComparison.ids.includes('pool')&&poolComparison.ids.includes('sector'));
+  assert.ok(poolComparison.name.includes('相对股票池')&&poolComparison.zero);
+  assert.equal(poolComparison.readout.length,count+1);
+  assert.ok(!poolComparison.readout.includes('pool'));
+  assert.ok(!poolComparison.pin&&!poolComparison.active,'Benchmark switch must not preselect a line');
+  assert.equal(await page.locator('#industryChart .chart-readout').getAttribute('data-rows'),String(count+1));
+  await evaluate(()=>{const s=AtlasWorkspace.state,i=s.cursor,stock=s.history.stocks.find(x=>Number.isFinite(x.tracks.momentum[i])),c=s.charts[0],expected=stock.tracks.momentum[i]-s.market.pool.momentum[i],actual=c.series.find(x=>x.id===stock.code).values[i];if(Math.abs(actual-expected)>1e-10)throw Error('Pool benchmark mismatch');});
  await page.locator('[data-industry-display=heat]').click();await page.waitForSelector('.heatmap-host');
   assert.ok(await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return !c.inspectionActive&&!c.pinned&&c.row===undefined&&!c.focus;}),'Industry heatmap should open without highlighted rows');assert.equal(await page.locator('.heatmap-host').getAttribute('data-rows'),String(count));assert.equal(await page.locator('.heatmap-host').getAttribute('data-columns'),'63');assert.equal(await page.locator('.heat-names button').count(),count);assert.match(await page.locator('.heat-corner').textContent(),/股票/);await fit();await shot('industry-complete-heat');
  const order=await evaluate(()=>AtlasCharts.rankLatest(AtlasWorkspace.state.history.stocks,s=>s.tracks.momentum.at(-1)).map(s=>s.code));assert.deepEqual(await evaluate(()=>AtlasWorkspace.state.charts[0].rows.map(r=>r.id)),order);
@@ -69,7 +70,7 @@ try{for(const width of [390,1440,320]){
  await page.goForward();await industryReady();await page.waitForFunction(()=>AtlasWorkspace.state.industryDisplay==='heat');
  // User-selected subsets survive mode, metric and industry changes, while the heat retains all members.
  await page.locator('#openComparison').click();await page.locator('#clearComparison').click();await page.locator('[data-pick]').first().check();const chosen=await page.locator('[data-pick]:checked').getAttribute('data-pick');await closeComparison();assert.equal(await page.locator('.heatmap-host').getAttribute('data-rows'),String(count));
- await page.locator('[data-industry-display=lines]').click();await industryReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),3);await page.selectOption('#atlasMetric','drawdown');await industryReady();assert.deepEqual(await evaluate(()=>[...AtlasWorkspace.state.stocks]),[chosen]);
+ await page.locator('[data-industry-display=lines]').click();await industryReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),2);await page.selectOption('#atlasMetric','drawdown');await industryReady();assert.deepEqual(await evaluate(()=>[...AtlasWorkspace.state.stocks]),[chosen]);
  await page.selectOption('#industrySelect',other);await industryReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.stocks.size),await evaluate(()=>AtlasWorkspace.state.history.stocks.length));await page.selectOption('#industrySelect',largest);await industryReady();assert.deepEqual(await evaluate(()=>[...AtlasWorkspace.state.stocks]),[chosen]);await page.locator('[data-route-view=market]').click();await page.waitForFunction(()=>AtlasWorkspace.state.view==='market'&&AtlasWorkspace.state.charts.length);await page.selectOption('#atlasMetric','path');await page.locator('[data-atlas-view=industry]').click();await industryReady();assert.deepEqual(await evaluate(()=>[...AtlasWorkspace.state.stocks]),[chosen]);assert.equal(await page.locator('#atlasMetric').inputValue(),await evaluate(()=>AtlasWorkspace.state.metric),'Industry re-entry must follow the current market metric, not a stale choice');assert.equal(await evaluate(()=>AtlasWorkspace.state.industryDisplay),'lines','New entry from market should show the comparable industry line chart, not an old heatmap');
  await page.locator('#openComparison').click();await page.locator('#selectAllComparison').click();await closeComparison();assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),count+2);
  // Industry curve -> stock, including fullscreen, keeps all data and returns to the same viewport.
