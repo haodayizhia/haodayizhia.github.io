@@ -26,7 +26,28 @@ try{for(const width of [390,1440,320]){
   assert.ok(await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return !c.pinned&&!c.focus&&!c.inspectionActive;}),'Industry must not inherit the selected market curve');
   assert.equal(await page.locator('#industryChart .readout-row.is-focused').count(),0);
  const count=await evaluate(()=>AtlasWorkspace.state.history.stocks.length);assert.ok(count>=12);assert.equal(await evaluate(()=>AtlasWorkspace.state.stocks.size),count);assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),count+2);assert.equal(await page.locator('#industryChart .chart-readout').getAttribute('data-rows'),String(count+2));await fit();await shot('industry-all-stocks');
- await page.selectOption('#atlasMetric','relative');await industryReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.stocks.size),count);await page.selectOption('#industryBenchmark','pool');await industryReady();
+ await page.selectOption('#atlasMetric','relative');await industryReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.stocks.size),count);
+  // A comparison to itself is a neutral zero guide, never an auto-highlighted yellow line.
+  const sectorBaseline=await evaluate(()=>{
+    const c=AtlasWorkspace.state.charts[0],s=c.series.find(x=>x.id==='sector'),line=c.svg.querySelector('[data-series="sector"]');
+    return{name:s.name,color:s.color,dash:s.dash,stroke:line?.getAttribute('stroke'),opacity:Number(line?.style.opacity),pin:c.pinned,active:!!c.inspectionActive,values:s.values.filter(Number.isFinite)};
+  });
+  assert.ok(sectorBaseline.name.includes('基准（0）')&&sectorBaseline.values.length>0&&sectorBaseline.values.every(v=>Math.abs(v)<1e-9),'Industry self-comparison must be zero');
+  assert.equal(sectorBaseline.color,'var(--muted)');
+  assert.equal(sectorBaseline.stroke,'var(--muted)');
+  assert.equal(sectorBaseline.dash,'4 5');
+  assert.equal(sectorBaseline.opacity,.48);
+  assert.ok(!sectorBaseline.pin&&!sectorBaseline.active,'Industry chart must not start with a pin or hover');
+  await page.selectOption('#industryBenchmark','pool');await industryReady();
+  const poolBaseline=await evaluate(()=>{
+    const c=AtlasWorkspace.state.charts[0],s=c.series.find(x=>x.id==='pool'),line=c.svg.querySelector('[data-series="pool"]');
+    return{name:s.name,color:s.color,dash:s.dash,stroke:line?.getAttribute('stroke'),pin:c.pinned,active:!!c.inspectionActive,values:s.values.filter(Number.isFinite)};
+  });
+  assert.ok(poolBaseline.name.includes('基准（0）')&&poolBaseline.values.length>0&&poolBaseline.values.every(v=>Math.abs(v)<1e-9),'Pool self-comparison must be zero');
+  assert.equal(poolBaseline.color,'var(--muted)');
+  assert.equal(poolBaseline.stroke,'var(--muted)');
+  assert.equal(poolBaseline.dash,'4 5');
+  assert.ok(!poolBaseline.pin&&!poolBaseline.active,'Switching benchmark should not preselect a line');
  await evaluate(()=>{const s=AtlasWorkspace.state,i=s.cursor,stock=s.history.stocks.find(x=>Number.isFinite(x.tracks.momentum[i])),c=s.charts[0],expected=stock.tracks.momentum[i]-s.market.pool.momentum[i],actual=c.series.find(x=>x.id===stock.code).values[i];if(Math.abs(actual-expected)>1e-10)throw Error('Pool benchmark mismatch');if(c.series.find(x=>x.id==='pool').values[i]!==0)throw Error('Pool reference is not zero');});
  await page.locator('[data-industry-display=heat]').click();await page.waitForSelector('.heatmap-host');
   assert.ok(await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return !c.inspectionActive&&!c.pinned&&c.row===undefined&&!c.focus;}),'Industry heatmap should open without highlighted rows');assert.equal(await page.locator('.heatmap-host').getAttribute('data-rows'),String(count));assert.equal(await page.locator('.heatmap-host').getAttribute('data-columns'),'63');assert.equal(await page.locator('.heat-names button').count(),count);assert.match(await page.locator('.heat-corner').textContent(),/股票/);await fit();await shot('industry-complete-heat');
