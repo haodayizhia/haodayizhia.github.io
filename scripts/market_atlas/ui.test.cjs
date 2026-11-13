@@ -44,9 +44,10 @@ test('market chart entry offers all-selection and removes the global date picker
 test('industry curve width and opacity are consistent regardless of constituent count',()=>{
  for(const size of [3,10,12,13,91,166]){
   assert.equal(traceWidth(false),1.2,'Normal curve width changes with '+size);
-  assert.equal(traceWidth(true),2,'Reference curve width changes with '+size);
+  assert.equal(traceWidth(true),1.2,'Unselected benchmark is not visually preselected at '+size+' series');
   assert.equal(traceWidth(false,true),2.5,'Focused curve width changes with '+size);
   assert.equal(traceOpacity(size,false,false,false),.48);
+   assert.equal(traceOpacity(size,false,true,false),.48,'Benchmark opacity must match other unfocused lines');
   assert.equal(traceOpacity(size,true,false,false),.16);
  }
 });

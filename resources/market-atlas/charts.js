@@ -36,10 +36,12 @@
   const linePatterns=['','8 3','3 3','10 3 2 3','1 3','12 4','6 3 1 3','2 2 8 2'];
   function seriesStyle(index){return{color:`var(--plot-c${index%12+1})`,dash:linePatterns[Math.floor(index/12)%linePatterns.length]};}
   // Consistent chart styling, independent of the number of stocks.
-  const traceWidth=(reference=false,focused=false)=>focused?2.5:reference?2:1.2;
+  // Only deliberate focus changes stroke intensity; benchmarks are not preselected.
+  const traceWidth=(reference=false,focused=false)=>focused?2.5:1.2;
   function traceOpacity(count,focus,reference,active){
-    if(reference||active||count<=1)return 1;
-    return focus?0.16:0.48;
+    if(active)return 1;
+    if(!focus)return count<=1?1:0.48;
+    return reference?1:0.16;
   }
   function rankLatest(items,value){return [...items].sort((a,b)=>{const x=value(a),y=value(b);return(finite(y)?1:0)-(finite(x)?1:0)||(finite(x)&&finite(y)?y-x:0)||String(a.name||a.code||'').localeCompare(String(b.name||b.code||''),'zh-CN');});}
   function zoomDomain(range,factor,anchor=.5){
