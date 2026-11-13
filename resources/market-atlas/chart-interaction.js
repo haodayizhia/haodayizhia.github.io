@@ -52,14 +52,16 @@
         el.addEventListener('click',e=>{const select=e.target.closest('[data-focus-series]');if(select){const owner=el.owner;if(owner?.onFocusSeries)owner.onFocusSeries(select.dataset.focusSeries);else owner?.focusSeries?.(select.dataset.focusSeries);return;}const link=e.target.closest('[data-open-series]');if(link&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey&&e.button===0){e.preventDefault();el.owner?.onOpenSeries?.(link.dataset.openSeries);}});
       }
     },
-    render(owner,{date,rows,focus=owner.focus}) {
+    render(owner,{date,rows,focus=owner.focus,detailFocus=focus}) {
       const el=owner.readout;if(!el)return;el.owner=owner;
       const {escape:esc,number:num,finite}=root.AtlasCharts;
-      const key=JSON.stringify([date,rows,focus,owner.pinned]);if(el.renderKey===key)return;el.renderKey=key;el.dataset.rows=rows.length;el.dataset.many=String(rows.length>6&&!owner.stock);
+      const key=JSON.stringify([date,rows,focus,detailFocus,owner.pinned]);if(el.renderKey===key)return;el.renderKey=key;el.dataset.rows=rows.length;el.dataset.many=String(rows.length>6&&!owner.stock);
       el.querySelector('time').textContent=date+(owner.pinned?' · 关注':'');el.querySelector('.readout-unpin').hidden=!owner.pinned;
       const button=el.querySelector('.readout-toggle');button.hidden=rows.length<=6;if(rows.length<=6){el.classList.remove('is-expanded');el.querySelector('.readout-all').hidden=true;button.setAttribute('aria-expanded','false');}button.textContent=el.classList.contains('is-expanded')?'收起列表':'全部 '+rows.length+' 项';
       const focused=rows.find(r=>r.id===focus||r.name===focus);
-      const drill=el.querySelector('.readout-drill');drill.hidden=!focused?.canOpen;if(focused?.canOpen){drill.textContent=focused.openLabel||owner.openLabel||'查看详情';drill.href=owner.linkFor(focused.id);drill.dataset.openSeries=focused.id;drill.setAttribute('aria-label',drill.textContent+'：'+focused.name);}
+      // A past hover can offer a drill link without visually selecting a curve.
+      const detail=rows.find(r=>r.id===detailFocus||r.name===detailFocus);
+      const drill=el.querySelector('.readout-drill');drill.hidden=!detail?.canOpen;if(detail?.canOpen){drill.textContent=detail.openLabel||owner.openLabel||'查看详情';drill.href=owner.linkFor(detail.id);drill.dataset.openSeries=detail.id;drill.setAttribute('aria-label',drill.textContent+'：'+detail.name);}
       const primary=owner.stock?rows.filter(r=>['收盘','涨跌','最高','最低'].includes(r.name)):rows.length<=6?rows:focused&&focused!==rows[0]?[rows[0],focused]:rows.slice(0,1);
       const row=r=>{
          const label=esc(r.name)+(r.detail?'<small class="readout-code">'+esc(r.detail)+'</small>':'');
