@@ -87,7 +87,7 @@ try{for(const width of [390,1440,320]){
      assert.ok(!result.ids.includes(baseline)&&!result.rows.includes(baseline),'Current baseline is redundantly listed');
      assert.equal(result.ids[0],baseline==='sector'?'pool':'sector');
      assert.ok(result.peer.includes(baseline==='sector'?'相对行业':'相对股票池'));
-     assert.equal(result.unit,['path','momentum'].includes(key)?'%':'百分点');
+     assert.equal(result.unit,['path','momentum'].includes(key)?'%':'个百分点');
      assert.ok(result.peerValid&&result.stockValid,key+' '+baseline+' incorrect values across dates');
      assert.equal(result.selected,count,'Switching lost selected constituents');
    }
