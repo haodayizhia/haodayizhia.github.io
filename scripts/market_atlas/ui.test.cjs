@@ -9,6 +9,34 @@ test('stock chart uses global research period and free zoom, not 20/60-day prese
  assert.doesNotMatch(ui,/id="stockSpan"/);
  assert.ok(ui.includes("options.stock?[0,chart.dates.length-1]:chart.defaultView()"));
 });
+test('heatmap hover dismissal and second tap cannot leave a ghost selection',()=>{
+ const heat=Object.create(globalThis.AtlasMaps.Heatmap.prototype),seen=[];
+ Object.assign(heat,{dates:['d0','d1','d2'],rows:[{id:'a',name:'A'}],index:0,row:0,focus:'a',inspectionActive:true,pinned:null,onInspect:i=>seen.push(i),updateCursor(){}});
+ heat.clearInspection(true);
+ assert.equal(heat.inspectionActive,false,'Unpinned hover must stop highlighting');
+ assert.equal(heat.index,2,'Leaving an unpinned historical hover must restore latest date');
+ assert.deepEqual(seen,[2]);
+ heat.inspect=function(){this.inspectionActive=true;this.focus='a';this.row=0;this.index=0;};
+ heat.select({});
+ assert.equal(heat.pinned,'a','First tap should pin exactly one heatmap row');
+ heat.select({});
+ assert.equal(heat.pinned,null,'Second tap on the same row must unpin');
+ assert.equal(heat.inspectionActive,false,'Second tap must remove the selection overlay');
+ assert.equal(heat.row,undefined,'Second tap must remove the highlighted row');
+});
+test('rotation focus only survives a pointer exit when the user pinned a point',()=>{
+ const scatter=Object.create(globalThis.AtlasMaps.Scatter.prototype),point={name:'A'};
+ Object.assign(scatter,{points:[point],pinned:'',focus:'',inspectionActive:false,nearest:()=>point,draw(){}});
+ scatter.pick({});
+ assert.equal(scatter.pinned,'A');
+ scatter.clearInspection(true);
+ assert.equal(scatter.pinned,'A','Fixed trajectory should survive pointer exit');
+ scatter.pick({});
+ assert.equal(scatter.pinned,'','Tapping the same point again must unpin');
+ assert.equal(scatter.inspectionActive,false);
+ scatter.nearest=()=>null;scatter.pick({});
+ assert.equal(scatter.inspectionActive,false,'Tapping empty plot space must not create a default focus');
+});
 test('default date viewport first fits all sessions, otherwise keeps the latest',()=>{
  assert.deepEqual(autoVisibleRange(63,400,'lines'),[0,62]);
  assert.deepEqual(autoVisibleRange(63,400,'candles'),[27,62]);
