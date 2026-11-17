@@ -44,7 +44,7 @@ powershell -NoProfile -File scripts/market_atlas/run.ps1 -Source "D:\data\stock_
 
 ## 云端每日更新
 
-`.github/workflows/market-atlas.yml` 每天北京时间 18:30 在 GitHub Actions 运行，也支持 Run workflow 手动触发。无需本机或 Codex 开机；GitHub 定时任务可能排队延迟。它运行从原 `fetch_stocks.py` 适配的云端副本，保留原有股票池（00、60 开头）、前复权、预热、横截面增量、除权时全量重拉和指标计算逻辑。原本地项目不修改。
+`.github/workflows/market-atlas.yml` 每周一至周五北京时间 15:30、16:00、16:30 在 GitHub Actions 尝试更新三次（对应 UTC 07:30、08:00、08:30），也支持 Run workflow 手动触发。节假日没有新行情时，不创建数据提交或触发部署。无需本机或 Codex 开机；GitHub 定时任务可能排队延迟。它运行从原 `fetch_stocks.py` 适配的云端副本，保留原有股票池（00、60 开头）、前复权、预热、横截面增量、除权时全量重拉和指标计算逻辑。原本地项目不修改。
 
 Tushare 凭据通过仓库加密 Secret `TUSHARE_TOKEN` 注入，只通过 HTTPS 访问 Tushare。全量原始历史保存在 Actions Cache，缺失缓存时从 `market-atlas-seed` Release 恢复初始 CSV。缓存种子含公开行情字段，不含令牌、配置或本机路径。原始历史从 2024 年开始预热；公开页面仍按原合并脚本的 `START_DATE=20260101` 发布。股票池和行业映射分别为 `cloud-pool.csv`、`cloud-industries.csv`，可显式更新这两份配置。
 
