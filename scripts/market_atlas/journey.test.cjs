@@ -25,75 +25,51 @@ try{for(const width of [390,1440,320]){
   assert.equal(await page.locator('#atlasMetric').inputValue(),marketBefore.metric,'Entering an industry must inherit the currently selected market indicator');
   assert.ok(await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return !c.pinned&&!c.focus&&!c.inspectionActive;}),'Industry must not inherit the selected market curve');
   assert.equal(await page.locator('#industryChart .readout-row.is-focused').count(),0);
- const count=await evaluate(()=>AtlasWorkspace.state.history.stocks.length);assert.ok(count>=12);assert.equal(await evaluate(()=>AtlasWorkspace.state.stocks.size),count);assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),count+1);assert.equal(await page.locator('#industryChart .chart-readout').getAttribute('data-rows'),String(count+1));await fit();await shot('industry-all-stocks');
+ const count=await evaluate(()=>AtlasWorkspace.state.history.stocks.length);assert.ok(count>=12);assert.equal(await evaluate(()=>AtlasWorkspace.state.stocks.size),count);assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),count+2);assert.equal(await page.locator('#industryChart .chart-readout').getAttribute('data-rows'),String(count+2));await fit();await shot('industry-all-stocks');
  await page.selectOption('#atlasMetric','relative');await industryReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.stocks.size),count);
-  // The selected benchmark stays on the zero axis, not in the visible series or the readout.
-  const sectorComparison=await evaluate(()=>{
-    const c=AtlasWorkspace.state.charts[0],series=c.series,other=series.find(s=>s.id==='pool');
-    return{ids:series.map(s=>s.id),name:other?.name,zero:!!c.svg.querySelector('.zero-guide'),readout:c.getRows().map(r=>r.id),pin:c.pinned,active:c.inspectionActive};
-  });
-  assert.ok(!sectorComparison.ids.includes('sector')&&sectorComparison.ids.includes('pool'));
-  assert.ok(sectorComparison.name.includes('相对行业')&&sectorComparison.zero);
-  assert.equal(sectorComparison.readout.length,count+1);
-  assert.ok(!sectorComparison.readout.includes('sector'));
-  assert.ok(!sectorComparison.pin&&!sectorComparison.active,'Industry chart must start without selection');
-  assert.equal(await page.locator('#industryChart .chart-readout').getAttribute('data-rows'),String(count+1));
-  await page.selectOption('#industryBenchmark','pool');await industryReady();
-  const poolComparison=await evaluate(()=>{
-    const c=AtlasWorkspace.state.charts[0],series=c.series,other=series.find(s=>s.id==='sector');
-    return{ids:series.map(s=>s.id),name:other?.name,zero:!!c.svg.querySelector('.zero-guide'),readout:c.getRows().map(r=>r.id),pin:c.pinned,active:c.inspectionActive};
-  });
-  assert.ok(!poolComparison.ids.includes('pool')&&poolComparison.ids.includes('sector'));
-  assert.ok(poolComparison.name.includes('相对股票池')&&poolComparison.zero);
-  assert.equal(poolComparison.readout.length,count+1);
-  assert.ok(!poolComparison.readout.includes('pool'));
-  assert.ok(!poolComparison.pin&&!poolComparison.active,'Benchmark switch must not preselect a line');
-  assert.equal(await page.locator('#industryChart .chart-readout').getAttribute('data-rows'),String(count+1));
-  await evaluate(()=>{const s=AtlasWorkspace.state,i=s.cursor,stock=s.history.stocks.find(x=>Number.isFinite(x.tracks.momentum[i])),c=s.charts[0],expected=stock.tracks.momentum[i]-s.market.pool.momentum[i],actual=c.series.find(x=>x.id===stock.code).values[i];if(Math.abs(actual-expected)>1e-10)throw Error('Pool benchmark mismatch');});
- // All five measures must respond to both baselines, use the correct units
- // and expose exactly one actual peer series (not a redundant zero trace).
- for(const key of ['path','momentum','relative','drawdown','vol']){
-   await page.selectOption('#atlasMetric',key);await industryReady();
-   for(const baseline of ['sector','pool']){
-     await page.selectOption('#industryBenchmark',baseline);await industryReady();
-     const result=await page.evaluate(({key,baseline})=>{
-       const S=AtlasWorkspace.state,c=S.charts[0],sector=S.market.sectors.find(s=>s.name===S.industry),
-         source=key==='relative'?'momentum':key,
-         base=(baseline==='sector'?sector.series:S.market.pool)[source],
-         peer=(baseline==='sector'?S.market.pool:sector.series)[source],
-         peerId=baseline==='sector'?'pool':'sector',
-         sample=S.history.stocks.find(s=>s.tracks[source].some(Number.isFinite));
-       function verify(s,original){
-         if(!s||!original)return false;
-         for(let i=0;i<original.length;i++){
-           const v=original[i],b=base[i],expected=!Number.isFinite(v)||!Number.isFinite(b)?null:
-             ['path','momentum'].includes(key)?(1+b/100>0&&1+v/100>=0?(1+v/100)/(1+b/100)*100-100:null):v-b;
-           const got=s.values[i];
-           if(expected===null?got!==null:!Number.isFinite(got)||Math.abs(expected-got)>1e-9)return false;
-         }
-         return true;
-       }
-       return{
-         ids:c.series.map(s=>s.id),rows:c.getRows().map(s=>s.id),zero:!!c.svg.querySelector('.zero-guide'),
-         unit:c.unit,label:c.label,peer:c.series[0]?.name,
-         peerValid:verify(c.series.find(s=>s.id===peerId),peer),
-         stockValid:verify(c.series.find(s=>s.id===sample?.code),sample?.tracks[source]),
-         selected:S.stocks.size,picker:!!document.getElementById('industryBenchmark')
-       };
-     },{key,baseline});
-     assert.ok(result.picker&&result.zero,key+' '+baseline+' lacks baseline selector / zero axis');
-     assert.equal(result.ids.length,count+1,key+' '+baseline+' series count');
-     assert.equal(result.rows.length,count+1,key+' '+baseline+' readout count');
-     assert.ok(!result.ids.includes(baseline)&&!result.rows.includes(baseline),'Current baseline is redundantly listed');
-     assert.equal(result.ids[0],baseline==='sector'?'pool':'sector');
-     assert.ok(result.peer.includes(baseline==='sector'?'相对行业':'相对股票池'));
-     assert.equal(result.unit,['path','momentum'].includes(key)?'%':'个百分点');
-     assert.ok(result.peerValid&&result.stockValid,key+' '+baseline+' incorrect values across dates');
-     assert.equal(result.selected,count,'Switching lost selected constituents');
-   }
- }
- await page.selectOption('#atlasMetric','relative');await industryReady();
- await page.selectOption('#industryBenchmark','pool');await industryReady();
+  // Validate every indicator across the entire date range without a selectable baseline.
+  assert.equal(await page.locator('#industryBenchmark').count(),0);
+  for(const key of ['path','momentum','relative','drawdown','vol']){
+    await page.selectOption('#atlasMetric',key);await industryReady();
+    const v=await page.evaluate(key=>{
+      const s=AtlasWorkspace.state,c=s.charts[0],sect=s.market.sectors.find(x=>x.name===s.industry),
+        relative=key==='relative',src=relative?'momentum':key;
+      const diff=(x,b)=>x.map((v,i)=>Number.isFinite(v)&&Number.isFinite(b[i])?v-b[i]:null);
+      const same=(a,b)=>a?.length===b?.length&&a.every((v,i)=>v===b[i]||Number.isFinite(v)&&Number.isFinite(b[i])&&Math.abs(v-b[i])<1e-9);
+      const pool=s.market.pool,member=s.history.stocks.find(x=>x.tracks[src].some(Number.isFinite));
+      const expectedStocks=AtlasCharts.rankLatest(s.history.stocks,x=>{
+        const v=x.tracks[src]?.at(-1),base=sect.series.momentum.at(-1);
+        return relative?(Number.isFinite(v)&&Number.isFinite(base)?v-base:null):v;
+      }).map(x=>x.code);
+      return{ids:c.series.map(x=>x.id),references:c.series.filter(x=>x.reference).map(x=>x.id),
+        rows:c.getRows().length,unit:c.unit,title:c.label,zero:!!c.svg.querySelector('.zero-guide'),
+        poolOk:relative||same(c.series.find(x=>x.id==='pool')?.values,pool[key]),
+        sectorOk:same(c.series.find(x=>x.id==='sector')?.values,relative?diff(sect.series.momentum,pool.momentum):sect.series[key]),
+        stockOk:same(c.series.find(x=>x.id===member?.code)?.values,relative?diff(member.tracks.momentum,sect.series.momentum):member.tracks[key]),
+        sorted:JSON.stringify(expectedStocks)===JSON.stringify(c.series.filter(x=>!x.reference).map(x=>x.id)),
+        primary:[...c.host.querySelectorAll('.readout-primary .readout-row')].map(x=>x.textContent),
+        selected:s.stocks.size};
+    },key);
+    const absolute=key!=='relative';
+    assert.equal(v.ids.length,count+(absolute?2:1),key+' series count');
+    assert.equal(v.rows,v.ids.length,key+' readout count');
+    assert.equal(v.unit,absolute?'%':'个百分点',key+' unit');
+    assert.ok(v.title.includes({path:'累计收益',momentum:'窗口收益',relative:'相对强弱',drawdown:'峰值回撤',vol:'年化波动'}[key]),key+' title');
+    assert.ok(v.poolOk&&v.sectorOk&&v.stockOk,key+' numerical values');
+    assert.ok(v.sorted,key+' stock order');
+    assert.equal(v.selected,count,key+' selected stocks');
+    assert.equal(v.zero,key!=='vol',key+' zero guide');
+    assert.deepEqual(v.references,absolute?['pool','sector']:['sector'],key+' reference identity');
+    if(absolute)assert.ok(v.primary[0]?.includes('股票池等权')&&v.primary[1]?.includes('本行业等权'),key+' missing readout references');
+    else assert.equal(v.primary.length,1,'Relative strength has one peer reference');
+  }
+  await page.selectOption('#atlasMetric','path');await industryReady();
+  const chosenStock=await evaluate(()=>AtlasWorkspace.state.history.stocks[0].code);
+  await page.locator('#industryChart .readout-toggle').click();
+  await page.locator('#industryChart .readout-all [data-focus-series='+JSON.stringify(chosenStock)+']').click();
+  assert.equal(await page.locator('#industryChart .readout-primary .readout-row').count(),3,'Focused stock must join both equal-weight readouts');
+  await page.locator('#industryChart .readout-unpin').click();
+  await page.selectOption('#atlasMetric','relative');await industryReady();
  await page.locator('[data-industry-display=heat]').click();await page.waitForSelector('.heatmap-host');
   assert.ok(await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return !c.inspectionActive&&!c.pinned&&c.row===undefined&&!c.focus;}),'Industry heatmap should open without highlighted rows');assert.equal(await page.locator('.heatmap-host').getAttribute('data-rows'),String(count));assert.equal(await page.locator('.heatmap-host').getAttribute('data-columns'),'63');assert.equal(await page.locator('.heat-names button').count(),count);assert.match(await page.locator('.heat-corner').textContent(),/股票/);await fit();await shot('industry-complete-heat');
  const order=await evaluate(()=>AtlasCharts.rankLatest(AtlasWorkspace.state.history.stocks,s=>s.tracks.momentum.at(-1)).map(s=>s.code));assert.deepEqual(await evaluate(()=>AtlasWorkspace.state.charts[0].rows.map(r=>r.id)),order);
@@ -101,7 +77,7 @@ try{for(const width of [390,1440,320]){
  const hit=await evaluate(()=>{const c=AtlasWorkspace.state.charts[0],r=c.surface.getBoundingClientRect(),row=c.rows.length-3,col=20;return{x:r.left+(col+.5)*c.cellWidth-c.surface.scrollLeft,y:r.top+(row+.5)*c.rowHeight-c.surface.scrollTop,row,col,code:c.rows[row].id};});
  if(width<600){await touch('touchStart',[hit]);await touch('touchEnd',[]);}else await page.mouse.click(hit.x,hit.y);
  assert.equal(await evaluate(()=>AtlasWorkspace.state.cursor),20);assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].focus),hit.code);assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].pinned),hit.code,'Tap or desktop click must pin the historical heatmap cell before drilling');
- const heatBefore=await evaluate(()=>{const s=AtlasWorkspace.state,c=s.charts[0];return{benchmark:s.benchmark,date:s.market.dates[s.cursor],row:c.row,cellWidth:c.cellWidth,scrollLeft:c.surface.scrollLeft,scrollTop:c.surface.scrollTop,selected:[...s.stocks].sort()};});
+ const heatBefore=await evaluate(()=>{const s=AtlasWorkspace.state,c=s.charts[0];return{date:s.market.dates[s.cursor],row:c.row,cellWidth:c.cellWidth,scrollLeft:c.surface.scrollLeft,scrollTop:c.surface.scrollTop,selected:[...s.stocks].sort()};});
  await page.locator('.readout-drill').click();await stockReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.code),hit.code);
   assert.ok(await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return !c.inspectionActive&&!c.pinned&&!c.focus;}),'Opening a stock chart should not carry heatmap focus');assert.equal(await evaluate(()=>AtlasWorkspace.state.stock.dates[AtlasWorkspace.state.cursor]),heatBefore.date);
   assert.equal(await page.locator('#stockSpan').count(),0,'Redundant stock date presets must be absent');
@@ -109,17 +85,17 @@ try{for(const width of [390,1440,320]){
     await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return[0,c.dates.length-1];}),
     'Stock opened from a historical heatmap date should show the entire research period');assert.match(await page.locator('.atlas-drill-path').textContent(),new RegExp(largest));await fit();await shot('stock-from-heat');assert.equal(await page.locator('#stockPriceChart .atlas-time-nav').count(),1,'Stock price chart needs one timeline');await page.locator('[data-chart-action=in]').click();const stockNavBefore=await evaluate(()=>[...AtlasWorkspace.state.charts[0].view]);await page.locator('#stockPriceChart .atlas-time-track').scrollIntoViewIfNeeded();const stockNavTarget=await evaluate(()=>{const c=AtlasWorkspace.state.charts[0],w=c.navigator.window.getBoundingClientRect(),r=c.navigator.track.getBoundingClientRect();return{x:(w.left+w.right)/2,y:r.top+r.height/2};});await page.mouse.move(stockNavTarget.x,stockNavTarget.y);await page.mouse.down();await page.mouse.move(stockNavTarget.x+(stockNavBefore[0]>5?-40:40),stockNavTarget.y,{steps:5});await page.mouse.up();const stockNavAfter=await evaluate(()=>[...AtlasWorkspace.state.charts[0].view]);assert.ok(Math.abs(stockNavBefore[0]-stockNavAfter[0])>.25&&Math.abs((stockNavBefore[1]-stockNavBefore[0])-(stockNavAfter[1]-stockNavAfter[0]))<.1,'K-line timeline must pan without changing date span: '+JSON.stringify({stockNavBefore,stockNavAfter}));await page.locator('[data-chart-action=reset]').click();await fit();const candleEdges=async()=>{const state=await evaluate(()=>{const c=AtlasWorkspace.state.charts[0],rects=[...c.svg.querySelectorAll('g[clip-path] rect')].map(e=>({x:Number(e.getAttribute('x')),w:Number(e.getAttribute('width'))})),volumes=[...c.svg.querySelectorAll('rect[opacity=".45"]')].map(e=>({x:Number(e.getAttribute('x')),w:Number(e.getAttribute('width'))}));return{left:c.g.left,right:c.g.right,start:c.view[0],end:c.view[1],first:c.X(c.view[0]),last:c.X(c.view[1]),firstIndex:c.indexAt(c.X(c.view[0])),lastIndex:c.indexAt(c.X(c.view[1])),rects,volumes,overflow:document.documentElement.scrollWidth-innerWidth};});assert.ok(state.rects.length>0,'Candlestick bodies missing');for(const [type,bars]of [['K-line',state.rects],['volume',state.volumes]]){assert.ok(bars.every(bar=>bar.x>=state.left-.1&&bar.x+bar.w<=state.right+.1),type+' bars clipped by the horizontal plot boundary');}assert.ok(state.first>state.left&&state.last<state.right,'First and last date centers need horizontal padding');assert.equal(state.firstIndex,Math.ceil(state.start));assert.equal(state.lastIndex,Math.floor(state.end));assert.ok(state.overflow<=0,'K-line causes page overflow');};await candleEdges();await page.locator('[data-chart-action=in]').click();await candleEdges();await page.locator('[data-chart-action=reset]').click();await candleEdges();const stockReset=await evaluate(()=>AtlasWorkspace.state.charts[0].resetView);await page.locator('[data-chart-action=in]').click();await page.locator('[data-chart-action=reset]').click();assert.deepEqual(await evaluate(()=>AtlasWorkspace.state.charts[0].view),stockReset,'Stock reset must restore the whole research interval');assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].yView),null);assert.equal(await evaluate(()=>AtlasWorkspace.state.ranges.has('stock-'+AtlasWorkspace.state.code)),false);await fit();
  await back();await industryReady();await page.waitForFunction(()=>AtlasWorkspace.state.industryDisplay==='heat');
- const heatAfter=await evaluate(()=>{const s=AtlasWorkspace.state,c=s.charts[0];return{benchmark:s.benchmark,date:s.market.dates[s.cursor],row:c.row,cellWidth:c.cellWidth,scrollLeft:c.surface.scrollLeft,scrollTop:c.surface.scrollTop,selected:[...s.stocks].sort()};});assert.deepEqual(heatAfter,heatBefore,'Back lost industry heat context');
+ const heatAfter=await evaluate(()=>{const s=AtlasWorkspace.state,c=s.charts[0];return{date:s.market.dates[s.cursor],row:c.row,cellWidth:c.cellWidth,scrollLeft:c.surface.scrollLeft,scrollTop:c.surface.scrollTop,selected:[...s.stocks].sort()};});assert.deepEqual(heatAfter,heatBefore,'Back lost industry heat context');
  await back();await page.waitForFunction(()=>AtlasWorkspace.state.view==='market'&&AtlasWorkspace.state.charts[0]?.series);const marketAfter=await evaluate(()=>{const s=AtlasWorkspace.state,c=s.charts[0];return{metric:s.metric,date:s.market.dates[s.cursor],selected:[...s.selected].sort(),view:c.view,yView:c.yView,pinned:c.pinned};});assert.deepEqual(marketAfter,marketBefore,'Back lost market chart context');
  await page.goForward();await industryReady();await page.waitForFunction(()=>AtlasWorkspace.state.industryDisplay==='heat');
  // User-selected subsets survive mode, metric and industry changes, while the heat retains all members.
  await page.locator('#openComparison').click();await page.locator('#clearComparison').click();await page.locator('[data-pick]').first().check();const chosen=await page.locator('[data-pick]:checked').getAttribute('data-pick');await closeComparison();assert.equal(await page.locator('.heatmap-host').getAttribute('data-rows'),String(count));
- await page.locator('[data-industry-display=lines]').click();await industryReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),2);await page.selectOption('#atlasMetric','drawdown');await industryReady();assert.deepEqual(await evaluate(()=>[...AtlasWorkspace.state.stocks]),[chosen]);
+ await page.locator('[data-industry-display=lines]').click();await industryReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),2);await page.selectOption('#atlasMetric','drawdown');await industryReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),3);assert.deepEqual(await evaluate(()=>[...AtlasWorkspace.state.stocks]),[chosen]);
  await page.selectOption('#industrySelect',other);await industryReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.stocks.size),await evaluate(()=>AtlasWorkspace.state.history.stocks.length));await page.selectOption('#industrySelect',largest);await industryReady();assert.deepEqual(await evaluate(()=>[...AtlasWorkspace.state.stocks]),[chosen]);await page.locator('[data-route-view=market]').click();await page.waitForFunction(()=>AtlasWorkspace.state.view==='market'&&AtlasWorkspace.state.charts.length);await page.selectOption('#atlasMetric','relative');
   await page.waitForFunction(()=>AtlasWorkspace.state.view==='market'&&AtlasWorkspace.state.charts[0]?.zeroGuide===true);
   assert.ok(await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return !c.series.some(s=>s.id==='pool')&&!c.getRows().some(s=>s.id==='pool')&&!!c.svg.querySelector('.zero-guide');}),'Market relative strength displays a redundant zero pool series');
   await page.selectOption('#atlasMetric','path');await page.locator('[data-atlas-view=industry]').click();await industryReady();assert.deepEqual(await evaluate(()=>[...AtlasWorkspace.state.stocks]),[chosen]);assert.equal(await page.locator('#atlasMetric').inputValue(),await evaluate(()=>AtlasWorkspace.state.metric),'Industry re-entry must follow the current market metric, not a stale choice');assert.equal(await evaluate(()=>AtlasWorkspace.state.industryDisplay),'lines','New entry from market should show the comparable industry line chart, not an old heatmap');
- await page.locator('#openComparison').click();await page.locator('#selectAllComparison').click();await closeComparison();assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),count+1);
+ await page.locator('#openComparison').click();await page.locator('#selectAllComparison').click();await closeComparison();assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].series.length),count+2);
  // Industry curve -> stock, including fullscreen, keeps all data and returns to the same viewport.
  await page.selectOption('#atlasMetric','path');await industryReady();await page.locator('[data-chart-action=expand]').click();await page.locator('.readout-toggle').click();const stockLink=page.locator('#atlasChartDialog .readout-all a[data-open-series]').first(),stockCode=await stockLink.getAttribute('data-open-series');await stockLink.click();await stockReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.code),stockCode);assert.equal(await page.locator('#atlasChartDialog').evaluate(el=>el.open),false);
  await back();await industryReady();await page.waitForFunction(()=>document.getElementById('atlasChartDialog').open);await page.locator('#atlasChartDialog>header button').click();
