@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,compareMetric,traceWidth,traceOpacity,zoomDomain,autoVisibleRange}=require('../../resources/market-atlas/charts.js');
+const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,autoVisibleRange}=require('../../resources/market-atlas/charts.js');
 const{rotationTrail,rotationSettings}=require('../../resources/market-atlas/maps.js');
 const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
 
@@ -135,20 +135,12 @@ test('crosshair dates remain inside the zoomed visible sessions at either margin
  assert.equal(Chart.prototype.indexAt.call(chart,0),11);assert.equal(Chart.prototype.indexAt.call(chart,1000),20);
  assert.equal(Chart.prototype.indexAt.call(chart,158),16);
 });
-
-test('industry metric benchmarks use wealth ratios for returns and point spreads for risks',()=>{
- const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-10,`${a} differs from ${b}`);
- close(compareMetric('path',10,6),((1.1/1.06)-1)*100);
- close(compareMetric('momentum',20,10),((1.2/1.1)-1)*100);
- assert.equal(compareMetric('relative',20,10),10);
- assert.equal(compareMetric('drawdown',-15,-8),-7);
- assert.equal(compareMetric('vol',32,23),9);
- for(const key of ['path','momentum','relative','drawdown','vol']){
-   assert.equal(compareMetric(key,null,3),null);
-   assert.equal(compareMetric(key,3,undefined),null);
-   assert.equal(compareMetric(key,NaN,3),null);
- }
- assert.equal(compareMetric('path',12,-100),null);
- assert.equal(compareMetric('momentum',12,-101),null);
- assert.equal(compareMetric('path',-101,5),null);
+ 
+test('industry curves use true benchmarks and no hidden baseline selection',()=>{
+ const charts=require('../../resources/market-atlas/charts.js');
+ const ui=fs.readFileSync(path.join(__dirname,'../../resources/market-atlas/ui.js'),'utf8');
+ assert.equal('compareMetric' in charts,false);
+ assert.ok(ui.includes("name:'股票池等权'")&&ui.includes("name:'本行业等权'"));
+ assert.ok(ui.includes("name:'本行业等权 · 相对股票池'"));
+ assert.doesNotMatch(ui,/industryBenchmark|S\.benchmark|industryTitles/);
 });
