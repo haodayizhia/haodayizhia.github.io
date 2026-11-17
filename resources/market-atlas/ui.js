@@ -106,11 +106,11 @@
   }
   async function goView(view,id){
     if(!S.market)return;if(view===S.view&&(id===undefined||id===(view==='industry'?S.industry:view==='stock'?S.code:'')))return;while(activeRestore||S.marketPromise)await(activeRestore||S.marketPromise);const epoch=++navigationEpoch;clearTimeout(historyTimer);recordNavigation();
-    const previousView=S.view,inherited=metric(),source=S.charts[0],range=source instanceof Chart?{dates:[source.dates[Math.floor(source.view[0])],source.dates[Math.ceil(source.view[1])]],view:[...source.view],total:source.dates.length}:null;
+    const previousView=S.view,source=S.charts[0],range=source instanceof Chart?{dates:[source.dates[Math.floor(source.view[0])],source.dates[Math.ceil(source.view[1])]],view:[...source.view],total:source.dates.length}:null;
     const nextId=id!==undefined?id:view==='industry'?S.industry:view==='stock'?S.code:'';
-    // Always follow the visible market indicator on entry, even after revisiting
-    // an industry with an existing stock selection. Unsupported modes use path.
-    if(view==='industry'&&previousView==='market'){S.industryDisplay='lines';S.industryMetric=['path','momentum','relative','drawdown','vol'].includes(inherited)?inherited:'path';}
+    // New industry entries start with cumulative returns; history restoration
+    // keeps the user's explicitly selected view and metric.
+    if(view==='industry'){S.industryDisplay='lines';S.industryMetric='path';}
     if(view==='industry'&&previousView==='market'&&S.display==='rotation')S.cursor=Math.max(0,S.market.dates.indexOf(S.rotationDate));
     applyRoute(view,nextId);if(range&&S.view==='industry'&&!S.ranges.has(rangeKey()))S.ranges.set(rangeKey(),range);
     const value=captureNavigation();value.charts=[];value.scroll=[0,0];value.fullscreen='';
@@ -394,7 +394,7 @@
     if((industry||view)&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey){e.preventDefault();industry?goParent('industry',industry.dataset.routeIndustry):goParent(view.dataset.routeView);}
   });
   const atlasApp=document.querySelector('.atlas-app');atlasApp.addEventListener('wheel',scheduleNavigation,{passive:true});atlasApp.addEventListener('change',scheduleNavigation);atlasApp.addEventListener('pointerup',scheduleNavigation);atlasApp.addEventListener('touchend',scheduleNavigation,{passive:true});
-  window.addEventListener('popstate',e=>{clearTimeout(historyTimer);const saved=savedNavigation(e.state);if(saved)restoreNavigation(saved).catch(error=>notice(error.message,true));else{const route=parseRoute();applyRoute(route.view,route.id);renderView().then(recordNavigation);}});
+  window.addEventListener('popstate',e=>{clearTimeout(historyTimer);const saved=savedNavigation(e.state);if(saved)restoreNavigation(saved).catch(error=>notice(error.message,true));else{const route=parseRoute();if(route.view==='industry'){S.industryDisplay='lines';S.industryMetric='path';}applyRoute(route.view,route.id);renderView().then(recordNavigation);}});
   window.addEventListener('bro:themechange',()=>S.charts.forEach(c=>c.draw()));window.addEventListener('pagehide',()=>{clearTimeout(historyTimer);recordNavigation();$('atlasPublishToken').value='';stop();});
   window.AtlasWorkspace={state:S,initialize,renderView,observeDate,toggleIndustry,openIndustry,openStock,goView};
   initialize().catch(error=>{if(S.busy||S.market)return;notice(error.message,true);$('atlasContent').innerHTML='<p class="plot-empty">暂未加载公开数据，可通过“数据”重试或导入本地CSV。</p>';});
