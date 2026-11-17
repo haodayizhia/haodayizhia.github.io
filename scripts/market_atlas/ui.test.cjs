@@ -143,4 +143,6 @@ test('industry curves use true benchmarks and no hidden baseline selection',()=>
  assert.ok(ui.includes("name:'股票池等权'")&&ui.includes("name:'本行业等权'"));
  assert.ok(ui.includes("name:'本行业等权 · 相对股票池'"));
  assert.doesNotMatch(ui,/industryBenchmark|S\.benchmark|industryTitles/);
+ assert.ok(ui.includes("bro.atlas.navigation.v2"));
+ assert.ok(ui.includes("delete migrated.benchmark"),'Legacy benchmark state must be migrated');
 });

@@ -28,14 +28,22 @@
   }
   // Keep ordinary chart interaction out of the browser navigation pipeline.
   // Only small UI snapshots are stored; source data and credentials are excluded by captureNavigation.
-  const navigationStore='bro.atlas.navigation.v1';let navigationSnapshots=new Map();
+  const navigationStore='bro.atlas.navigation.v2';let navigationSnapshots=new Map();
   try{navigationSnapshots=new Map(JSON.parse(sessionStorage.getItem(navigationStore)||'[]'));}catch{}
   function cacheNavigation(key,value){
     navigationSnapshots.delete(key);navigationSnapshots.set(key,value);
     while(navigationSnapshots.size>12)navigationSnapshots.delete(navigationSnapshots.keys().next().value);
     try{sessionStorage.setItem(navigationStore,JSON.stringify([...navigationSnapshots]));}catch{/* Memory and the entry snapshot remain available. */}
   }
-  function savedNavigation(state){return navigationSnapshots.get(state?.broAtlasEntry)||state?.broAtlas;}
+  function savedNavigation(state){
+    const saved=navigationSnapshots.get(state?.broAtlasEntry)||state?.broAtlas;
+    if(!saved||saved.view!=='industry'||!Object.prototype.hasOwnProperty.call(saved,'benchmark'))return saved;
+    // Pre-change comparison plots stored a different y-axis meaning. Retain dates
+    // and selected stocks, but never restore that old numeric axis into raw returns.
+    const migrated={...saved,yRanges:[],charts:(saved.charts||[]).map(chart=>({...chart,yView:null,domain:null}))};
+    delete migrated.benchmark;
+    return migrated;
+  }
   function pushNavigation(value,url){const key=crypto.randomUUID();cacheNavigation(key,value);history.pushState({broAtlasEntry:key,broAtlas:value},'',url);}
   function recordNavigation(){
     if(!navigationReady||!S.market||S.marketPromise||S.marketDatasetKey!==S.datasetKey)return;
