@@ -62,7 +62,11 @@
       // A past hover can offer a drill link without visually selecting a curve.
       const detail=rows.find(r=>r.id===detailFocus||r.name===detailFocus);
       const drill=el.querySelector('.readout-drill');drill.hidden=!detail?.canOpen;if(detail?.canOpen){drill.textContent=detail.openLabel||owner.openLabel||'查看详情';drill.href=owner.linkFor(detail.id);drill.dataset.openSeries=detail.id;drill.setAttribute('aria-label',drill.textContent+'：'+detail.name);}
-      const primary=owner.stock?rows.filter(r=>['收盘','涨跌','最高','最低'].includes(r.name)):rows.length<=6?rows:focused&&focused!==rows[0]?[rows[0],focused]:rows.slice(0,1);
+      const references=rows.filter(r=>r.reference);
+      const primary=owner.stock?rows.filter(r=>['收盘','涨跌','最高','最低'].includes(r.name)):
+        rows.length<=6?rows:
+        references.length?[...references,...(focused&&!references.includes(focused)?[focused]:[])]:
+        focused&&focused!==rows[0]?[rows[0],focused]:rows.slice(0,1);
       const row=r=>{
          const label=esc(r.name)+(r.detail?'<small class="readout-code">'+esc(r.detail)+'</small>':'');
          const link=r.canOpen?'<a class="readout-open readout-jump" href="'+esc(owner.linkFor(r.id))+'" data-open-series="'+esc(r.id)+'" aria-label="'+esc(r.openLabel||owner.openLabel||'查看详情')+'：'+esc(r.name)+'" title="查看详情：'+esc(r.name)+'">↗</a>':'';
