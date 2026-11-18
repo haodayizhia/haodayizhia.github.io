@@ -2,9 +2,10 @@ name: Update MarketAtlas cloud data
 
 on:
   schedule:
-    - cron: '30 7 * * 1-5' # 15:30 Asia/Shanghai: first end-of-day snapshot attempt.
-    - cron: '0 8 * * 1-5'  # 16:00 Asia/Shanghai: second attempt.
-    - cron: '30 8 * * 1-5' # 16:30 Asia/Shanghai: final daily fallback.
+    - cron: '37 7 * * 1-5' # 15:37 Asia/Shanghai: first end-of-day snapshot attempt.
+    - cron: '7 8 * * 1-5'  # 16:07 Asia/Shanghai: second attempt.
+    - cron: '37 8 * * 1-5' # 16:37 Asia/Shanghai: afternoon fallback.
+    - cron: '17 12 * * 1-5' # 20:17 Asia/Shanghai: evening fallback.
   # Changing this workflow also runs a fresh update immediately; ordinary site commits do not.
   push:
     branches: [main]
