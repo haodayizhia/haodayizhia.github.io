@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes}=require('../../resources/market-atlas/charts.js');
+const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes,extremeLabel,returnToLatest}=require('../../resources/market-atlas/charts.js');
 const{rotationTrail,rotationSettings}=require('../../resources/market-atlas/maps.js');
 const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
 
@@ -166,4 +166,26 @@ test('price domain padding includes all extrema and handles gaps or flat prices'
  const [lo,hi]=bounds([{values:[15.27,15.27]}],.05);assert.ok(lo<15.27&&hi>15.27);
  assert.deepEqual(visibleExtremes({high:[99,13,null,15,80],low:[1,11,10,12,2]},1,3),{high:{index:3,value:15},low:{index:2,value:10}});
  assert.deepEqual(visibleExtremes({high:[13],low:[11]},0,0,()=>false),{high:null,low:null});
+});
+
+
+test('extreme callouts stay horizontal and choose a side with space',()=>{
+ const g={left:30,right:330,top:12,bottom:300};
+ assert.equal(extremeLabel(150,280,35,g,false).side,-1);
+ assert.equal(extremeLabel(310,25,35,g,true).side,-1);
+ assert.equal(extremeLabel(40,280,35,g,false).side,1);
+ assert.equal(extremeLabel(150,100,35,g,true,[{left:170,right:250,top:92,bottom:108}]).side,-1);
+ assert.equal(extremeLabel(150,299,35,g,false),null);
+});
+test('stock return to latest close is independent of visible window',()=>{
+ assert.ok(Math.abs(returnToLatest(10.8,19.86)-83.88888888888889)<1e-9);
+ assert.equal(returnToLatest(10,10),0);
+ assert.equal(returnToLatest(20,10),-50);
+ for(const [a,b] of [[null,10],[10,null],[0,10],[10,0],[NaN,10]])assert.equal(returnToLatest(a,b),null);
+ const stock={open:[10,12],high:[11,13],low:[9,11],close:[10,12],daily:[0,20],volume:[1,1]};
+ const chart={stock,index:0,series:[],latestClose:15,latestDate:'2026-11-26',view:[0,0]};
+ const row=()=>Chart.prototype.getRows.call(chart).find(r=>r.name==='距今涨幅');
+ assert.equal(row().value,50);assert.equal(row().signed,true);assert.match(row().title,/2026-11-26/);
+ chart.index=1;chart.view=[1,1];assert.equal(row().value,25);
+ chart.latestClose=null;assert.equal(row().value,null);
 });

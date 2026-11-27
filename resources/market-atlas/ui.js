@@ -345,9 +345,17 @@
     $('atlasContent').innerHTML=drillPath()+`<section class="workspace-plot"><div class="stock-workspace-head"><label class="stock-search"><span class="sr-only">查找股票</span><input id="atlasStockSearch" type="search" placeholder="输入股票名称或代码" autocomplete="off"></label><div id="stockSearchResults" class="stock-search-results" hidden></div><select id="stockMode" aria-label="价格图类型"><option value="candles">日K</option><option value="lines" ${S.stockMode==='lines'?'selected':''}>收盘价</option></select></div><div class="stock-identity">${info?`<h2>${esc(info.name)}</h2><span>${info.code} · ${esc(info.industry)}</span>`:''}</div><div id="stockPriceChart" class="${info?'':'plot-empty'}">${info?'正在读取日线…':'搜索并选择股票，查看日线、均线与成交量。'}</div></section>`;
     $('atlasStockSearch').addEventListener('input',searchStocks);$('stockMode').addEventListener('change',()=>{S.stockMode=$('stockMode').value;renderView();});if(!info)return;
     try{
-      const stock=await AtlasData.request('/api/stock',{...query(),code:S.code});if(ticket!==S.renderSeq||S.view!=='stock')return;S.stock=stock;
+      const q={...query(),code:S.code},latestDate=S.meta.dates.at(-1);
+      const stock=await AtlasData.request('/api/stock',q);if(ticket!==S.renderSeq||S.view!=='stock')return;
+      // The latest data-source date is independent of a historical research interval.
+      let latestClose=stock.dates.at(-1)===latestDate?stock.close.at(-1):null;
+      if(stock.dates.at(-1)!==latestDate){
+        try{const latest=await AtlasData.request('/api/stock',{...q,start:latestDate,end:latestDate});latestClose=latest.dates.at(-1)===latestDate?latest.close.at(-1):null;}
+        catch(error){console.warn('Latest stock close unavailable',error);}
+      }
+      if(ticket!==S.renderSeq||S.view!=='stock')return;S.stock=stock;
       const series=[{id:'price',name:'收盘价',values:stock.close,reference:true,color:'var(--plot-main)'},...['ma5','ma10','ma20'].map((key,i)=>({id:key,name:key.toUpperCase(),values:stock[key],color:[palette[0],palette[1],palette[3]][i]}))];
-      const chart=graph('stockPriceChart',{dates:stock.dates,series,stock,unit:'元',kind:S.stockMode,label:info.name+'日线'});
+      const chart=graph('stockPriceChart',{dates:stock.dates,series,stock,latestClose,latestDate,unit:'元',kind:S.stockMode,label:info.name+'日线'});
       const selectedDate=S.market.dates[S.cursor],stockIndex=Math.max(0,stock.dates.findLastIndex(date=>date<=selectedDate));
       // Historical inspection changes the readout date, not the full opening window.
       chart.setIndex(stockIndex);

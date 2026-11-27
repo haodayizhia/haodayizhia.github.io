@@ -45,6 +45,27 @@
     }
     return {high,low};
   }
+  // Horizontal labels point to the actual extremum; choose the least obstructed side.
+  function extremeLabel(x,y,width,g,isHigh,obstacles=[]){
+    const half=6,margin=3;
+    if(y<g.top+half||y>g.bottom-half)return null;
+    let best=null;
+    for(const side of (isHigh?[1,-1]:[-1,1]))for(const length of [18,26,38]){
+      const tx=x+side*(length+4),left=side===1?tx:tx-width,right=side===1?tx+width:tx;
+      if(left<g.left+margin||right>g.right-margin)continue;
+      let cost=(length-18)*.08+(side===(isHigh?1:-1)?0:.15);
+      for(const r of obstacles){
+        if(r.bottom<y-half||r.top>y+half)continue;
+        if(r.right>=left-2&&r.left<=right+2)cost+=12;
+        else if(r.right>=Math.min(x,tx)&&r.left<=Math.max(x,tx))cost+=2;
+      }
+      if(!best||cost<best.cost)best={side,length,tx,cost};
+    }
+    return best;
+  }
+  function returnToLatest(close,latestClose){
+    return finite(close)&&close>0&&finite(latestClose)&&latestClose>0?(latestClose/close-1)*100:null;
+  }
   function geometry(width,height,labelWidth=24) {
     const left=Math.max(30,Math.ceil(labelWidth+8)),right=width-6,top=12,bottom=height-30;
     return {left,right,top,bottom,width:Math.max(1,right-left),height:Math.max(1,bottom-top)};
@@ -210,7 +231,7 @@
       if(this.inspectionRows)return this.inspectionRows(this.index);
       if(this.stock) {
         const s=this.stock,i=this.index,hasVolume=s.volume.some(finite);
-        return [['开盘',s.open[i],'元'],['最高',s.high[i],'元'],['最低',s.low[i],'元'],['收盘',s.close[i],'元'],['涨跌',s.daily[i],'%'],[hasVolume?'成交量':'成交额',hasVolume?s.volume[i]:s.amount[i],hasVolume?'万股':'亿元'],...this.series.filter(s=>s.id!=='price').map(s=>[s.name,s.values[i],'元'])].map(([name,value,unit])=>({name,value,unit}));
+        return [['开盘',s.open[i],'元'],['最高',s.high[i],'元'],['最低',s.low[i],'元'],['收盘',s.close[i],'元'],['涨跌',s.daily[i],'%'],['距今涨幅',returnToLatest(s.close[i],this.latestClose),'%',{signed:true,title:'选中日收盘价至数据源最新交易日'+(this.latestDate?'（'+this.latestDate+'）':'')+'收盘价的涨幅'}],[hasVolume?'成交量':'成交额',hasVolume?s.volume[i]:s.amount[i],hasVolume?'万股':'亿元'],...this.series.filter(s=>s.id!=='price').map(s=>[s.name,s.values[i],'元'])].map(([name,value,unit,extra])=>({name,value,unit,...extra}));
       }
       return this.series.map(s=>({id:s.id,name:s.name,detail:s.detail,reference:!!s.reference,canOpen:!!this.onOpenSeries&&!s.reference,openLabel:this.openLabel,value:s.values[this.index],color:s.color,dash:s.dash,unit:this.unit}));
     }
@@ -325,14 +346,26 @@
       }
       for(const s of this.series){if(this.kind==='candles'&&s.id==='price')continue;html+=`<path class="data-line" d="${path(s.values,this.X,this.Y,Math.max(0,a-1),Math.min(this.dates.length-1,b+1))}" data-series="${escape(s.id)}" stroke-dasharray="${s.dash||''}" stroke="${s.color||'var(--plot-main)'}" stroke-width="${traceWidth(!!s.reference)}"/>`;}
       if(this.kind==='candles'&&this.stock){
-        const {high,low}=visibleExtremes(this.stock,Math.max(0,Math.ceil(this.view[0])),Math.min(this.dates.length-1,Math.floor(this.view[1])),i=>completeBar(i,1));
+        const s=this.stock,cw=Math.max(1,Math.min(38,this.plotXWidth/Math.max(1,this.view[1]-this.view[0]+1)*.75));
+        const {high,low}=visibleExtremes(s,Math.max(0,Math.ceil(this.view[0])),Math.min(this.dates.length-1,Math.floor(this.view[1])),i=>completeBar(i,cw)&&[s.open[i],s.close[i],s.high[i],s.low[i]].every(finite));
+        const labels=[];
         for(const [point,isHigh] of [[high,true],[low,false]]){
           if(!point||(!isHigh&&high&&point.value===high.value))continue;
-          const x=this.X(point.index),y=this.Y(point.value);
-          if(y<g.top||y>g.bottom)continue;
-          const label=number(point.value),labelWidth=measureAxis([label])+12,side=x+labelWidth<=g.right?1:-1;
-          const preferred=y+(isHigh?-8:15),ty=clamp(preferred,g.top+11,g.bottom-3);
-          html+=`<path class="candle-extreme-guide" d="M${x},${y}h${side*6}"/><text class="candle-extreme" x="${x+side*9}" y="${ty}" text-anchor="${side===1?'start':'end'}">${label}</text>`;
+          const x=this.X(point.index),y=this.Y(point.value),label=number(point.value),width=measureAxis([label])+2;
+          const obstacles=[...labels];
+          for(let i=a;i<=b;i++){
+            const px=this.X(i);if(Math.abs(px-x)>width+60)continue;
+            if(i!==point.index&&finite(s.high[i])&&finite(s.low[i]))obstacles.push({left:px-cw/2,right:px+cw/2,top:this.Y(s.high[i]),bottom:this.Y(s.low[i])});
+            for(const line of this.series){
+              if(line.id==='price'||i>=b||!finite(line.values[i])||!finite(line.values[i+1]))continue;
+              const y0=this.Y(line.values[i]),y1=this.Y(line.values[i+1]);
+              obstacles.push({left:px,right:this.X(i+1),top:Math.min(y0,y1),bottom:Math.max(y0,y1)});
+            }
+          }
+          const placement=extremeLabel(x,y,width,g,isHigh,obstacles);if(!placement)continue;
+          const {side,length,tx}=placement,tip=x+side*1.5,tail=x+side*length,wing=x+side*5;
+          html+=`<path class="candle-extreme-guide" d="M${tail},${y}H${tip} M${wing},${y-2.5}L${tip},${y}L${wing},${y+2.5}"/><text class="candle-extreme" x="${tx}" y="${y}" dominant-baseline="central" text-anchor="${side===1?'start':'end'}">${label}</text>`;
+          labels.push({left:side===1?tx:tx-width,right:side===1?tx+width:tx,top:y-6,bottom:y+6});
         }
       }
       html+='</g></g>';
@@ -366,6 +399,6 @@
       this.values.innerHTML=this.series.map(s=>`<div><dt><i style="background:${s.color||'var(--plot-main)'}"></i>${escape(s.name)}</dt><dd>${number(s.values[i])}<small>${finite(s.values[i])?escape(this.unit):''}</small></dd>${s.removable?`<button data-remove-series="${escape(s.id)}" aria-label="移除${escape(s.name)}">×</button>`:''}</div>`).join('');
     }
   }
-  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes};
-  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes};
+  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes,extremeLabel,returnToLatest};
+  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes,extremeLabel,returnToLatest};
 })(globalThis);

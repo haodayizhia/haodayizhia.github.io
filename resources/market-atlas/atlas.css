@@ -145,3 +145,7 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 :root[data-theme=dark] .atlas-app{--candle-rise:#e56860;--candle-fall:#42b89c}
 .candle-extreme{fill:var(--ink);font:11px Inter,"Segoe UI","Microsoft YaHei",sans-serif;paint-order:stroke;stroke:var(--bg);stroke-width:2.5px;stroke-linejoin:round;pointer-events:none}
 .candle-extreme-guide{fill:none;stroke:var(--muted);stroke-width:1;pointer-events:none}
+
+/* Signed return is emphasized without changing the shared readout layout. */
+.readout-row strong.readout-rise{color:var(--candle-rise)}
+.readout-row strong.readout-fall{color:var(--candle-fall)}
