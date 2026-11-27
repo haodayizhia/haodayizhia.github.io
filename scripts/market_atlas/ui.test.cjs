@@ -2,7 +2,7 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes,extremeLabel,returnToLatest}=require('../../resources/market-atlas/charts.js');
 const{rotationTrail,rotationSettings}=require('../../resources/market-atlas/maps.js');
-const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
+const{zoomRange,stockReadoutGroups,stockReadoutCell}=require('../../resources/market-atlas/chart-interaction.js');
 
 test('stock chart uses global research period and free zoom, not 20/60-day presets',()=>{
  const ui=fs.readFileSync(path.join(__dirname,'../../resources/market-atlas/ui.js'),'utf8');
@@ -188,4 +188,19 @@ test('stock return to latest close is independent of visible window',()=>{
  assert.equal(row().value,50);assert.equal(row().signed,true);assert.match(row().title,/2026-11-26/);
  chart.index=1;chart.view=[1,1];assert.equal(row().value,25);
  chart.latestClose=null;assert.equal(row().value,null);
+});
+
+
+test('stock readout groups OHLC, daily and cumulative return, then supplementary metrics in fixed order',()=>{
+ const names=['开盘','最高','最低','收盘','涨跌','距今涨幅','成交量','MA5','MA10','MA20'];
+ const rows=names.map((name,i)=>({name,value:i,unit:i<4?'元':i<6?'%':'',signed:i===5}));
+ const groups=stockReadoutGroups(rows);
+ assert.deepEqual(groups.prices.map(r=>r.name),names.slice(0,4));
+ assert.deepEqual(groups.changes.map(r=>r.name),names.slice(4,6));
+ assert.deepEqual(groups.more.map(r=>r.name),names.slice(6));
+ const reordered=stockReadoutGroups([...rows].reverse());assert.deepEqual(reordered.prices.map(r=>r.name),names.slice(0,4));assert.deepEqual(reordered.changes.map(r=>r.name),names.slice(4,6));
+ assert.match(stockReadoutCell({name:'开盘',value:10.5,unit:'元'}),/10\.50/);
+ assert.match(stockReadoutCell({name:'涨跌',value:-2,unit:'%'}),/当日涨跌.*readout-fall/);
+ assert.match(stockReadoutCell({name:'距今涨幅',value:10,unit:'%',signed:true}),/readout-rise.*\+10\.00/);
+ assert.match(stockReadoutCell({name:'距今涨幅',value:null,unit:'%',signed:true}),/—/);
 });

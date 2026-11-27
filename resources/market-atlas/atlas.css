@@ -149,3 +149,29 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 /* Signed return is emphasized without changing the shared readout layout. */
 .readout-row strong.readout-rise{color:var(--candle-rise)}
 .readout-row strong.readout-fall{color:var(--candle-fall)}
+
+/* Stock quote readout: adjacent labels and values, stable semantic groups on every screen. */
+.chart-readout[data-stock="true"] .readout-primary{display:grid;grid-template-columns:minmax(0,4fr) minmax(0,2fr);gap:0 20px;max-width:900px;min-height:0;padding:3px 0 2px}
+.stock-readout-prices,.stock-readout-changes{display:grid;min-width:0;align-items:start;gap:8px 12px}
+.stock-readout-prices{grid-template-columns:repeat(4,minmax(0,1fr))}
+.stock-readout-changes{grid-template-columns:repeat(2,minmax(0,1fr));border-left:1px solid var(--line);padding-left:20px}
+.stock-readout-cell{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;font-variant-numeric:tabular-nums}
+.stock-readout-label{color:var(--muted);font-size:11px;line-height:1.35;white-space:nowrap}
+.stock-readout-number{font-weight:600;font-size:15px;line-height:1.4;white-space:nowrap;color:var(--ink)}
+.stock-readout-unit{margin-left:3px;color:var(--muted);font-size:10px;font-weight:400}
+.stock-readout-unit.is-percent{margin-left:1px;color:inherit}
+.stock-readout-number.readout-rise{color:var(--candle-rise)}
+.stock-readout-number.readout-fall{color:var(--candle-fall)}
+.chart-readout[data-stock="true"] .readout-all{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 12px;max-width:900px;padding-top:8px}
+@media(max-width:760px){
+ .chart-readout[data-stock="true"] .readout-primary{grid-template-columns:minmax(0,1fr);gap:8px;padding:4px 0 0}
+ .stock-readout-prices,.stock-readout-changes{gap:8px}
+ .stock-readout-changes{border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:7px}
+ .stock-readout-number{font-size:14px}
+ .stock-readout-label{font-size:11px}
+ .stock-readout-unit{font-size:9px}
+ .chart-readout[data-stock="true"] .readout-all{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:359px){
+ .stock-readout-prices{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

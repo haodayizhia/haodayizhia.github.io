@@ -39,6 +39,22 @@
     },
     close(){if(this.dialog?.open)this.dialog.close();this.restore();}
   };
+  // Unlike comparison curves, stock metrics have distinct units and semantic order.
+  const stockPriceNames=['开盘','最高','最低','收盘'],stockChangeNames=['涨跌','距今涨幅'];
+  function stockReadoutGroups(rows){
+    const select=names=>names.map(name=>rows.find(r=>r.name===name)).filter(Boolean);
+    const prices=select(stockPriceNames),changes=select(stockChangeNames);
+    const more=rows.filter(r=>!stockPriceNames.includes(r.name)&&!stockChangeNames.includes(r.name));
+    return {prices,changes,more};
+  }
+  function stockReadoutCell(r){
+    const {escape:esc,number:num,finite}=root.AtlasCharts;
+    const signed=r.signed||r.name==='涨跌',valid=finite(r.value);
+    const tone=signed&&valid&&r.value!==0?(r.value>0?' readout-rise':' readout-fall'):'';
+    const label=r.name==='涨跌'?'当日涨跌':r.name;
+    return '<div class="stock-readout-cell" data-stock-metric="'+esc(r.name)+'"><span class="stock-readout-label" title="'+esc(r.title||label)+'">'+esc(label)+'</span><strong class="stock-readout-number'+tone+'">'+(valid?(signed&&r.value>0?'+':'')+num(r.value,r.digits??2):'—')+(valid?'<small class="stock-readout-unit'+(r.unit==='%'?' is-percent':'')+'">'+esc(r.unit||'')+'</small>':'')+'</strong></div>';
+  }
+  const toggleText=(el,open)=>open?'收起':el.dataset.stock==='true'?'更多 '+el.dataset.extra+' 项':'全部 '+el.dataset.rows+' 项';
   // Values occupy document flow; inspection never places a panel over the plot.
   const inspector={
     mount(owner,slot) {
@@ -46,7 +62,7 @@
       const el=owner.readout;if(!el)return;
       if(!el.firstElementChild){
         el.innerHTML='<div class="readout-head"><time></time><button class="readout-unpin" type="button" title="取消当前关注" aria-label="取消当前关注" hidden>×</button><a class="readout-drill" hidden></a><button class="readout-toggle" type="button" aria-expanded="false"></button></div><div class="readout-primary"></div><div class="readout-all" hidden></div>';
-        el.querySelector('.readout-toggle').addEventListener('click',()=>{const open=el.classList.toggle('is-expanded');if(open)el.renderAll?.();el.querySelector('.readout-all').hidden=!open;el.querySelector('.readout-toggle').setAttribute('aria-expanded',String(open));el.querySelector('.readout-toggle').textContent=open?'收起列表':'全部 '+el.dataset.rows+' 项';window.dispatchEvent(new Event('resize'));});
+        el.querySelector('.readout-toggle').addEventListener('click',()=>{const open=el.classList.toggle('is-expanded');if(open)el.renderAll?.();el.querySelector('.readout-all').hidden=!open;el.querySelector('.readout-toggle').setAttribute('aria-expanded',String(open));el.querySelector('.readout-toggle').textContent=toggleText(el,open);window.dispatchEvent(new Event('resize'));});
         el.querySelector('.readout-unpin').addEventListener('click',()=>{const owner=el.owner;owner.clearInspection?.();});
         el.addEventListener('pointerdown',()=>el.owner?.pause?.());
         el.addEventListener('click',e=>{const select=e.target.closest('[data-focus-series]');if(select){const owner=el.owner;if(owner?.onFocusSeries)owner.onFocusSeries(select.dataset.focusSeries);else owner?.focusSeries?.(select.dataset.focusSeries);return;}const link=e.target.closest('[data-open-series]');if(link&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey&&!e.altKey&&e.button===0){e.preventDefault();el.owner?.onOpenSeries?.(link.dataset.openSeries);}});
@@ -55,15 +71,15 @@
     render(owner,{date,rows,focus=owner.focus,detailFocus=focus}) {
       const el=owner.readout;if(!el)return;el.owner=owner;
       const {escape:esc,number:num,finite}=root.AtlasCharts;
-      const key=JSON.stringify([date,rows,focus,detailFocus,owner.pinned]);if(el.renderKey===key)return;el.renderKey=key;el.dataset.rows=rows.length;el.dataset.many=String(rows.length>6&&!owner.stock);
+      const key=JSON.stringify([date,rows,focus,detailFocus,owner.pinned]);if(el.renderKey===key)return;el.renderKey=key;el.dataset.rows=rows.length;el.dataset.many=String(rows.length>6&&!owner.stock);el.dataset.stock=String(!!owner.stock);const stockGroups=owner.stock?stockReadoutGroups(rows):null;el.dataset.extra=String(stockGroups?.more.length??0);
       el.querySelector('time').textContent=date+(owner.pinned?' · 关注':'');el.querySelector('.readout-unpin').hidden=!owner.pinned;
-      const button=el.querySelector('.readout-toggle');button.hidden=rows.length<=6;if(rows.length<=6){el.classList.remove('is-expanded');el.querySelector('.readout-all').hidden=true;button.setAttribute('aria-expanded','false');}button.textContent=el.classList.contains('is-expanded')?'收起列表':'全部 '+rows.length+' 项';
+      const button=el.querySelector('.readout-toggle'),hasMore=stockGroups?stockGroups.more.length>0:rows.length>6;button.hidden=!hasMore;if(!hasMore){el.classList.remove('is-expanded');el.querySelector('.readout-all').hidden=true;button.setAttribute('aria-expanded','false');}button.textContent=toggleText(el,el.classList.contains('is-expanded'));
       const focused=rows.find(r=>r.id===focus||r.name===focus);
       // A past hover can offer a drill link without visually selecting a curve.
       const detail=rows.find(r=>r.id===detailFocus||r.name===detailFocus);
       const drill=el.querySelector('.readout-drill');drill.hidden=!detail?.canOpen;if(detail?.canOpen){drill.textContent=detail.openLabel||owner.openLabel||'查看详情';drill.href=owner.linkFor(detail.id);drill.dataset.openSeries=detail.id;drill.setAttribute('aria-label',drill.textContent+'：'+detail.name);}
       const references=rows.filter(r=>r.reference);
-      const primary=owner.stock?rows.filter(r=>['收盘','涨跌','最高','最低','距今涨幅'].includes(r.name)):
+      const primary=stockGroups?[...stockGroups.prices,...stockGroups.changes]:
         rows.length<=6?rows:
         references.length?[...references,...(focused&&!references.includes(focused)?[focused]:[])]:
         focused&&focused!==rows[0]?[rows[0],focused]:rows.slice(0,1);
@@ -75,16 +91,18 @@
            r.canOpen?'<a class="readout-open" href="'+esc(owner.linkFor(r.id))+'" data-open-series="'+esc(r.id)+'" aria-label="'+esc(r.openLabel||owner.openLabel||'查看详情')+'：'+esc(r.name)+'">'+label+' ↗</a>':'<span title="'+esc(r.title||r.name)+'">'+label+'</span>';
          return '<div class="readout-row'+(focus===r.id?' is-focused':'')+'"><i style="color:'+(r.color||'var(--plot-main)')+';border-top:2px '+(r.dash?'dashed':'solid')+' currentColor;background:transparent"></i>'+identity+'<strong'+(r.signed&&finite(r.value)&&r.value!==0?' class="'+(r.value>0?'readout-rise':'readout-fall')+'"':'')+'>'+(finite(r.value)?(r.signed&&r.value>0?'+':'')+num(r.value,r.digits??2):'—')+'<small class="readout-unit'+(r.unit==='%'?' is-percent':'')+'">'+(finite(r.value)?esc(r.unit||''):'')+'</small></strong></div>';
        };
-      el.querySelector('.readout-primary').innerHTML=primary.map(row).join('')+(rows.length>6&&!focused&&!owner.stock?'<span class="readout-hint">展开全部列表可选择密集曲线</span>':'');
+      el.querySelector('.readout-primary').innerHTML=stockGroups?
+        '<div class="stock-readout-prices">'+stockGroups.prices.map(stockReadoutCell).join('')+'</div><div class="stock-readout-changes">'+stockGroups.changes.map(stockReadoutCell).join('')+'</div>':
+        primary.map(row).join('')+(rows.length>6&&!focused?'<span class="readout-hint">展开全部列表可选择密集曲线</span>':'');
       el.renderAll=()=>{
          const container=el.querySelector('.readout-all');
-         const stamp=date+'|'+(owner.revision||0)+'|'+rows.length+'|'+(owner.index??-1)+'|'+(owner.row??-1);
+         const stamp=date+'|'+(owner.revision||0)+'|'+rows.length+'|'+(owner.index??-1)+'|'+(owner.row??-1)+(stockGroups?'|'+JSON.stringify(stockGroups.more):'');
          if(el.listOwner!==owner||el.listStamp!==stamp){
            const scroll=container.scrollTop;
-           const ordered=[...rows].sort((a,b)=>Number(!!b.reference)-Number(!!a.reference)||
+           const ordered=stockGroups?stockGroups.more:[...rows].sort((a,b)=>Number(!!b.reference)-Number(!!a.reference)||
               Number(finite(b.value))-Number(finite(a.value))||(finite(a.value)&&finite(b.value)?b.value-a.value:0)||
               String(a.name).localeCompare(String(b.name),'zh-CN'));
-           container.innerHTML=ordered.map(row).join('');
+           container.innerHTML=ordered.map(stockGroups?stockReadoutCell:row).join('');
            container.scrollTop=scroll;el.listOwner=owner;el.listStamp=stamp;
          }
          for(const button of container.querySelectorAll('[data-focus-series]')){
@@ -222,5 +240,5 @@
     destroy(){this.clearTimer();this.abort.abort();if(inspector.owner?.surface===this.surface)inspector.hide();}
   }
   Object.assign(root,{AtlasGesture:Gesture,AtlasTimeNavigator:TimeNavigator,AtlasAxisControls:axisControls,AtlasApplyZoomAxis:applyZoomAxis,AtlasFullscreen:fullscreen,AtlasInspector:inspector,AtlasDialogDismiss:bindDismiss,AtlasZoomRange:zoomRange});
-  if(typeof module!=='undefined')module.exports={zoomRange,clamp};
+  if(typeof module!=='undefined')module.exports={zoomRange,clamp,stockReadoutGroups,stockReadoutCell};
 })(globalThis);
