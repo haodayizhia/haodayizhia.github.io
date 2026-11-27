@@ -3,20 +3,6 @@
   const {escape:esc,number:num,finite,clamp}=root.AtlasCharts;
   const toolbar=label=>`<div class="plot-toolbar"><div><time class="chart-date"></time><span>${esc(label)}</span></div><div class="plot-actions"><button data-map-action="out" aria-label="缩小">−</button><button data-map-action="in" aria-label="放大">＋</button><button data-map-action="reset">复原</button><button data-map-action="expand">⛶ 全屏</button></div></div>`;
   function rgb(text){if(text.trim().startsWith('#')){let h=text.trim().slice(1);if(h.length===3)h=[...h].map(c=>c+c).join('');return[0,2,4].map(i=>parseInt(h.slice(i,i+2),16));}return(text.match(/[\d.]+/g)||[0,0,0]).slice(0,3).map(Number);}
-  // Read theme-specific ramps once per redraw. Every stop is a quarter of the
-  // existing fixed normalization range; intermediate colors are continuous.
-  function heatPalette(style){
-    const neutral=rgb(style.getPropertyValue('--heat-neutral'));
-    const ramp=name=>[neutral,...style.getPropertyValue(name).trim().split(/ +/).map(rgb)];
-    return {rise:ramp('--heat-rise'),fall:ramp('--heat-fall'),missing:style.getPropertyValue('--heat-missing').trim()};
-  }
-  function heatColor(value,metric,window,palette){
-    if(!finite(value))return palette.missing;
-    const limit=window===1?5:18,strength=metric==='breadth'?(value-50)/50:value/limit;
-    const ramp=strength>=0?palette.rise:palette.fall;
-    const pos=Math.min(1,Math.abs(strength))*(ramp.length-1),a=Math.floor(pos),b=Math.min(a+1,ramp.length-1),t=pos-a;
-    return 'rgb('+ramp[a].map((v,i)=>Math.round(v+(ramp[b][i]-v)*t)).join(',')+')';
-  }
   class Heatmap {
     constructor(host,options) {
       this.host=host;Object.assign(this,{rowHeight:30,index:options.dates.length-1},options);this.fitted=false;this.firstPosition=true;this.rowType=this.rowType||'行业';this.abort=new AbortController();host.classList.add('heatmap-host');
@@ -43,13 +29,13 @@
       const width=this.surface.clientWidth;if(!width)return;
       const fit=width/this.dates.length;if(!this.cellWidth){this.cellWidth=fit>=4?fit:Math.max(5,Math.min(8,width/60));this.fitted=this.cellWidth<=fit+.001;}else if(this.fitted)this.cellWidth=fit;
       const w=Math.max(width,Math.ceil(this.cellWidth*this.dates.length)),h=this.rows.length*this.rowHeight;
-      const style=getComputedStyle(this.host),palette=heatPalette(style);
+      const style=getComputedStyle(this.host),base=rgb(style.getPropertyValue('--surface')),rise=rgb(style.getPropertyValue('--rise')),fall=rgb(style.getPropertyValue('--fall'));
       this.canvas.width=w;this.canvas.height=h;this.canvas.style.width=w+'px';this.canvas.style.height=h+'px';this.stage.style.width=w+'px';this.stage.style.height=h+'px';
-      const ctx=this.canvas.getContext('2d');
-      for(let r=0;r<this.rows.length;r++)for(let d=0;d<this.dates.length;d++){ctx.fillStyle=heatColor(this.rows[r].values[d],this.metric,this.window,palette);ctx.fillRect(d*this.cellWidth,r*this.rowHeight,Math.ceil(this.cellWidth),this.rowHeight-3);}
+      const ctx=this.canvas.getContext('2d'),limit=this.window===1?5:18;
+      for(let r=0;r<this.rows.length;r++)for(let d=0;d<this.dates.length;d++){const value=this.rows[r].values[d],strength=this.metric==='breadth'?(value-50)/50:value/limit,t=finite(value)?Math.min(1,Math.abs(strength))*.8+.08:0,to=strength>=0?rise:fall;ctx.fillStyle=finite(value)?`rgb(${base.map((v,i)=>Math.round(v+(to[i]-v)*t)).join(',')})`:style.getPropertyValue('--subtle');ctx.fillRect(d*this.cellWidth,r*this.rowHeight,Math.ceil(this.cellWidth),this.rowHeight-3);}
       const dpr=Math.min(devicePixelRatio||1,2);this.header.width=w*dpr;this.header.height=28*dpr;this.header.style.width=w+'px';this.header.style.height='28px';const c=this.header.getContext('2d');c.scale(dpr,dpr);c.fillStyle=style.getPropertyValue('--muted');c.font='11px "Segoe UI","Microsoft YaHei"';
       const stride=Math.max(1,Math.ceil(82/this.cellWidth));for(let i=0;i<this.dates.length;i+=stride){c.fillText(this.dates[i].slice(2),i*this.cellWidth+2,18);}
-      this.host.querySelector('.map-caption').textContent=`${this.dates[0]} — ${this.dates.at(-1)} · ${this.dates.length}个交易日 × ${this.rows.length}${this.rowType==='股票'?'只股票':'个行业'} · ${this.metric==='breadth'?'红色高于50%，绿色低于50%':this.metric==='momentum'?'红涨绿跌':'红色领先，绿色落后'} · 颜色越鲜明，幅度越大`;
+      this.host.querySelector('.map-caption').textContent=`${this.dates[0]} — ${this.dates.at(-1)} · ${this.dates.length}个交易日 × ${this.rows.length}${this.rowType==='股票'?'只股票':'个行业'} · 冷色落后，暖色领先`;
       if(this.host.classList.contains('is-fullscreen')){const h=Math.max(160,this.host.parentElement.clientHeight-215-this.readout.getBoundingClientRect().height);this.surface.style.maxHeight=h+'px';this.names.parentElement.style.maxHeight=h+'px';}else{this.surface.style.maxHeight='';this.names.parentElement.style.maxHeight='';}
       this.host.dataset.columns=this.dates.length;this.host.dataset.rows=this.rows.length;this.updateCursor();this.navigator?.update();
     }
@@ -158,5 +144,5 @@
     }
   }
   root.AtlasMaps={Heatmap,Scatter,rotationTrail,rotationSettings};
-  if(typeof module!=='undefined')module.exports={rotationTrail,rotationSettings,heatColor,heatPalette};
+  if(typeof module!=='undefined')module.exports={rotationTrail,rotationSettings};
 })(globalThis);
