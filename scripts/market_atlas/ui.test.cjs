@@ -215,7 +215,7 @@ test('heatmap directional palette has a neutral midpoint and unchanged saturatio
  assert.equal(color(100,'breadth'),color(5));assert.equal(color(0,'breadth'),color(-5));
  assert.equal(color(null),missing);assert.equal(color(NaN),missing);
  assert.notEqual(color(.5),color(-.5));assert.notEqual(color(.5),color(0));
- assert.ok(Number(color(.5).match(/\\d+/)[0])<Number(color(2).match(/\\d+/)[0]));
+ assert.ok(Number(color(.5).match(/[0-9]+/)[0])<Number(color(2).match(/[0-9]+/)[0]));
  const css=fs.readFileSync(path.join(__dirname,'../../resources/market-atlas/atlas.css'),'utf8');
  assert.match(css,/--candle-rise:var\(--rise\);--candle-fall:var\(--fall\)/);
 });
