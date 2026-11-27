@@ -206,10 +206,10 @@ test('stock readout groups OHLC, daily and cumulative return, then supplementary
 });
 
 
-test('original MarketAtlas theme colors remain consistent across quote and candle marks',()=>{
+test('MarketAtlas palette C remains consistent across quote and candle marks',()=>{
  const css=fs.readFileSync(path.join(__dirname,'../../resources/market-atlas/atlas.css'),'utf8');
- assert.ok(css.includes('--rise:#b35445;--fall:#188474;'));
- assert.ok(css.includes('--rise:#d99b88;--fall:#79b5a5;'));
+ assert.ok(css.includes('--rise:#b84e44;--fall:#277f65;'));
+ assert.ok(css.includes('--rise:#d98479;--fall:#68ad91;'));
  assert.ok(css.includes('--candle-rise:var(--rise);--candle-fall:var(--fall)'));
  assert.ok(!css.includes('--heat-neutral:'));
 });
