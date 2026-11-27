@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes,extremeLabel,returnToLatest}=require('../../resources/market-atlas/charts.js');
-const{rotationTrail,rotationSettings,heatColor}=require('../../resources/market-atlas/maps.js');
+const{rotationTrail,rotationSettings,heatColor,heatPalette}=require('../../resources/market-atlas/maps.js');
 const{zoomRange,stockReadoutGroups,stockReadoutCell}=require('../../resources/market-atlas/chart-interaction.js');
 
 test('stock chart uses global research period and free zoom, not 20/60-day presets',()=>{
@@ -206,16 +206,32 @@ test('stock readout groups OHLC, daily and cumulative return, then supplementary
 });
 
 
-test('heatmap directional palette has a neutral midpoint and unchanged saturation thresholds',()=>{
- const base=[11,16,24],rise=[242,74,80],fall=[53,198,90],missing='#202733';
- const color=(v,metric='relative',w=1)=>heatColor(v,metric,w,base,rise,fall,missing);
- assert.equal(color(0),'rgb(11,16,24)');assert.equal(color(50,'breadth'),'rgb(11,16,24)');
- assert.equal(color(5),'rgb(242,74,80)');assert.equal(color(-5),'rgb(53,198,90)');
- assert.equal(color(18,'relative',5),color(5));assert.equal(color(9,'relative',5),color(2.5));
- assert.equal(color(100,'breadth'),color(5));assert.equal(color(0,'breadth'),color(-5));
- assert.equal(color(null),missing);assert.equal(color(NaN),missing);
- assert.notEqual(color(.5),color(-.5));assert.notEqual(color(.5),color(0));
- assert.ok(Number(color(.5).match(/[0-9]+/)[0])<Number(color(2).match(/[0-9]+/)[0]));
+test('heatmap ramps follow both themes, retain neutral midpoint and unchanged saturation thresholds',()=>{
  const css=fs.readFileSync(path.join(__dirname,'../../resources/market-atlas/atlas.css'),'utf8');
- assert.match(css,/--candle-rise:var\(--rise\);--candle-fall:var\(--fall\)/);
+ const blocks=css.split('/* Directional marks and dense heatmaps')[1].split('}').filter(s=>s.includes('--heat-neutral:'));
+ assert.equal(blocks.length,2);
+ assert.ok(css.includes('--candle-rise:var(--rise);--candle-fall:var(--fall)'));
+ const expected=[
+  {neutral:'rgb(234,240,247)',rise:'rgb(185,74,91)',fall:'rgb(56,135,97)',missing:'#cbd5e2'},
+  {neutral:'rgb(23,31,42)',rise:'rgb(182,83,94)',fall:'rgb(54,139,104)',missing:'#101722'}
+ ];
+ for(const [i,block] of blocks.entries()){
+  const vars=Object.fromEntries(block.slice(block.indexOf('{')+1).split(';').filter(s=>s.includes(':')).map(s=>{const at=s.indexOf(':');return [s.slice(0,at).trim(),s.slice(at+1).trim()];}));
+  const palette=heatPalette({getPropertyValue:k=>vars[k]||''}),e=expected[i];
+  const color=(v,metric='relative',w=1)=>heatColor(v,metric,w,palette);
+  assert.equal(palette.rise.length,5);assert.equal(palette.fall.length,5);
+  assert.equal(color(0),e.neutral);assert.equal(color(50,'breadth'),e.neutral);
+  assert.equal(color(5),e.rise);assert.equal(color(-5),e.fall);
+  assert.equal(color(18,'relative',5),color(5));assert.equal(color(9,'relative',5),color(2.5));
+  assert.equal(color(100,'breadth'),color(5));assert.equal(color(0,'breadth'),color(-5));
+  assert.equal(color(null),e.missing);assert.equal(color(NaN),e.missing);
+  assert.notEqual(color(.5),color(-.5));assert.notEqual(color(.5),color(0));
+  assert.equal(color(100),color(5));assert.equal(color(-100),color(-5));
+  const rgb=s=>s.match(/[0-9]+/g).map(Number);
+  const distance=(a,b)=>Math.hypot(...rgb(a).map((v,j)=>v-rgb(b)[j]));
+  for(const sign of [1,-1]){
+   for(const v of [0,.25,.5,1.25,2.5,3.75,4.75])assert.ok(distance(color(v*sign),color(0))<distance(color((v+.25)*sign),color(0)));
+   assert.ok(distance(color(1.249*sign),color(1.251*sign))<=2);
+  }
+ }
 });

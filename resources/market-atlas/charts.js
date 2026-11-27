@@ -373,7 +373,7 @@
         const volume=this.stock.volume.some(finite)?this.stock.volume:this.stock.amount,unit=this.stock.volume.some(finite)?'万股':'亿元',top=g.bottom+10,bottom=this.h-34;let max=0;
         for(let i=a;i<=b;i++)if(finite(volume[i]))max=Math.max(max,volume[i]);
         html+=`<text class="axis-unit" x="${g.left}" y="${top+10}">${unit==='万股'?'成交量':'成交额'} / ${unit}</text>`;
-        html+='<g class="plot-volume">';for(let i=a;i<=b;i++)if(finite(volume[i])&&max>0){const h=volume[i]/max*Math.max(0,bottom-top-14),cw=Math.max(1,Math.min(34,this.plotXWidth/Math.max(1,this.view[1]-this.view[0]+1)*.70));if(!completeBar(i,cw))continue;html+=`<rect x="${this.X(i)-cw/2}" y="${bottom-h}" width="${cw}" height="${h}" fill="${this.stock.daily[i]>=0?'var(--candle-rise)':'var(--candle-fall)'}" opacity=".72"/>`;}html+='</g>';
+        html+='<g class="plot-volume">';for(let i=a;i<=b;i++)if(finite(volume[i])&&max>0){const h=volume[i]/max*Math.max(0,bottom-top-14),cw=Math.max(1,Math.min(34,this.plotXWidth/Math.max(1,this.view[1]-this.view[0]+1)*.70));if(!completeBar(i,cw))continue;html+=`<rect x="${this.X(i)-cw/2}" y="${bottom-h}" width="${cw}" height="${h}" fill="${this.stock.daily[i]>=0?'var(--candle-rise)':'var(--candle-fall)'}" opacity=".65"/>`;}html+='</g>';
       }
       this.lastStyleKey=null;this.svg.innerHTML=html+'<g class="plot-overlay"></g>';this.surface.classList.toggle('can-pan',this.canPan());this.svg.setAttribute('aria-label',this.label+'；点按或长按查值，双指或滚轮缩放，双击复原。');
       this.svg.dataset.start=String(this.view[0]);this.svg.dataset.end=String(this.view[1]);this.updateOverlay();this.updateValues();

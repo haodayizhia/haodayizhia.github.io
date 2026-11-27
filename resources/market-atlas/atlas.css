@@ -1,5 +1,5 @@
-.atlas-app{--rise:#d5222e;--fall:#178334;--plot-main:#244564;--plot-blue:#487ea8;--plot-gold:#ae8a42;--plot-teal:#438e83;--plot-purple:#8e78ae;--plot-red:#b77c8c;--plot-slate:#718699;margin-block:0 var(--page-bottom);color:var(--ink);font-size:14px;line-height:1.6;min-width:0}
-:root[data-theme=dark] .atlas-app{--rise:#f24a50;--fall:#35c65a;--plot-main:#dce6ef;--plot-blue:#8babca;--plot-gold:#c4ad77;--plot-teal:#80ad9f;--plot-purple:#afa0c5;--plot-red:#c09ca6;--plot-slate:#a1adb9}
+.atlas-app{--rise:#bd3949;--fall:#27875d;--plot-main:#244564;--plot-blue:#487ea8;--plot-gold:#ae8a42;--plot-teal:#438e83;--plot-purple:#8e78ae;--plot-red:#b77c8c;--plot-slate:#718699;margin-block:0 var(--page-bottom);color:var(--ink);font-size:14px;line-height:1.6;min-width:0}
+:root[data-theme=dark] .atlas-app{--rise:#ce5c65;--fall:#45a77c;--plot-main:#dce6ef;--plot-blue:#8babca;--plot-gold:#c4ad77;--plot-teal:#80ad9f;--plot-purple:#afa0c5;--plot-red:#c09ca6;--plot-slate:#a1adb9}
 body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:none!important}
 .atlas-app *{box-sizing:border-box}.atlas-app .atlas-heading{width:100%;padding-block:var(--page-top) var(--heading-gap)}.atlas-app .page-heading{margin-bottom:0}.atlas-heading h1{margin-bottom:0}.atlas-heading .description{transition:none}
 .atlas-app button,.atlas-app input,.atlas-app select{font:inherit;color:inherit}.atlas-app button{cursor:pointer}.atlas-app button:disabled{opacity:.45;cursor:default}.atlas-app button:focus-visible,.atlas-app select:focus-visible,.atlas-app input:focus-visible,.atlas-chart:focus-visible,.atlas-scatter:focus-visible{outline:2px solid var(--plot-blue);outline-offset:3px}
@@ -51,8 +51,8 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 @media(max-width:760px){.scatter-host .readout-primary{grid-template-columns:1fr}.rotation-explanation{font-size:11px!important}}
 
 /* A stable hue and dash identity for each industry in both site themes. */
-.atlas-app{--plot-c1:#246bb1;--plot-c2:#9b660d;--plot-c3:#147b68;--plot-c4:#9345a4;--plot-c5:#bc4e39;--plot-c6:#5c7722;--plot-c7:#5859b6;--plot-c8:#a84779;--plot-c9:#147e99;--plot-c10:#8c741f;--plot-c11:#5f666a;--plot-c12:#8d5833;--plot-blue:var(--plot-c1);--plot-gold:var(--plot-c2);--plot-teal:var(--plot-c3);--plot-purple:var(--plot-c4);--plot-red:var(--plot-c5);--plot-slate:var(--plot-c11)}
-:root[data-theme=dark] .atlas-app{--plot-c1:#7db8f0;--plot-c2:#f2bd63;--plot-c3:#68d0bb;--plot-c4:#dd9bea;--plot-c5:#ef998b;--plot-c6:#b9d47a;--plot-c7:#91a1f3;--plot-c8:#eaa9c8;--plot-c9:#72c9dd;--plot-c10:#d7c494;--plot-c11:#b8b1a0;--plot-c12:#c29a70;--plot-blue:var(--plot-c1);--plot-gold:var(--plot-c2);--plot-teal:var(--plot-c3);--plot-purple:var(--plot-c4);--plot-red:var(--plot-c5);--plot-slate:var(--plot-c11)}
+.atlas-app{--plot-c1:#246bb1;--plot-c2:#92671f;--plot-c3:#24796e;--plot-c4:#85549d;--plot-c5:#b45749;--plot-c6:#627a38;--plot-c7:#575fae;--plot-c8:#a14f79;--plot-c9:#227d98;--plot-c10:#877323;--plot-c11:#646e7a;--plot-c12:#8e603c;--plot-blue:var(--plot-c1);--plot-gold:var(--plot-c2);--plot-teal:var(--plot-c3);--plot-purple:var(--plot-c4);--plot-red:var(--plot-c5);--plot-slate:var(--plot-c11)}
+:root[data-theme=dark] .atlas-app{--plot-c1:#7db8f0;--plot-c2:#d5b16f;--plot-c3:#6bb5a8;--plot-c4:#bc9bcd;--plot-c5:#d58c80;--plot-c6:#a9bd78;--plot-c7:#929fdb;--plot-c8:#ce9ab9;--plot-c9:#79b7c9;--plot-c10:#c2ae82;--plot-c11:#a5afbc;--plot-c12:#c19a78;--plot-blue:var(--plot-c1);--plot-gold:var(--plot-c2);--plot-teal:var(--plot-c3);--plot-purple:var(--plot-c4);--plot-red:var(--plot-c5);--plot-slate:var(--plot-c11)}
 .chart-input{position:absolute;inset:0;touch-action:pan-y;cursor:crosshair}.plot-overlay{pointer-events:none}.readout-row{grid-template-columns:16px minmax(0,1fr) auto}.readout-row i{width:16px}.comparison-order{margin:10px 0 0!important;font-size:11px!important;color:var(--muted)}
 @media(max-width:760px){.plot-toolbar{gap:5px}.plot-toolbar .chart-label{font-size:10px}.readout-row{grid-template-columns:14px minmax(0,1fr) auto}.readout-row i{width:14px}}
 
@@ -140,8 +140,10 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 /* Keep the inspection area stable while the focused line changes on narrow screens. */
 @media(max-width:760px){.chart-readout[data-many="true"] .readout-primary{min-height:52px}}
 
-/* Share directional colors across candles, quote readouts and heatmaps. */
-.atlas-app{--candle-rise:var(--rise);--candle-fall:var(--fall)}
+/* Directional marks and dense heatmaps share hues, not visual intensity.
+   Heat ramps are ordered from the neutral midpoint to the saturation endpoint. */
+.atlas-app{--candle-rise:var(--rise);--candle-fall:var(--fall);--heat-neutral:#eaf0f7;--heat-missing:#cbd5e2;--heat-rise:#e9d7dc #d8aab4 #c77c89 #b94a5b;--heat-fall:#d6e6df #a5cdb9 #70ac90 #388761}
+:root[data-theme=dark] .atlas-app{--heat-neutral:#171f2a;--heat-missing:#101722;--heat-rise:#392630 #573039 #843f49 #b6535e;--heat-fall:#1c3834 #245647 #2c7057 #368b68}
 .candle-extreme{fill:var(--ink);font:11px Inter,"Segoe UI","Microsoft YaHei",sans-serif;paint-order:stroke;stroke:var(--bg);stroke-width:2.5px;stroke-linejoin:round;pointer-events:none}
 .candle-extreme-guide{fill:none;stroke:var(--muted);stroke-width:1;pointer-events:none}
 
