@@ -12,17 +12,38 @@
     return Math.max(0,...labels.map(label=>axisContext?axisContext.measureText(label).width:String(label).length*size*.62));
   }
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  function bounds(series) {
+  function bounds(series,padding=.1) {
     let lo=Infinity,hi=-Infinity;
     for(const s of series)for(const v of s.values||[])if(finite(v)){lo=Math.min(lo,v);hi=Math.max(hi,v);}
     if(!finite(lo))return [-1,1];
     if(lo===hi){const pad=Math.max(Math.abs(lo)*.02,1);lo-=pad;hi+=pad;}
-    const pad=(hi-lo)*.1;return [lo-pad,hi+pad];
+    const pad=(hi-lo)*padding;return [lo-pad,hi+pad];
   }
   function ticks(lo,hi,count=4) {
     const raw=(hi-lo)/count,p=10**Math.floor(Math.log10(raw||1)),r=raw/p,step=(r<=1?1:r<=2?2:r<=5?5:10)*p,out=[];
     for(let v=Math.ceil(lo/step)*step;v<=hi+step*.001;v+=step)out.push(Math.abs(v)<1e-9?0:v);
     return out;
+  }
+  // Keep the price pane tall enough on wide screens without making short viewports unusable.
+  function chartHeight(width,viewportHeight,kind='lines',compact=false){
+    if(compact)return width<600?130:164;
+    const vh=finite(viewportHeight)&&viewportHeight>0?viewportHeight:900;
+    if(kind==='candles')return Math.round(width<=760?clamp(vh*.60,420,520):clamp(Math.min(width*.44,vh*.72),500,700));
+    return Math.round(width<=760?350:clamp(Math.min(width*.38,vh*.62),400,580));
+  }
+  function volumeReserve(plotHeight){
+    return Math.round(Math.min(plotHeight*.30,clamp(plotHeight*.20,44,132)));
+  }
+  // Only label actual visible OHLC extrema; never infer high/low from the close.
+  function visibleExtremes(stock,start,end,include=()=>true){
+    let high=null,low=null;
+    for(let i=start;i<=end;i++){
+      if(!include(i))continue;
+      const h=stock.high[i],l=stock.low[i];
+      if(finite(h)&&(!high||h>high.value))high={index:i,value:h};
+      if(finite(l)&&(!low||l<low.value))low={index:i,value:l};
+    }
+    return {high,low};
   }
   function geometry(width,height,labelWidth=24) {
     const left=Math.max(30,Math.ceil(labelWidth+8)),right=width-6,top=12,bottom=height-30;
@@ -258,11 +279,11 @@
       this.onInspect(this.index,this);this.updateOverlay();this.updateValues();const r=this.surface.getBoundingClientRect();root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.getRows(),x:r.right-30,y:r.top+60,axis:`纵轴 ${number(this.axisValue)}${this.unit}`});
     }
     measure() {
-      this.w=Math.round(this.surface.getBoundingClientRect().width);let h=this.compact?(this.w<600?130:164):Math.max(this.kind==='candles'?370:350,Math.min(460,this.w*.25));
+      this.w=Math.round(this.surface.getBoundingClientRect().width);let h=chartHeight(this.w,root.innerHeight,this.kind,this.compact);
       const expanded=this.host.closest('.is-fullscreen');
       if(expanded){const stage=expanded.parentElement.getBoundingClientRect().height,readout=this.readout?.getBoundingClientRect().height||0;h=this.compact?Math.max(95,(stage-120-readout)/3-34):Math.max(190,stage-130-readout);}
       this.h=Math.round(h);this.surface.style.height=this.h+'px';this.svg.setAttribute('viewBox',`0 0 ${this.w} ${this.h}`);
-      this.g=geometry(this.w,this.h,this.axisLabelWidth);if(this.compact){this.g.top=12;if(this.hideDates)this.g.bottom=this.h-12;}if(this.kind==='candles')this.g.bottom-=76;
+      this.g=geometry(this.w,this.h,this.axisLabelWidth);if(this.compact){this.g.top=12;if(this.hideDates)this.g.bottom=this.h-12;}if(this.kind==='candles')this.g.bottom-=volumeReserve(this.g.bottom-this.g.top);
       this.g.height=Math.max(1,this.g.bottom-this.g.top);
     }
     draw() {
@@ -275,8 +296,8 @@
       this.hasData=this.stock?this.stock.close.slice(a,b+1).some(finite):data.some(s=>s.values.slice(a,b+1).some(v=>finite(v)&&finite(this.transform(v))));
       if(!this.hasData){this.svg.innerHTML=`<text class="axis-label" x="${this.w/2}" y="${this.h/2}" text-anchor="middle">当前区间缺少有效数据</text>`;if(this.values)this.values.innerHTML='';root.AtlasInspector.render(this,{date:this.dates[this.index],rows:[]});this.svg.dataset.axisValue='';return;}
       const extent=data.map(s=>({values:s.values.slice(a,b+1).map(v=>finite(v)?this.transform(v):null)}));if(this.zeroGuide)extent.push({values:[this.transform(0)]});
-      [this.lo,this.hi]=this.yView|| (this.domain?this.domain.map(this.transform):bounds(extent));
-      const axisTicks=ticks(this.lo,this.hi,this.compact?2:4),axisLabels=axisTicks.map(v=>axisNumber(this.inverse(v)));
+      [this.lo,this.hi]=this.yView|| (this.domain?this.domain.map(this.transform):bounds(extent,this.stock ? .05 : this.compact ? .10 : .08));
+      const axisTicks=ticks(this.lo,this.hi,this.compact?2:Math.max(4,Math.min(6,Math.floor(this.g.height/65)))),axisLabels=axisTicks.map(v=>axisNumber(this.inverse(v)));
       this.axisLabelWidth=measureAxis(axisLabels);this.g.left=geometry(this.w,this.h,this.axisLabelWidth).left;this.g.width=Math.max(1,this.g.right-this.g.left);
       // Leave room for readable candle bodies at the first and last trading dates.
       const g=this.g,edgeInset=this.stock?(this.kind==='candles'?21:9):0;this.plotXLeft=g.left+edgeInset;this.plotXWidth=Math.max(1,g.width-2*edgeInset);this.X=i=>this.plotXLeft+(this.view[1]===this.view[0]?.5:(i-this.view[0])/(this.view[1]-this.view[0]))*this.plotXWidth;
@@ -291,15 +312,35 @@
         // On a 20-day desktop chart, thin capped bars otherwise sit far apart.
         // Widen short-range candles while keeping dense histories separated.
         const s=this.stock,cw=Math.max(1,Math.min(38,this.plotXWidth/Math.max(1,this.view[1]-this.view[0]+1)*.75));
-        for(let i=a;i<=b;i++){if(!completeBar(i,cw))continue;const c=s.close[i],o=s.open[i],h=s.high[i],l=s.low[i],color=c>=o?'var(--rise)':'var(--fall)';if([c,o,h,l].every(finite))html+=`<path d="M${this.X(i)},${this.Y(h)}V${this.Y(l)}" stroke="${color}"/><rect x="${this.X(i)-cw/2}" y="${Math.min(this.Y(o),this.Y(c))}" width="${cw}" height="${Math.max(1,Math.abs(this.Y(o)-this.Y(c)))}" fill="${color}"/>`;else if(finite(c))html+=`<circle cx="${this.X(i)}" cy="${this.Y(c)}" r="1.6" fill="var(--plot-main)"/>`;}
+        for(let i=a;i<=b;i++){
+          if(!completeBar(i,cw))continue;
+          const c=s.close[i],o=s.open[i],h=s.high[i],l=s.low[i],color=c>=o?'var(--candle-rise)':'var(--candle-fall)';
+          if([c,o,h,l].every(finite)){
+            const x=this.X(i),yo=this.Y(o),yc=this.Y(c),top=Math.min(yo,yc),bottom=Math.max(yo,yc);
+            html+=`<path d="M${x},${this.Y(h)}V${top} M${x},${bottom}V${this.Y(l)}" stroke="${color}" stroke-width="1.1"/>`;
+            if(bottom-top<1)html+=`<path d="M${x-cw/2},${top}H${x+cw/2}" stroke="${color}" stroke-width="1.2"/>`;
+            else html+=`<rect x="${x-cw/2}" y="${top}" width="${cw}" height="${bottom-top}" fill="${c>o&&cw>=3?'none':color}" stroke="${color}" stroke-width="1.1"/>`;
+          }else if(finite(c))html+=`<circle cx="${this.X(i)}" cy="${this.Y(c)}" r="1.6" fill="var(--plot-main)"/>`;
+        }
       }
       for(const s of this.series){if(this.kind==='candles'&&s.id==='price')continue;html+=`<path class="data-line" d="${path(s.values,this.X,this.Y,Math.max(0,a-1),Math.min(this.dates.length-1,b+1))}" data-series="${escape(s.id)}" stroke-dasharray="${s.dash||''}" stroke="${s.color||'var(--plot-main)'}" stroke-width="${traceWidth(!!s.reference)}"/>`;}
+      if(this.kind==='candles'&&this.stock){
+        const {high,low}=visibleExtremes(this.stock,Math.max(0,Math.ceil(this.view[0])),Math.min(this.dates.length-1,Math.floor(this.view[1])),i=>completeBar(i,1));
+        for(const [point,isHigh] of [[high,true],[low,false]]){
+          if(!point||(!isHigh&&high&&point.value===high.value))continue;
+          const x=this.X(point.index),y=this.Y(point.value);
+          if(y<g.top||y>g.bottom)continue;
+          const label=number(point.value),labelWidth=measureAxis([label])+12,side=x+labelWidth<=g.right?1:-1;
+          const preferred=y+(isHigh?-8:15),ty=clamp(preferred,g.top+11,g.bottom-3);
+          html+=`<path class="candle-extreme-guide" d="M${x},${y}h${side*6}"/><text class="candle-extreme" x="${x+side*9}" y="${ty}" text-anchor="${side===1?'start':'end'}">${label}</text>`;
+        }
+      }
       html+='</g></g>';
       if(this.stock&&this.kind==='candles') {
-        const volume=this.stock.volume.some(finite)?this.stock.volume:this.stock.amount,unit=this.stock.volume.some(finite)?'万股':'亿元',top=g.bottom+16,bottom=this.h-34;let max=0;
+        const volume=this.stock.volume.some(finite)?this.stock.volume:this.stock.amount,unit=this.stock.volume.some(finite)?'万股':'亿元',top=g.bottom+10,bottom=this.h-34;let max=0;
         for(let i=a;i<=b;i++)if(finite(volume[i]))max=Math.max(max,volume[i]);
         html+=`<text class="axis-unit" x="${g.left}" y="${top+10}">${unit==='万股'?'成交量':'成交额'} / ${unit}</text>`;
-        html+='<g class="plot-volume">';for(let i=a;i<=b;i++)if(finite(volume[i])&&max>0){const h=volume[i]/max*(bottom-top-14),cw=Math.max(1,Math.min(34,this.plotXWidth/Math.max(1,this.view[1]-this.view[0]+1)*.70));if(!completeBar(i,cw))continue;html+=`<rect x="${this.X(i)-cw/2}" y="${bottom-h}" width="${cw}" height="${h}" fill="${this.stock.daily[i]>=0?'var(--rise)':'var(--fall)'}" opacity=".45"/>`;}html+='</g>';
+        html+='<g class="plot-volume">';for(let i=a;i<=b;i++)if(finite(volume[i])&&max>0){const h=volume[i]/max*Math.max(0,bottom-top-14),cw=Math.max(1,Math.min(34,this.plotXWidth/Math.max(1,this.view[1]-this.view[0]+1)*.70));if(!completeBar(i,cw))continue;html+=`<rect x="${this.X(i)-cw/2}" y="${bottom-h}" width="${cw}" height="${h}" fill="${this.stock.daily[i]>=0?'var(--candle-rise)':'var(--candle-fall)'}" opacity=".72"/>`;}html+='</g>';
       }
       this.lastStyleKey=null;this.svg.innerHTML=html+'<g class="plot-overlay"></g>';this.surface.classList.toggle('can-pan',this.canPan());this.svg.setAttribute('aria-label',this.label+'；点按或长按查值，双指或滚轮缩放，双击复原。');
       this.svg.dataset.start=String(this.view[0]);this.svg.dataset.end=String(this.view[1]);this.updateOverlay();this.updateValues();
@@ -325,6 +366,6 @@
       this.values.innerHTML=this.series.map(s=>`<div><dt><i style="background:${s.color||'var(--plot-main)'}"></i>${escape(s.name)}</dt><dd>${number(s.values[i])}<small>${finite(s.values[i])?escape(this.unit):''}</small></dd>${s.removable?`<button data-remove-series="${escape(s.id)}" aria-label="移除${escape(s.name)}">×</button>`:''}</div>`).join('');
     }
   }
-  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange};
-  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange};
+  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes};
+  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes};
 })(globalThis);

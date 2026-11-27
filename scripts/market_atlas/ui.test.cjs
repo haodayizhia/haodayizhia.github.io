@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,autoVisibleRange}=require('../../resources/market-atlas/charts.js');
+const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes}=require('../../resources/market-atlas/charts.js');
 const{rotationTrail,rotationSettings}=require('../../resources/market-atlas/maps.js');
 const{zoomRange}=require('../../resources/market-atlas/chart-interaction.js');
 
@@ -145,4 +145,25 @@ test('industry curves use true benchmarks and no hidden baseline selection',()=>
  assert.doesNotMatch(ui,/industryBenchmark|S\.benchmark|industryTitles/);
  assert.ok(ui.includes("bro.atlas.navigation.v2"));
  assert.ok(ui.includes("delete migrated.benchmark"),'Legacy benchmark state must be migrated');
+});
+
+
+test('stock price pane uses responsive height and reserves proportional volume space',()=>{
+ for(const [width,vh] of [[320,740],[390,844],[760,800],[1280,800],[1560,900],[2560,1200]]){
+  const h=chartHeight(width,vh,'candles'),g=geometry(width,h),reserve=volumeReserve(g.height);
+  assert.ok(h>=(width<=760?420:500)&&h<=(width<=760?520:700));
+  assert.ok(reserve>0&&reserve<=g.height*.30&&g.height-reserve>260);
+ }
+ assert.equal(chartHeight(390,844,'lines',true),130);
+ assert.equal(chartHeight(1200,900,'lines',true),164);
+ assert.equal(chartHeight(390,844,'lines'),350);
+ assert.ok(chartHeight(1440,1000,'lines')>460);
+ assert.ok(volumeReserve(148)<45,'Short fullscreen price pane must remain usable');
+});
+test('price domain padding includes all extrema and handles gaps or flat prices',()=>{
+ assert.deepEqual(bounds([{values:[10,14,null]}],.05),[9.8,14.2]);
+ assert.deepEqual(bounds([{values:[10,14]}]),[9.6,14.4]);
+ const [lo,hi]=bounds([{values:[15.27,15.27]}],.05);assert.ok(lo<15.27&&hi>15.27);
+ assert.deepEqual(visibleExtremes({high:[99,13,null,15,80],low:[1,11,10,12,2]},1,3),{high:{index:3,value:15},low:{index:2,value:10}});
+ assert.deepEqual(visibleExtremes({high:[13],low:[11]},0,0,()=>false),{high:null,low:null});
 });

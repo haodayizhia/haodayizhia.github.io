@@ -139,3 +139,9 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 
 /* Keep the inspection area stable while the focused line changes on narrow screens. */
 @media(max-width:760px){.chart-readout[data-many="true"] .readout-primary{min-height:52px}}
+
+/* Stock-specific contrast: keep market/industry colors unchanged. */
+.atlas-app{--candle-rise:#bd3e38;--candle-fall:#12836b}
+:root[data-theme=dark] .atlas-app{--candle-rise:#e56860;--candle-fall:#42b89c}
+.candle-extreme{fill:var(--ink);font:11px Inter,"Segoe UI","Microsoft YaHei",sans-serif;paint-order:stroke;stroke:var(--bg);stroke-width:2.5px;stroke-linejoin:round;pointer-events:none}
+.candle-extreme-guide{fill:none;stroke:var(--muted);stroke-width:1;pointer-events:none}
