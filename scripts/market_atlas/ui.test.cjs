@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const{Chart,geometry,axisNumber,bounds,ticks,path:linePath,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes,extremeLabel,returnToLatest}=require('../../resources/market-atlas/charts.js');
-const{rotationTrail,rotationSettings}=require('../../resources/market-atlas/maps.js');
+const{rotationTrail,rotationSettings,heatColor}=require('../../resources/market-atlas/maps.js');
 const{zoomRange,stockReadoutGroups,stockReadoutCell}=require('../../resources/market-atlas/chart-interaction.js');
 
 test('stock chart uses global research period and free zoom, not 20/60-day presets',()=>{
@@ -203,4 +203,19 @@ test('stock readout groups OHLC, daily and cumulative return, then supplementary
  assert.match(stockReadoutCell({name:'涨跌',value:-2,unit:'%'}),/当日涨跌.*readout-fall/);
  assert.match(stockReadoutCell({name:'距今涨幅',value:10,unit:'%',signed:true}),/readout-rise.*\+10\.00/);
  assert.match(stockReadoutCell({name:'距今涨幅',value:null,unit:'%',signed:true}),/—/);
+});
+
+
+test('heatmap directional palette has a neutral midpoint and unchanged saturation thresholds',()=>{
+ const base=[11,16,24],rise=[242,74,80],fall=[53,198,90],missing='#202733';
+ const color=(v,metric='relative',w=1)=>heatColor(v,metric,w,base,rise,fall,missing);
+ assert.equal(color(0),'rgb(11,16,24)');assert.equal(color(50,'breadth'),'rgb(11,16,24)');
+ assert.equal(color(5),'rgb(242,74,80)');assert.equal(color(-5),'rgb(53,198,90)');
+ assert.equal(color(18,'relative',5),color(5));assert.equal(color(9,'relative',5),color(2.5));
+ assert.equal(color(100,'breadth'),color(5));assert.equal(color(0,'breadth'),color(-5));
+ assert.equal(color(null),missing);assert.equal(color(NaN),missing);
+ assert.notEqual(color(.5),color(-.5));assert.notEqual(color(.5),color(0));
+ assert.ok(Number(color(.5).match(/\\d+/)[0])<Number(color(2).match(/\\d+/)[0]));
+ const css=fs.readFileSync(path.join(__dirname,'../../resources/market-atlas/atlas.css'),'utf8');
+ assert.match(css,/--candle-rise:var\(--rise\);--candle-fall:var\(--fall\)/);
 });

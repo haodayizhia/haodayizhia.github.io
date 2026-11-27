@@ -1,5 +1,5 @@
-.atlas-app{--rise:#b35445;--fall:#188474;--plot-main:#244564;--plot-blue:#487ea8;--plot-gold:#ae8a42;--plot-teal:#438e83;--plot-purple:#8e78ae;--plot-red:#b77c8c;--plot-slate:#718699;margin-block:0 var(--page-bottom);color:var(--ink);font-size:14px;line-height:1.6;min-width:0}
-:root[data-theme=dark] .atlas-app{--rise:#d99b88;--fall:#79b5a5;--plot-main:#dce6ef;--plot-blue:#8babca;--plot-gold:#c4ad77;--plot-teal:#80ad9f;--plot-purple:#afa0c5;--plot-red:#c09ca6;--plot-slate:#a1adb9}
+.atlas-app{--rise:#d5222e;--fall:#178334;--plot-main:#244564;--plot-blue:#487ea8;--plot-gold:#ae8a42;--plot-teal:#438e83;--plot-purple:#8e78ae;--plot-red:#b77c8c;--plot-slate:#718699;margin-block:0 var(--page-bottom);color:var(--ink);font-size:14px;line-height:1.6;min-width:0}
+:root[data-theme=dark] .atlas-app{--rise:#f24a50;--fall:#35c65a;--plot-main:#dce6ef;--plot-blue:#8babca;--plot-gold:#c4ad77;--plot-teal:#80ad9f;--plot-purple:#afa0c5;--plot-red:#c09ca6;--plot-slate:#a1adb9}
 body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:none!important}
 .atlas-app *{box-sizing:border-box}.atlas-app .atlas-heading{width:100%;padding-block:var(--page-top) var(--heading-gap)}.atlas-app .page-heading{margin-bottom:0}.atlas-heading h1{margin-bottom:0}.atlas-heading .description{transition:none}
 .atlas-app button,.atlas-app input,.atlas-app select{font:inherit;color:inherit}.atlas-app button{cursor:pointer}.atlas-app button:disabled{opacity:.45;cursor:default}.atlas-app button:focus-visible,.atlas-app select:focus-visible,.atlas-app input:focus-visible,.atlas-chart:focus-visible,.atlas-scatter:focus-visible{outline:2px solid var(--plot-blue);outline-offset:3px}
@@ -140,9 +140,8 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 /* Keep the inspection area stable while the focused line changes on narrow screens. */
 @media(max-width:760px){.chart-readout[data-many="true"] .readout-primary{min-height:52px}}
 
-/* Stock-specific contrast: keep market/industry colors unchanged. */
-.atlas-app{--candle-rise:#bd3e38;--candle-fall:#12836b}
-:root[data-theme=dark] .atlas-app{--candle-rise:#e56860;--candle-fall:#42b89c}
+/* Share directional colors across candles, quote readouts and heatmaps. */
+.atlas-app{--candle-rise:var(--rise);--candle-fall:var(--fall)}
 .candle-extreme{fill:var(--ink);font:11px Inter,"Segoe UI","Microsoft YaHei",sans-serif;paint-order:stroke;stroke:var(--bg);stroke-width:2.5px;stroke-linejoin:round;pointer-events:none}
 .candle-extreme-guide{fill:none;stroke:var(--muted);stroke-width:1;pointer-events:none}
 
