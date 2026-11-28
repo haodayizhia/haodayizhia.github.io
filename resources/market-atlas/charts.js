@@ -231,7 +231,7 @@
       if(this.inspectionRows)return this.inspectionRows(this.index);
       if(this.stock) {
         const s=this.stock,i=this.index,hasVolume=s.volume.some(finite);
-        return [['开盘',s.open[i],'元'],['最高',s.high[i],'元'],['最低',s.low[i],'元'],['收盘',s.close[i],'元'],['涨跌',s.daily[i],'%'],['距今涨幅',returnToLatest(s.close[i],this.latestClose),'%',{signed:true,title:'选中日收盘价至数据源最新交易日'+(this.latestDate?'（'+this.latestDate+'）':'')+'收盘价的涨幅'}],[hasVolume?'成交量':'成交额',hasVolume?s.volume[i]:s.amount[i],hasVolume?'万股':'亿元'],...this.series.filter(s=>s.id!=='price').map(s=>[s.name,s.values[i],'元'])].map(([name,value,unit,extra])=>({name,value,unit,...extra}));
+        return [['开盘',s.open[i],'元'],['最高',s.high[i],'元'],['最低',s.low[i],'元'],['收盘',s.close[i],'元'],['涨跌',s.daily[i],'%'],...(this.afterwards?[['距今涨幅',returnToLatest(s.close[i],this.latestClose),'%',{signed:true,title:'选中日收盘价至数据源最新交易日'+(this.latestDate?'（'+this.latestDate+'）':'')+'收盘价的涨幅'}]]:[['区间涨幅',s.path?.[i], '%',{signed:true}]]),[hasVolume?'成交量':'成交额',hasVolume?s.volume[i]:s.amount[i],hasVolume?'万股':'亿元'],...this.series.filter(s=>s.id!=='price').map(s=>[s.name,s.values[i],'元'])].map(([name,value,unit,extra])=>({name,value,unit,...extra}));
       }
       return this.series.map(s=>({id:s.id,name:s.name,detail:s.detail,reference:!!s.reference,canOpen:!!this.onOpenSeries&&!s.reference,openLabel:this.openLabel,value:s.values[this.index],color:s.color,dash:s.dash,unit:this.unit}));
     }
@@ -256,6 +256,7 @@
       if(!this.hasData)return;
       const hit=this.hitSeries(p,pointerType==='touch'?22:12);
       this.inspect(p,true);
+      if(this.onDatePick){this.onDatePick(this.dates[this.index]);return;}
       if(!hit){this.focus=this.pinned||null;this.updateOverlay();this.updateValues();return;}
       if(this.pinned===hit.id){this.clearInspection();return;}
       this.focus=hit.id;this.pinned=hit.id;
@@ -313,7 +314,7 @@
       if(this.sceneKey===key){this.updateOverlay();this.updateValues();return;}this.sceneKey=key;
       this.transform=v=>this.log?(v>-100?Math.log1p(v/100):NaN):v;this.inverse=v=>this.log?Math.expm1(v)*100:v;
       const a=Math.max(0,Math.floor(this.view[0])),b=Math.min(this.dates.length-1,Math.ceil(this.view[1]));
-      const data=[...this.series,...(this.stock&&this.kind==='candles'?[{values:this.stock.high},{values:this.stock.low}]:[])];
+      const data=[...this.series,...(this.band||[]).map(values=>({values})),...(this.stock&&this.kind==='candles'?[{values:this.stock.high},{values:this.stock.low}]:[])];
       this.hasData=this.stock?this.stock.close.slice(a,b+1).some(finite):data.some(s=>s.values.slice(a,b+1).some(v=>finite(v)&&finite(this.transform(v))));
       if(!this.hasData){this.svg.innerHTML=`<text class="axis-label" x="${this.w/2}" y="${this.h/2}" text-anchor="middle">当前区间缺少有效数据</text>`;if(this.values)this.values.innerHTML='';root.AtlasInspector.render(this,{date:this.dates[this.index],rows:[]});this.svg.dataset.axisValue='';return;}
       const extent=data.map(s=>({values:s.values.slice(a,b+1).map(v=>finite(v)?this.transform(v):null)}));if(this.zeroGuide)extent.push({values:[this.transform(0)]});
@@ -328,6 +329,16 @@
       if(this.zeroGuide&&this.lo<=0&&this.hi>=0){const y=this.Y(0);html+=`<path class="zero-guide" d="M${g.left},${y}H${g.right}" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="4 5" opacity=".58"/>`;}
       if(!this.hideDates){const n=this.w<500?3:5;for(let k=0;k<n;k++){const i=clamp(Math.round(this.view[0]+k/(n-1)*(this.view[1]-this.view[0])),0,this.dates.length-1);html+=`<text class="axis-label" x="${g.left+k/(n-1)*g.width}" y="${this.h-9}" text-anchor="${k===0?'start':k===n-1?'end':'middle'}">${this.dates[i].slice(2)}</text>`;}}
       html+=`<g clip-path="url(#plotClip${this.id})"><g class="plot-data">`;
+      if(this.band){
+        const [low,high]=this.band;
+        let lower=[],upper=[];
+        const flush=()=>{if(lower.length)html+='<path class="quantile-band" d="M'+lower.concat(upper.reverse()).join('L')+'Z"/>';lower=[];upper=[];};
+        for(let i=a;i<=b;i++){
+          if(!finite(low[i])||!finite(high[i])){flush();continue;}
+          lower.push(this.X(i)+','+this.Y(low[i]));upper.push(this.X(i)+','+this.Y(high[i]));
+        }
+        flush();
+      }
       const completeBar=(i,width)=>this.X(i)-width/2>=g.left+.5&&this.X(i)+width/2<=g.right-.5;
       if(this.kind==='candles'&&this.stock) {
         // On a 20-day desktop chart, thin capped bars otherwise sit far apart.

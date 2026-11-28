@@ -1,5 +1,5 @@
 'use strict';
-importScripts('./engine.js'+self.location.search,'./csv.js'+self.location.search,'./snapshot.js'+self.location.search);
+importScripts('./structure.js'+self.location.search,'./engine.js'+self.location.search,'./csv.js'+self.location.search,'./snapshot.js'+self.location.search);
 let engine=null,publicMeta=null,publicUrl='',coveredStart=-1,coveredEnd=-1;
 let sourceRevision=0,download=null,loadQueue=Promise.resolve();
 const marketAssets=new Map(),industryAssets=new Map();
@@ -204,6 +204,26 @@ async function industryEngine(industry){
   return instance;
  });
 }
+const structureAssets=new Map();
+async function structureRequest(q,id) {
+ const meta=publicMeta, info=meta?.structure, revision=sourceRevision;
+ if(info?.version===1&&(q.mode||'dynamic')==='dynamic'){
+  const subset=q.start>=info.recentStart?info.recent:info.full;
+  const t=meta.dates.indexOf(q.end),last=t===meta.dates.length-1;
+  const part=last?info.latest:info.months.find(c=>c.start<=t&&t<c.start+c.count);
+  if(!part)throw Error('所选日期没有结构分片。');
+  const [full,buffer]=await Promise.all([
+   assetPromise(structureAssets,subset.sha256,async()=>JSON.parse(new TextDecoder().decode(await verifiedAsset(subset)))),
+   verifiedAsset(part)
+  ]);
+  if(revision!==sourceRevision)throw Error('数据源已切换。');
+  return {summary:AtlasStructure.slice(full,q.start,q.end),points:AtlasStructure.unpack(buffer,last?0:t-part.start,last?1:part.count,meta.stocks.length)};
+ }
+ if(meta)await ensurePublished(q,id);
+ if(!engine||revision!==sourceRevision)throw Error('行情已切换，请重试。');
+ const result=AtlasStructure.calculate(engine,q);
+ return {summary:result.summary,points:result.days[0]};
+}
 async function previewMarket(query,id){
  const info=publicMeta?.preview;
  if(!info||query.start!==info.start||query.end!==info.end||Number(query.window||1)!==info.window||(query.mode||'dynamic')!==info.mode)return null;
@@ -228,19 +248,20 @@ self.onmessage=async({data})=>{
    const revision=++sourceRevision;download?.abort();const controller=new AbortController();download=controller;
    const meta=await publishedManifest(data.url,controller.signal);
    if(revision!==sourceRevision)throw Error('已切换到更新的数据源。');
-   publicMeta=meta;publicUrl=data.url;engine=null;coveredStart=-1;coveredEnd=-1;loadQueue=Promise.resolve();marketAssets.clear();industryAssets.clear();
+   publicMeta=meta;publicUrl=data.url;engine=null;coveredStart=-1;coveredEnd=-1;loadQueue=Promise.resolve();marketAssets.clear();industryAssets.clear();structureAssets.clear();
    result=meta;
   }else if(action==='import'){
    const revision=++sourceRevision;download?.abort();
    const next=await importAtlasCsv(data.files,data.kind,progress=>postMessage({id,progress}));
    if(revision!==sourceRevision)throw Error('已切换到更新的数据源。');
-   engine=next;publicMeta=null;coveredStart=-1;coveredEnd=-1;loadQueue=Promise.resolve();marketAssets.clear();industryAssets.clear();result=engine.meta;
+   engine=next;publicMeta=null;coveredStart=-1;coveredEnd=-1;loadQueue=Promise.resolve();marketAssets.clear();industryAssets.clear();structureAssets.clear();result=engine.meta;
   }else if(action==='snapshot'){
    if(publicMeta)await ensurePublished({start:publicMeta.dates[0],end:publicMeta.dates.at(-1)},id);
    if(!engine)throw Error('请先导入行情数据。');
    result=await atlasSnapshot(engine);postMessage({id,result},result.chunks.map(c=>c.buffer));return;
   }else if(action==='request'){
-   if(publicMeta){
+   if(data.path==='/api/structure')result=await structureRequest(data.query,id);
+   else if(publicMeta){
     if(data.path==='/api/meta')result=publicMeta;
     else if(data.path==='/api/health')result={ok:true,version:8};
     else{

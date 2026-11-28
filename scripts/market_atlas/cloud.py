@@ -25,7 +25,7 @@ def run(probe_only=False):
         return
     fetch.main()  # Raises if any stock failed; no partial public snapshot.
     # 直接从逐股 CSV 生成公开图谱数据
-    report = export(raw)
+    report = export(raw, price_basis="qfq")
     if report['dates'][-1].replace('-','') != fetch.REAL_END_DATE:
         raise RuntimeError('The fetched dataset did not reach the latest probed trading day.')
     print(json.dumps(dict(latest=report['dates'][-1],stocks=len(report['stocks']),revision=report['revision']),ensure_ascii=False))

@@ -40,7 +40,7 @@
     close(){if(this.dialog?.open)this.dialog.close();this.restore();}
   };
   // Unlike comparison curves, stock metrics have distinct units and semantic order.
-  const stockPriceNames=['开盘','最高','最低','收盘'],stockChangeNames=['涨跌','距今涨幅'];
+  const stockPriceNames=['开盘','最高','最低','收盘'],stockChangeNames=['涨跌','区间涨幅','距今涨幅'];
   function stockReadoutGroups(rows){
     const select=names=>names.map(name=>rows.find(r=>r.name===name)).filter(Boolean);
     const prices=select(stockPriceNames),changes=select(stockChangeNames);

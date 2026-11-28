@@ -76,4 +76,12 @@ for(let group=0;group<engine.order.length;group++){
   assert.deepStrictEqual(mini.industryHistory(q),engine.industryHistory(q),'Industry bundle changed historical stock metrics: '+name);
  }
 }
-process.stdout.write(JSON.stringify({preview,markets,industriesBundle:industries}));
+const structureStats=require('../../resources/market-atlas/structure.js');
+const {summary,days}=structureStats.calculate(engine,{start:first,end,mode:'dynamic'},true);
+const pointFile=(name,rows)=>save(name,Buffer.from(structureStats.pack(rows,s)),'bin');
+const structure={
+ version:1, recent:json('structure-recent',structureStats.slice(summary,recentStart,end)),
+ recentStart, full:json('structure-history',summary), latest:pointFile('points-latest',[days.at(-1)]),
+ months:meta.chunks.map(entry=>({...pointFile('points-'+meta.dates[entry.start].slice(0,7),days.slice(entry.start,entry.start+entry.count)),start:entry.start,count:entry.count}))
+};
+process.stdout.write(JSON.stringify({preview,markets,industriesBundle:industries,structure}));

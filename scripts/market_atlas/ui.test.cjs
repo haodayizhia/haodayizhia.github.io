@@ -183,11 +183,11 @@ test('stock return to latest close is independent of visible window',()=>{
  assert.equal(returnToLatest(20,10),-50);
  for(const [a,b] of [[null,10],[10,null],[0,10],[10,0],[NaN,10]])assert.equal(returnToLatest(a,b),null);
  const stock={open:[10,12],high:[11,13],low:[9,11],close:[10,12],daily:[0,20],volume:[1,1]};
- const chart={stock,index:0,series:[],latestClose:15,latestDate:'2026-11-26',view:[0,0]};
+ const chart={stock,index:0,series:[],afterwards:true,latestClose:15,latestDate:'2026-11-26',view:[0,0]};
  const row=()=>Chart.prototype.getRows.call(chart).find(r=>r.name==='距今涨幅');
  assert.equal(row().value,50);assert.equal(row().signed,true);assert.match(row().title,/2026-11-26/);
  chart.index=1;chart.view=[1,1];assert.equal(row().value,25);
- chart.latestClose=null;assert.equal(row().value,null);
+ chart.latestClose=null;assert.equal(row().value,null);chart.afterwards=false;assert.equal(row(),undefined);
 });
 
 

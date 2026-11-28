@@ -10,7 +10,7 @@ from model import MarketData, ARRAY_FIELDS, clean
 from package import ROOT, SOURCE, replace_directory
 
 
-def export(source, *, allow_older=False):
+def export(source, *, allow_older=False, price_basis="source"):
     model = MarketData(Path(source))
     checks = (
     'errors',
@@ -44,7 +44,7 @@ def export(source, *, allow_older=False):
     quality.pop('cache_hit', None)
     quality.pop('load_seconds', None)
     meta = clean(dict(format=1, fields=ARRAY_FIELDS, dates=model.dates, stocks=model.stocks, quality=quality,
-                      source='网站公开行情', source_kind='public'))
+                      source='网站公开行情', source_kind='public', price_basis=price_basis))
     SOURCE.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix='.atlas-export-', dir=SOURCE.parent))
     try:

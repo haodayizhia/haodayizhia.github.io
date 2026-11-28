@@ -43,3 +43,44 @@ test('line hit testing uses actual segments halfway between observations',()=>{
  assert.equal(nearestPolylineSegment([{id:'gap',values:[0,NaN,100]}],X,Y,50,50,.5,3,60),null,'An unavailable observation must break the line');
  assert.equal(nearestPolylineSegment([{id:'one',values:[10]}],X,Y,0,10,0,1,6)?.id,'one','A single visible sample is selectable');
 });
+
+const structure=require('../../resources/market-atlas/structure.js');
+function structureFixture(changeFuture=false){
+ const dates=Array.from({length:30},(_,i)=>'2026-01-'+String(i+1).padStart(2,'0'));
+ const stocks=['A','A','A','B','C'].map((industry,i)=>({code:String(i),name:String(i),industry}));
+ const s=stocks.length,arrays=Object.fromEntries(fields.map(key=>[key,new Float32Array(dates.length*s).fill(NaN)]));
+ for(let t=0;t<dates.length;t++)for(let i=0;i<s;i++){
+   if(i===2&&t<8||i===1&&t===16)continue;
+   arrays.close[t*s+i]=changeFuture&&t>21?(i===3?NaN:300-i*t):100+(i===0?t:i===1?-t:i===2?2*t:0);
+ }
+ return new AtlasEngine({dates,stocks,quality:{}},arrays);
+}
+test('structure windows, membership and compressed points agree on every prefix',()=>{
+ const engine=structureFixture(),dates=engine.meta.dates;
+ const full=structure.calculate(engine,{start:dates[0],end:dates.at(-1)},true);
+ const at=21,rows=full.days[at],group=full.summary.groups.find(x=>x.name==='A');
+ assert.equal(group.count[at],1);assert.equal(group.up[at],1);
+ assert.ok(Math.abs(group.median[at]-(121/101-1)*100)<1e-5);
+ assert.equal(group.count[19],0);assert.equal(group.p90[19],null);
+ assert.equal(full.summary.groups.find(x=>x.name==='B').sector[at],0);
+ assert.equal(rows.find(r=>r[0]===3)[2],null,'Singleton is not a peer benchmark');
+ const buffer=structure.pack(full.days,engine.s);
+ assert.deepEqual(structure.unpack(buffer,at,dates.length,engine.s),rows.slice().sort((a,b)=>a[0]-b[0]));
+ for(const mode of ['dynamic','complete']){
+   const q={start:dates[10],end:dates[at],mode};
+   const prefix=structure.calculate(engine,q);
+   assert.deepEqual(prefix,structure.calculate(structureFixture(true),q),'Future changes contaminated '+mode);
+   if(mode==='dynamic'){
+     assert.deepEqual(prefix.summary,structure.slice(full.summary,q.start,q.end));
+     assert.deepEqual(prefix.days[0],rows);
+   }
+ }
+ assert.equal(structure.quantile([1,2,4,8],.5),3);
+ assert.equal(structure.quantile([], .9),null);
+});
+test('daily lead-lag aligns sessions before dropping missing pairs',()=>{
+ const x=[2,0,null,3,1,6,4], y=[null,2,0,null,3,1,6];
+ assert.deepEqual(structure.correlation(x,y,1),{n:5,value:1});
+ assert.equal(structure.correlation([1,1,1],[1,2,3]).value,null);
+ assert.equal(structure.correlation([2],[3]).value,null);
+});
