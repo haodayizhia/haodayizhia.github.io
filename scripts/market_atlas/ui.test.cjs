@@ -270,3 +270,18 @@ test('distribution point hit testing uses exact shared coordinate mapping',()=>{
  assert.equal(distributionHit(points,[-20,40],300,299,17),null);
  assert.equal(distributionHit(points,[10,30],300,150,17)?.i,2);
 });
+
+test('scatter zoom and pan retain valid data bounds',()=>{
+ require('../../resources/market-atlas/research-ui.js');
+ const {scatterRange}=globalThis.AtlasResearch;
+ assert.deepEqual(scatterRange([0,20],[0,20],2,.5),[5,15]);
+ assert.deepEqual(scatterRange([5,15],[0,20],1,.5,1),[0,10]);
+ assert.deepEqual(scatterRange([5,15],[0,20],.1),[0,20]);
+ assert.deepEqual(scatterRange([0,20],[0,20],100,.5),[9.5,10.5]);
+});
+test('scatter reference labels avoid overlaps and respect plot boundaries',()=>{
+ const {scatterLabels}=globalThis.AtlasResearch;
+ const labels=scatterLabels([{y:95},{y:96},{y:97}],0,100,17);
+ assert.deepEqual(labels.map(r=>r.labelY),[66,83,100]);
+ assert.deepEqual(labels.map(r=>r.y),[95,96,97]);
+});

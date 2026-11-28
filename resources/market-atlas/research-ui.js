@@ -192,7 +192,7 @@
     const groupByName=new Map(summary.groups.map(g=>[g.name,g]));
     const colorTokens={muted:'--muted',teal:'--plot-teal',blue:'--plot-blue',slate:'--plot-slate',main:'--plot-main',gold:'--plot-gold',ink:'--ink'};
     const pointById=new Map(points.map(p=>[String(p.i),p]));
-    let frame=0,rows=null,entries=[],width=0,dpr=1,colors=null,paintedDomain=null,paintedTicks=[],revision=0,observer=null;
+    let frame=0,rows=null,entries=[],width=0,dpr=1,colors=null,paintedDomain=null,paintedTicks=[],revision=0,observer=null,scatterCleanup=null;
     function selectPoint(p,scroll=false){
       const read=body.querySelector('.structure-selection');if(!p||!read)return;
       s.structurePoint=p.code;persist();
@@ -266,7 +266,7 @@
       paintedDomain=null;revision++;measureDistribution();
     }
     function disposeDistribution(){
-      gestures.cancel();if(frame){cancelAnimationFrame(frame);frame=0;}
+      scatterCleanup?.();scatterCleanup=null;gestures.cancel();if(frame){cancelAnimationFrame(frame);frame=0;}
       observer?.disconnect();observer=null;rows=null;entries=[];paintedDomain=null;
     }
     function draw(){
@@ -275,7 +275,7 @@
         controls.innerHTML=`<label><input type="checkbox" data-weak ${s.weakOnly?'checked':''}> 仅行业20日落后于池</label>`;
         controls.querySelector('input').onchange=e=>{s.weakOnly=e.target.checked;s.pointBrush=null;persist();draw();};
         const weak=new Set(summary.groups.filter(g=>finite(g.sector.at(-1))&&finite(pool)&&g.sector.at(-1)<pool).map(g=>g.name));
-        scatter(body,s.weakOnly?points.filter(p=>weak.has(p.industry)):points,options);
+        scatterCleanup=scatter(body,s.weakOnly?points.filter(p=>weak.has(p.industry)):points,options);
         return;
       }
       controls.innerHTML=`<label>行序 <select data-sort>${option('wins','20日领先天数',s.structureSort)}${option('excess5','5日超额收益',s.structureSort)}${option('excess','20日超额收益',s.structureSort)}${option('breadth','20日上涨占比',s.structureSort)}${option('name','行业名称',s.structureSort)}</select></label>`;
@@ -317,79 +317,176 @@
     const sector=summary.groups.find(g=>g.name===p.industry)?.sector.at(-1),market=summary.pool.at(-1);
     return `<b>${esc(p.name)} · ${esc(p.code)}</b>　${esc(p.industry)}　20日 ${pct(p.value)}　行业 ${pct(sector)}　股票池 ${pct(market)}　跑赢行业 ${wins(p.groupWins)} 天　跑赢池 ${wins(p.marketWins)} 天`;
   }
+  function scatterRange(view,base,factor,from=.5,to=from,minSpan=1){
+    const total=base[1]-base[0],span=view[1]-view[0];
+    if(!finite(factor)||factor<=0)return [...base];
+    const width=Math.max(Math.min(minSpan,total),Math.min(total,span/factor));
+    if(width>=total)return [...base];
+    const left=Math.max(base[0],Math.min(base[1]-width,view[0]+span*from-width*to));
+    return [left,left+width];
+  }
+  // Keep reference labels distinct even when their underlying values coincide.
+  function scatterLabels(labels,top,bottom,gap=17){
+    const sorted=labels.map(l=>({...l})).sort((a,b)=>a.y-b.y);
+    if(!sorted.length)return sorted;
+    gap=Math.min(gap,(bottom-top)/Math.max(1,sorted.length-1));
+    for(let i=0;i<sorted.length;i++)sorted[i].labelY=Math.max(top,sorted[i].y,i?sorted[i-1].labelY+gap:top);
+    if(sorted.at(-1).labelY>bottom){
+      sorted.at(-1).labelY=bottom;
+      for(let i=sorted.length-2;i>=0;i--)sorted[i].labelY=Math.min(sorted[i].labelY,sorted[i+1].labelY-gap);
+    }
+    return sorted;
+  }
+  let pointChartId=0;
   function scatter(host,points,{state:s,data,openStock,persist},group){
     host.onclick=null;
-    const rows=points.filter(p=>finite(p.groupWins)),market=data.summary.pool.at(-1);
-    const domain=extent(rows.map(p=>p.value).concat(market,group?.sector.at(-1)));
-    host.innerHTML=`<div class="scatter-actions"><b>成分股 · 20日收益与领先比例</b><button data-brush aria-pressed="false">框选</button><button data-reset>全部范围</button><button data-expand>全屏</button></div><div class="point-surface"></div><div class="point-controls"><label>查找 <input type="search" placeholder="股票名称或代码" aria-label="查找散点股票"></label><select aria-label="选择散点股票"></select></div><div class="point-detail" aria-live="polite"></div>`;
-    const surface=host.querySelector('.point-surface'),search=host.querySelector('input'),list=host.querySelector('select'),detail=host.querySelector('.point-detail'),brush=host.querySelector('[data-brush]');
-    let box=null,searchText='',choices=[],brushing=false,frame=null;
-    const base=[0,20,...domain],W=600,H=240,left=55,right=585,top=12,bottom=204;
-    function views(){return s.pointBrush||base;}
-    const X=v=>left+(v-views()[0])*(right-left)/(views()[1]-views()[0]);
-    const Y=v=>bottom-(v-views()[2])*(bottom-top)/(views()[3]-views()[2]);
-    const visible=p=>finite(p.groupWins)&&p.groupWins>=views()[0]&&p.groupWins<=views()[1]&&p.value>=views()[2]&&p.value<=views()[3];
-    function select(code){
-      const p=points.find(p=>p.code===code);
-      s.structurePoint=p?.code||'';persist();list.value=s.structurePoint;
-      detail.innerHTML=p?pointRead(p,data.summary)+' <button>查看日线 ↗</button>':'点选或搜索个股；重合点可从选择框逐只查看。';
-      if(p)detail.querySelector('button').onclick=()=>openStock(p.code);
-      surface.querySelectorAll('.chosen').forEach(c=>c.classList.remove('chosen'));
-      if(p)surface.querySelector('[data-dot="'+p.i+'"]')?.classList.add('chosen');
+    const rows=points.filter(p=>finite(p.groupWins)),market=data.summary.pool.at(-1),sector=group?.sector.at(-1);
+    const domain=extent(rows.map(p=>p.value).concat(market,sector)),base=[0,20,...domain];
+    const clamp=AtlasCharts.clamp,axisNum=AtlasCharts.axisNumber,clip='pointClip'+(++pointChartId);
+    // Persist only a valid view of this chart's data.
+    let view=Array.isArray(s.pointBrush)&&s.pointBrush.length===4&&s.pointBrush.every(finite)&&s.pointBrush[0]<s.pointBrush[1]&&s.pointBrush[2]<s.pointBrush[3]&&s.pointBrush[0]>=0&&s.pointBrush[1]<=20&&s.pointBrush[2]>=base[2]&&s.pointBrush[3]<=base[3]?[...s.pointBrush]:[...base];
+    host.classList.add('point-chart-host');
+    host.innerHTML=`<div class="plot-toolbar point-toolbar"><div><span class="chart-label">成分股 · 20日收益与领先比例</span><span class="point-date">${esc(data.summary.dates.at(-1))}</span></div><div class="plot-actions"><button data-expand aria-label="全屏成分股图">⛶ 全屏</button></div></div><div class="point-surface" title="滚轮缩放 · 拖动平移 · Shift+拖动框选 · 双击复原"><svg class="point-plot" tabindex="0" role="img" aria-label="20日累计收益与跑赢本行业天数占比"></svg></div><div class="point-controls"><label>查找 <input type="search" placeholder="股票名称或代码" aria-label="查找散点股票"></label><select aria-label="选择散点股票"></select></div><div class="point-detail" aria-live="polite"></div>`;
+    const surface=host.querySelector('.point-surface'),svg=surface.querySelector('svg'),search=host.querySelector('input'),list=host.querySelector('select'),detail=host.querySelector('.point-detail');
+    let W=0,H=0,g=null,drawFrame=0,settleTimer=0,searchText='',choices=[],hover=null,drag=null,brushBox=null,painted=[],lastRead=null,lastList='',dead=false;
+    const X=v=>g.left+(v-view[0])*g.width/(view[1]-view[0]),Y=v=>g.bottom-(v-view[2])*g.height/(view[3]-view[2]);
+    const visible=p=>finite(p.groupWins)&&p.groupWins>=view[0]&&p.groupWins<=view[1]&&p.value>=view[2]&&p.value<=view[3];
+    const pointMap=new Map(points.map(p=>[p.code,p]));
+    const isZoomed=()=>view.some((v,i)=>v!==base[i]);
+    function read(p){
+      if(p===lastRead&&detail.firstChild)return;lastRead=p;
+      if(!p){detail.textContent=points.length?'有效收益 '+points.length+' 只，可比较领先天数 '+rows.length+' 只。悬停查值，单击固定；重合点可通过股票选择框查看。':'当前观察日没有完整20日收益。';return;}
+      const industry=data.summary.groups.find(v=>v.name===p.industry)?.sector.at(-1);
+      const metrics=[['20日收益',pct(p.value)],['行业收益',pct(industry)],['股票池收益',pct(market)],['跑赢行业',wins(p.groupWins)+' 天'],['跑赢股票池',wins(p.marketWins)+' 天']];
+      detail.innerHTML=`<div class="point-identity"><b>${esc(p.name)} · ${esc(p.code)}</b><span>${esc(p.industry)}</span><button class="point-open">查看日线 ↗</button></div><div class="point-metrics">${metrics.map(([label,value])=>`<div><span>${label}</span><strong>${value}</strong></div>`).join('')}</div>`;
+      detail.querySelector('button').onclick=()=>openStock(p.code);
+    }
+    function highlight(){
+      for(const el of svg.querySelectorAll('.chosen,.point-hover'))el.classList.remove('chosen','point-hover');
+      const selected=pointMap.get(s.structurePoint);
+      if(selected)svg.querySelector('[data-dot="'+selected.i+'"]')?.classList.add('chosen');
+      if(hover)svg.querySelector('[data-dot="'+hover.i+'"]')?.classList.add('point-hover');
+      read(hover||selected||null);
     }
     function fill(matches){
-      choices=matches||points.filter(p=>(!s.pointBrush||visible(p))&&(!searchText||(p.name+p.code).toLowerCase().includes(searchText)));
-      list.innerHTML=option('','选择股票（'+choices.length+'）','')+choices.map(p=>option(p.code,p.name+' '+p.code,s.structurePoint)).join('');
+      choices=matches||points.filter(p=>(!isZoomed()||visible(p))&&(!searchText||(p.name+p.code).toLowerCase().includes(searchText)));
+      const stamp=choices.map(p=>p.code).join(',');
+      if(stamp!==lastList||!list.options.length){list.innerHTML=option('','选择股票（'+choices.length+'）','')+choices.map(p=>option(p.code,p.name+' '+p.code,s.structurePoint)).join('');lastList=stamp;}
+      list.value=choices.some(p=>p.code===s.structurePoint)?s.structurePoint:'';
+    }
+    function select(code){s.structurePoint=pointMap.has(code)?code:'';hover=null;persist();list.value=s.structurePoint;highlight();}
+    function schedule(){if(!drawFrame&&!dead)drawFrame=requestAnimationFrame(()=>{drawFrame=0;draw();});}
+    function setView(next){
+      if(next.every((v,i)=>v===view[i]))return;
+      view=next;hover=null;s.pointBrush=isZoomed()?[...view]:null;schedule();
+      clearTimeout(settleTimer);settleTimer=setTimeout(()=>{if(!dead){fill();persist();}},100);
     }
     function draw(){
-      const [xl,xr,yl,yr]=views(),yt=AtlasCharts.ticks(yl,yr,4);
-      const guid=(v,cls)=>finite(v)&&v>=yl&&v<=yr?`<line x1="${left}" x2="${right}" y1="${Y(v)}" y2="${Y(v)}" class="${cls}"/>`:'';
-      surface.innerHTML=`<svg class="point-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="20日绝对收益与跑赢行业天数散点图">
-        ${yt.map(v=>`<path class="point-grid" d="M${left},${Y(v)}H${right}"/><text x="${left-5}" y="${Y(v)+4}" text-anchor="end">${num(v,1)}%</text>`).join('')}
-        ${[0,5,10,15,20].filter(x=>x>=xl&&x<=xr).map(x=>`<text x="${X(x)}" y="${bottom+16}" text-anchor="middle">${x*5}%</text>`).join('')}
-        <text x="${(left+right)/2}" y="238" text-anchor="middle">20日内跑赢本行业的天数占比</text>${guid(0,'dist-zero')}${guid(market,'dist-market')}${guid(group?.sector.at(-1),'point-sector')}
-        ${rows.filter(visible).map(p=>`<circle cx="${X(p.groupWins)}" cy="${Y(p.value)}" r="3.2" data-dot="${p.i}" class="${p.code===s.structurePoint?'chosen':''}"><title>${esc(p.name)} · ${pct(p.value)} · ${wins(p.groupWins)}</title></circle>`).join('')}<rect class="brush-box" width="0" height="0"/></svg>`;
-      frame=surface.querySelector('svg');surface.dataset.brush=String(brushing);fill();
+      if(dead||!host.isConnected)return;
+      W=Math.round(surface.clientWidth);if(W<100)return;
+      H=AtlasCharts.chartHeight(W,window.innerHeight);
+      if(host.classList.contains('is-fullscreen'))H=Math.max(190,Math.floor(host.parentElement.clientHeight-host.querySelector('.point-toolbar').offsetHeight-host.querySelector('.point-controls').offsetHeight-detail.offsetHeight-48));
+      // Match the actual CSS pixel dimensions. No fixed-ratio letterboxing.
+      surface.style.height=H+'px';svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+      const [xl,xr,yl,yr]=view,yt=AtlasCharts.ticks(yl,yr,W<500?5:6).filter(v=>v>=yl&&v<=yr);
+      g=AtlasCharts.geometry(W,H,AtlasCharts.measureAxis(yt.map(v=>axisNum(v)+'%')));g.top=24;g.bottom=H-46;g.height=Math.max(1,g.bottom-g.top);
+      const span=xr-xl,step=span>12?5:span>5?2:1,xt=[];
+      for(let v=Math.ceil(xl/step)*step;v<=xr+1e-8;v+=step)xt.push(v);
+      const refs=[{v:0,label:'零收益',cls:'dist-zero',color:'var(--muted)'},{v:market,label:'股票池 '+pct(market),cls:'dist-market',color:'var(--plot-teal)'},{v:sector,label:'行业 '+pct(sector),cls:'point-sector',color:'var(--plot-gold)'}].filter(r=>finite(r.v)&&r.v>=yl&&r.v<=yr).map(r=>({...r,y:Y(r.v)}));
+      const labels=scatterLabels(refs,g.top+9,g.bottom-9);
+      painted=rows.filter(visible).map(p=>({p,x:X(p.groupWins),y:Y(p.value)}));
+      svg.innerHTML=`<defs><clipPath id="${clip}"><rect x="${g.left-5}" y="${g.top-5}" width="${g.width+10}" height="${g.height+10}"/></clipPath></defs>
+        <text class="axis-unit" x="${g.left}" y="13">20日累计收益率</text>
+        ${yt.map(v=>`<path class="grid-line" d="M${g.left},${Y(v)}H${g.right}"/><text class="axis-label" x="${g.left-7}" y="${Y(v)+4}" text-anchor="end">${axisNum(v)}%</text>`).join('')}
+        ${xt.map(v=>`<text class="axis-label" x="${X(v)}" y="${g.bottom+18}" text-anchor="${v===xl?'start':v===xr?'end':'middle'}">${v*5}%</text>`).join('')}
+        <text class="axis-label" x="${(g.left+g.right)/2}" y="${H-7}" text-anchor="middle">20日内跑赢本行业的天数占比</text>
+        ${refs.map(r=>`<line x1="${g.left}" x2="${g.right}" y1="${r.y}" y2="${r.y}" class="${r.cls}"/>`).join('')}
+        <g clip-path="url(#${clip})">${painted.map(({p,x,y})=>`<circle cx="${x}" cy="${y}" r="3.2" data-dot="${p.i}"/>`).join('')}</g>
+        ${labels.map(r=>`<g class="point-reference" style="color:${r.color}"><path d="M${g.right-5},${r.y}h-4L${g.right-15},${r.labelY}" fill="none" stroke="currentColor"/><text x="${g.right-18}" y="${r.labelY-3}" text-anchor="end">${esc(r.label)}</text></g>`).join('')}
+        <rect class="brush-box" width="0" height="0"/>`;
+      surface.classList.toggle('can-pan',isZoomed());
+      highlight();
     }
-    function position(e){const pt=new DOMPoint(e.clientX,e.clientY).matrixTransform(frame.getScreenCTM().inverse());return [Math.max(left,Math.min(right,pt.x)),Math.max(top,Math.min(bottom,pt.y))];}
-    surface.onpointerdown=e=>{if(!brushing)return;box=position(e);surface.setPointerCapture(e.pointerId);};
-    surface.onpointermove=e=>{if(!box)return;const p=position(e),rect=frame.querySelector('.brush-box');for(const [k,v] of Object.entries({x:Math.min(box[0],p[0]),y:Math.min(box[1],p[1]),width:Math.abs(box[0]-p[0]),height:Math.abs(box[1]-p[1])}))rect.setAttribute(k,v);};
-    surface.onpointercancel=()=>{box=null;draw();};
-    surface.onpointerup=e=>{
-      if(!box)return;const p=position(e),q=box;box=null;
-      if(Math.abs(p[0]-q[0])>4&&Math.abs(p[1]-q[1])>4){
-        const [a,b,c,d]=views(),ix=x=>a+(x-left)*(b-a)/(right-left),iy=y=>c+(bottom-y)*(d-c)/(bottom-top);
-        s.pointBrush=[ix(Math.min(p[0],q[0])),ix(Math.max(p[0],q[0])),iy(Math.max(p[1],q[1])),iy(Math.min(p[1],q[1]))];persist();
+    function local(p){const r=surface.getBoundingClientRect();return {x:p.x-r.left,y:p.y-r.top};}
+    function fractions(p){const q=local(p);return [clamp((q.x-g.left)/g.width,0,1),clamp((g.bottom-q.y)/g.height,0,1)];}
+    function nearest(p,radius=12){
+      if(!g)return null;const q=local(p);let best=radius,found=null;
+      for(const d of painted){const dist=Math.hypot(d.x-q.x,d.y-q.y);if(dist<=best){best=dist;found=d;}}
+      return found;
+    }
+    function inspect(p){
+      const hit=nearest(p)?.p||null;if(hit===hover)return;hover=hit;
+      surface.style.cursor=hit?'pointer':'';highlight();
+    }
+    function dismiss(){hover=null;surface.style.cursor='';highlight();}
+    function pick(p,type){
+      const hit=nearest(p,type==='touch'?18:12);if(!hit)return;
+      const near=painted.filter(d=>Math.hypot(d.x-hit.x,d.y-hit.y)<=7).map(d=>d.p);
+      fill(near.length>1?near:null);select(hit.p.code);
+    }
+    function begin(p,shift){if(!g)return;drag={view:[...view],anchor:fractions(p),start:local(p),shift};hover=null;}
+    function move(p,start){
+      if(!drag||!g||Math.hypot(p.x-start.x,p.y-start.y)<6)return;
+      const q=local(p);
+      if(drag.shift){
+        const a=drag.start,b={x:clamp(q.x,g.left,g.right),y:clamp(q.y,g.top,g.bottom)},c={x:clamp(a.x,g.left,g.right),y:clamp(a.y,g.top,g.bottom)};
+        brushBox=[c,b];const rect=svg.querySelector('.brush-box');
+        for(const [k,v] of Object.entries({x:Math.min(c.x,b.x),y:Math.min(c.y,b.y),width:Math.abs(c.x-b.x),height:Math.abs(c.y-b.y)}))rect?.setAttribute(k,v);
+        return;
       }
-      brushing=false;brush.setAttribute('aria-pressed','false');draw();
-    };
-    surface.onclick=e=>{
-      const dot=e.target.closest('[data-dot]');if(!dot||brushing)return;
-      const p=rows.find(v=>v.i===Number(dot.dataset.dot));
-      const near=rows.filter(v=>visible(v)&&Math.abs(X(v.groupWins)-X(p.groupWins))<5&&Math.abs(Y(v.value)-Y(p.value))<5);
-      if(near.length>1)fill(near);else fill();select(p.code);
-    };
+      if(!isZoomed())return;
+      const [fx,fy]=fractions(p);
+      setView([...scatterRange(drag.view.slice(0,2),base.slice(0,2),1,drag.anchor[0],fx),...scatterRange(drag.view.slice(2),base.slice(2),1,drag.anchor[1],fy)]);
+    }
+    function cancel(){drag=null;brushBox=null;const rect=svg.querySelector('.brush-box');rect?.setAttribute('width',0);rect?.setAttribute('height',0);}
+    function finish(){
+      if(brushBox&&g){
+        const [a,b]=brushBox;
+        if(Math.abs(a.x-b.x)>7&&Math.abs(a.y-b.y)>7){
+          const ix=x=>view[0]+(x-g.left)/g.width*(view[1]-view[0]),iy=y=>view[2]+(g.bottom-y)/g.height*(view[3]-view[2]);
+          const x0=ix(Math.min(a.x,b.x)),x1=ix(Math.max(a.x,b.x)),y0=iy(Math.max(a.y,b.y)),y1=iy(Math.min(a.y,b.y));
+          if(x1-x0>=1&&y1-y0>=1)setView([x0,x1,y0,y1]);
+        }
+      }
+      cancel();
+    }
+    function zoom(factor,p,wheel){
+      if(!g)return;
+      const [fx,fy]=fractions(p),q=local(p),xOnly=wheel&&q.y>g.bottom,yOnly=wheel&&q.x<g.left;
+      setView([...(yOnly?view.slice(0,2):scatterRange(view.slice(0,2),base.slice(0,2),factor,fx)),...(xOnly?view.slice(2):scatterRange(view.slice(2),base.slice(2),factor,fy))]);
+    }
+    function panPinch(dx,dy){
+      if(!g)return;
+      setView([...scatterRange(view.slice(0,2),base.slice(0,2),1,.5,.5+dx/g.width),...scatterRange(view.slice(2),base.slice(2),1,.5,.5-dy/g.height)]);
+    }
+    function reset(){cancel();hover=null;setView([...base]);fill();highlight();persist();}
+    const gesture=new root.AtlasGesture(surface,{inspect,dismiss,tap:pick,start:begin,drag:move,end:finish,cancel,finishTouch:finish,canPan:isZoomed,zoom,panPinch,reset,startPinch:cancel});
+    svg.addEventListener('keydown',e=>{
+      if(e.key==='Escape'){dismiss();return;}if(e.key==='0'){e.preventDefault();reset();return;}
+      if(!g)return;
+      const r=surface.getBoundingClientRect();
+      if(['+','=','-'].includes(e.key)){e.preventDefault();zoom(e.key==='-'?1/1.6:1.6,{x:r.left+g.left+g.width/2,y:r.top+g.top+g.height/2},false);}
+    });
     search.oninput=()=>{searchText=search.value.trim().toLowerCase();fill();if(searchText&&choices.length===1)select(choices[0].code);};
     list.onchange=()=>select(list.value);
-    brush.onclick=()=>{brushing=!brushing;surface.dataset.brush=String(brushing);brush.setAttribute('aria-pressed',String(brushing));};
-    const reset=()=>{s.pointBrush=null;search.value=searchText='';persist();draw();};
-    host.querySelector('[data-reset]').onclick=reset;surface.ondblclick=e=>{e.preventDefault();reset();};
-    host.querySelector('[data-expand]').onclick=()=>AtlasFullscreen.open(host,'成分股收益与领先天数');
-    draw();if(points.some(p=>p.code===s.structurePoint))select(s.structurePoint);
-    else detail.textContent=points.length?'有效收益 '+points.length+' 只，可比较领先天数 '+rows.length+' 只。':'当前观察日没有完整20日收益。';
+    host.querySelector('[data-expand]').onclick=()=>root.AtlasFullscreen.open(host,'成分股收益与领先天数');
+    const observer=new ResizeObserver(schedule);observer.observe(surface);
+    window.addEventListener('resize',schedule);
+    draw();fill();highlight();
+    return ()=>{dead=true;gesture.destroy();observer.disconnect();window.removeEventListener('resize',schedule);if(drawFrame)cancelAnimationFrame(drawFrame);clearTimeout(settleTimer);host.classList.remove('point-chart-host');};
   }
   function industry(host,options){
     const {state:s,data,graph}=options,{summary}=data,g=summary.groups.find(g=>g.name===s.industry);
     if(!g)return;
     host.innerHTML=`<div class="structure-legend">浅带 P10–P90（第10至90百分位） · 中位数、行业等权、股票池等权 · 20日上涨 ${g.up.at(-1)} / ${g.count.at(-1)} 只</div><div id="industryBand"></div><details class="breadth-details"><summary>上涨家数历史</summary><p class="structure-legend">较前一交易日，共同样本转为正收益 ${g.gained.at(-1)??'—'} 只，转为非正 ${g.lost.at(-1)??'—'} 只；窗口样本新增 ${g.joined.at(-1)??'—'} 只、退出 ${g.left.at(-1)??'—'} 只。</p><div id="industryParticipation"></div></details><div id="industryPoints"></div>`;
     const series=[['median','成分中位数','blue'],['sector','行业等权','gold'],['pool','股票池等权','main']].map(([id,name,color])=>({id,name,color:'var(--plot-'+color+')',values:id==='pool'?summary.pool:g[id]}));
-    graph('industryBand',{dates:summary.dates,series,band:[g.p10,g.p90],unit:'%',label:s.industry+' · 20日收益分布'});
+    graph('industryBand',{dates:summary.dates,series,band:[g.p10,g.p90],unit:'%',label:s.industry+' · 20日收益分布',keepSeriesVisible:true});
     const details=host.querySelector('details');
     details.open=!!s.showBreadth;
     const breadth=()=>graph('industryParticipation',{dates:summary.dates,series:[{id:'participation',name:'20日正收益占比',color:'var(--plot-teal)',values:g.up.map((v,i)=>g.count[i]?100*v/g.count[i]:null)}],domain:[0,100],unit:'%',label:'20日上涨比例',compact:true});
     if(details.open)breadth();
     details.ontoggle=()=>{s.showBreadth=details.open;options.persist();if(host.isConnected&&details.open&&!host.querySelector('#industryParticipation svg'))breadth();};
-    scatter(host.querySelector('#industryPoints'),records(data,s.meta).filter(p=>p.industry===s.industry),options,g);
+    return scatter(host.querySelector('#industryPoints'),records(data,s.meta).filter(p=>p.industry===s.industry),options,g);
   }
   function linkage(host,market,s,persist){
     const sectors=market.sectors.filter(g=>g.series.count.some(n=>n>0));
@@ -405,5 +502,5 @@
     host.querySelector('[data-pair-results]').innerHTML=`<p>日收益相关 <b>${num(raw.value,3)}</b>（${raw.n} 对）　减去股票池后 <b>${num(net.value,3)}</b>（${net.n} 对）</p><svg class="lag-plot" viewBox="0 0 550 120" aria-label="相对日收益滞后相关，从负5到正5个交易日"><path class="dist-zero" d="M10,52H540"/>${bars.map((p,i)=>`<g><title>${i-5}日：${num(p.value,3)}，${p.n} 对</title>${finite(p.value)?`<rect x="${18+i*48}" y="${52-Math.max(0,p.value)*42}" width="21" height="${Math.max(1,Math.abs(p.value)*42)}" fill="var(--plot-blue)"/>`:''}<text x="${28+i*48}" y="112" text-anchor="middle">${i-5}</text></g>`).join('')}</svg><p class="structure-legend">共同有效交易日 · 滞后为正表示 A 先于 B。图示样本相关；没有做显著性或预测检验。</p>`;
     for(const [key,field] of [['a','pairA'],['b','pairB']])host.querySelector('[data-'+key+']').onchange=e=>{s[field]=e.target.value;persist();linkage(host,market,s,persist);};
   }
-  root.AtlasResearch={market,industry,linkage,distributionX,distributionTicks,distributionView,distributionRank,bindDistributionGestures,distributionHit,paintDistribution};
+  root.AtlasResearch={market,industry,linkage,distributionX,distributionTicks,distributionView,distributionRank,bindDistributionGestures,distributionHit,paintDistribution,scatterRange,scatterLabels};
 })(globalThis);
