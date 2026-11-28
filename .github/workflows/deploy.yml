@@ -70,9 +70,21 @@ jobs:
         with:
           timeout: 600000 # Maximum supported by deploy-pages@v5; limit the artifact size instead
   
-  # Browser QA remains visible but is not allowed to block validated daily data deployment.
+  # Independent browser suites run concurrently; none is skipped when another fails.
+  # Keep validated daily data deployment independent of browser runner outages.
   ui-acceptance:
+    name: ui-acceptance (${{ matrix.suite }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: layout
+            script: scripts/layout.test.cjs
+          - suite: interaction
+            script: scripts/market_atlas/browser.test.cjs
+          - suite: navigation
+            script: scripts/market_atlas/journey.test.cjs
     steps:
       - uses: actions/checkout@v6
 
@@ -92,11 +104,9 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/atlas-browser" --no-save --package-lock=false playwright@1.62.1
           node "$RUNNER_TEMP/atlas-browser/node_modules/playwright/cli.js" install chromium
 
-      - name: Verify site layouts, chart gestures and navigation journeys
+      - name: Verify ${{ matrix.suite }}
         env:
           NODE_PATH: ${{ runner.temp }}/atlas-browser/node_modules
           ATLAS_QA_OUTPUT: ${{ runner.temp }}/atlas-qa
-        run: |
-          node scripts/layout.test.cjs
-          node scripts/market_atlas/browser.test.cjs
-          node scripts/market_atlas/journey.test.cjs
+          QA_SUITE: ${{ matrix.script }}
+        run: node "$QA_SUITE"
