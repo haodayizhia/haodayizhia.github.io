@@ -121,9 +121,16 @@
   }
   function applyZoomAxis(host,axis){for(const b of host.querySelectorAll('[data-zoom-axis]'))b.setAttribute('aria-pressed',String(b.dataset.zoomAxis===axis));}
   // Compact overview: drag the viewport, its edges, or use arrow keys.
+  // Latest-input scheduler: one expensive update per display frame, with an
+  // explicit flush on release and cancellation when the view is destroyed.
+  function frameLatest(apply,raf=requestAnimationFrame,caf=cancelAnimationFrame){
+    let frame=0,pending=null;
+    function flush(){if(frame){caf(frame);frame=0;}const args=pending;pending=null;if(args)apply(...args);}
+    return {push(...args){pending=args;if(!frame)frame=raf(flush);},flush,cancel(){if(frame)caf(frame);frame=0;pending=null;}};
+  }
   class TimeNavigator {
     constructor(host,{getRange,getLength,getDates,onChange}){
-      Object.assign(this,{getRange,getLength,getDates,onChange});this.abort=new AbortController();
+      Object.assign(this,{getRange,getLength,getDates,onChange});this.abort=new AbortController();this.changes=frameLatest((a,b,mode)=>this.change(a,b,mode));
       this.el=document.createElement('div');this.el.className='atlas-time-nav';
       this.el.innerHTML='<div class="atlas-time-track" tabindex="0" role="slider" aria-label="时间导航，拖动窗口移动日期、拖动两端调整范围"><div class="atlas-time-window"><i class="atlas-time-grip is-start"></i><i class="atlas-time-grip is-end"></i></div></div>';
       host.append(this.el);this.track=this.el.querySelector('.atlas-time-track');this.window=this.track.firstElementChild;
@@ -167,18 +174,18 @@
     move(e){
       const d=this.drag;if(!d||d.id!==e.pointerId){if(!d&&e.pointerType!=='touch'){const r=this.track.getBoundingClientRect(),m=this.max(),[a,b]=this.range();if(m>0){const x=e.clientX-r.left,edge=Math.min(10,Math.max(5,(b-a)/m*r.width*.2));this.track.style.cursor=Math.abs(x-a/m*r.width)<=edge||Math.abs(x-b/m*r.width)<=edge?'ew-resize':x>a/m*r.width&&x<b/m*r.width?'grab':'crosshair';}}return;}
       const m=this.max(),dx=(e.clientX-d.x)/d.w*m,span=d.b-d.a;
-      if(d.mode==='left')this.change(d.a+dx,d.b,'left');
-      else if(d.mode==='right')this.change(d.a,d.b+dx,'right');
-      else{const a=clamp(d.a+dx,0,m-span);this.change(a,a+span,'pan');}
+      if(d.mode==='left')this.changes.push(d.a+dx,d.b,'left');
+      else if(d.mode==='right')this.changes.push(d.a,d.b+dx,'right');
+      else{const a=clamp(d.a+dx,0,m-span);this.changes.push(a,a+span,'pan');}
       e.preventDefault();
     }
-    end(e){if(!this.drag||e.pointerId!==this.drag.id)return;this.drag=null;delete this.track.dataset.dragging;if(this.track.hasPointerCapture(e.pointerId))this.track.releasePointerCapture(e.pointerId);}
+    end(e){if(!this.drag||e.pointerId!==this.drag.id)return;this.changes.flush();this.drag=null;delete this.track.dataset.dragging;if(this.track.hasPointerCapture(e.pointerId))this.track.releasePointerCapture(e.pointerId);}
     key(e){
       if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
       e.preventDefault();const m=this.max(),[a,b]=this.range(),span=b-a,step=(e.shiftKey?5:1)*(e.key==='ArrowLeft'?-1:1);
       const left=e.key==='Home'?0:e.key==='End'?m-span:clamp(a+step,0,m-span);this.change(left,left+span,'pan');
     }
-    destroy(){this.observer.disconnect();this.abort.abort();this.el.remove();}
+    destroy(){this.changes.cancel();this.observer.disconnect();this.abort.abort();this.el.remove();}
   }
   // Merge wheel deltas at the same pointer position and direction into a
   // single render per display frame. Flush on an anchor or direction change
@@ -203,6 +210,15 @@
       const on=(name,fn,options={})=>surface.addEventListener(name,fn,{...options,signal});
       const point=e=>({x:e.clientX,y:e.clientY});
       this.wheelBatch=wheelBatch((factor,p)=>handlers.zoom?.(factor,p,true));
+      this.dragBatch=frameLatest((p,start)=>handlers.drag?.(p,start));
+      let pinchStart=null;
+      this.pinchBatch=frameLatest((last)=>{
+        if(!pinchStart)return;const first=pinchStart;pinchStart=last;
+        const factor=last.d/Math.max(1,first.d);
+        if(handlers.pinch)handlers.pinch(factor,first,last);
+        else{handlers.zoom?.(factor,last);handlers.panPinch?.(last.x-first.x,last.y-first.y);}
+      });
+      const drag=(p,start)=>handlers.batchDrag?this.dragBatch.push(p,start):handlers.drag?.(p,start);
       let hoverFrame=0,hoverPoint=null;
       const clearHover=()=>{if(hoverFrame)cancelAnimationFrame(hoverFrame);hoverFrame=0;hoverPoint=null;};
       this.clearHover=clearHover;
@@ -212,9 +228,9 @@
         if(e.pointerType==='touch'||e.button!==0)return;
         clearHover();this.wheelBatch.flush();this.mouse={...point(e),shift:e.shiftKey};surface.setPointerCapture(e.pointerId);handlers.start?.(point(e),e.shiftKey);
       });
-      on('pointermove',e=>{if(e.pointerType==='touch')return;this.mouse?handlers.drag?.(point(e),this.mouse):hover(point(e));});
-      on('pointerup',e=>{if(e.pointerType==='touch'||!this.mouse)return;const p=point(e),start=this.mouse;this.mouse=null;if(!start.shift&&handlers.tap&&Math.hypot(p.x-start.x,p.y-start.y)<7){handlers.cancel?.();this.queueTap(p,'mouse',()=>handlers.tap(p,'mouse'));}else{this.clearTap();handlers.end?.(p,start);}});
-      on('pointercancel',()=>{this.mouse=null;this.clearTap();handlers.cancel?.();});
+      on('pointermove',e=>{if(e.pointerType==='touch')return;this.mouse?drag(point(e),this.mouse):hover(point(e));});
+      on('pointerup',e=>{if(e.pointerType==='touch'||!this.mouse)return;const p=point(e),start=this.mouse;this.mouse=null;this.dragBatch.flush();if(!start.shift&&handlers.tap&&Math.hypot(p.x-start.x,p.y-start.y)<7){handlers.cancel?.();this.queueTap(p,'mouse',()=>handlers.tap(p,'mouse'));}else{this.clearTap();handlers.end?.(p,start);}});
+      on('pointercancel',e=>{if(e.pointerType==='touch')return;this.mouse=null;this.dragBatch.cancel();this.clearTap();handlers.cancel?.();});
       on('pointerleave',e=>{clearHover();if(e.pointerType!=='touch'&&!this.mouse){handlers.dismiss?.(true);inspector.hide();}});
       const owner=handlers.owner;
       if(owner){
@@ -230,7 +246,9 @@
         this.clearTimer();clearHover();this.wheelBatch.flush();
         if(e.touches.length===2) {
           this.clearTap();e.preventDefault();const [a,b]=e.touches;
-          this.touch={pinch:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2};
+          this.dragBatch.cancel();this.pinchBatch.cancel();handlers.cancel?.();
+          this.touch={pinch:Math.max(1,Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)),x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2};
+          pinchStart={d:this.touch.pinch,x:this.touch.x,y:this.touch.y};
           handlers.startPinch?.(this.touch);return;
         }
         if(e.touches.length!==1)return;
@@ -242,23 +260,23 @@
         if(!this.touch)return;
         if(e.touches.length===2&&this.touch.pinch) {
           e.preventDefault();const [a,b]=e.touches,d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);
-          const center={x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2};handlers.zoom?.(d/this.touch.pinch,center);handlers.panPinch?.(center.x-this.touch.x,center.y-this.touch.y);this.touch.pinch=d;this.touch.x=center.x;this.touch.y=center.y;return;
+          const center={d:Math.max(1,d),x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2};this.pinchBatch.push(center);return;
         }
         if(e.touches.length!==1||this.touch.pinch)return;
         const p=point(e.touches[0]),dx=p.x-this.touch.x,dy=p.y-this.touch.y;this.touch.last=p;
         if(this.touch.long){e.preventDefault();handlers.inspect?.(p);return;}
-        if(handlers.scrub){e.preventDefault();this.touch.moved=true;this.clearTimer();handlers.drag?.(p,this.touch);return;}
+        if(handlers.scrub){e.preventDefault();this.touch.moved=true;this.clearTimer();drag(p,this.touch);return;}
         if(Math.hypot(dx,dy)>8){this.touch.moved=true;this.clearTimer();}
         if(this.touch.moved&&touchPanAllowed(dx,dy,handlers.canPan?.(),handlers.canPanY?.())) {
-          if(e.cancelable)e.preventDefault();handlers.drag?.(p,this.touch);
+          if(e.cancelable)e.preventDefault();drag(p,this.touch);
         }
       },{passive:false});
       on('touchend',e=>{
         this.clearTimer();const touch=this.touch;if(!touch)return;
-        if(touch.pinch){if(!e.touches.length)this.touch=null;return;}
-        if(!e.touches.length){if(!touch.moved&&!touch.long){this.queueTap(touch.last,'touch',()=>handlers.tap?.(touch.last,'touch'));}inspector.settle();handlers.finishTouch?.();surface.classList.remove('press-inspecting');this.touch=null;}
+        if(touch.pinch){this.pinchBatch.flush();if(!e.touches.length){this.touch=null;pinchStart=null;}return;}
+        if(!e.touches.length){this.dragBatch.flush();if(!touch.moved&&!touch.long){this.queueTap(touch.last,'touch',()=>handlers.tap?.(touch.last,'touch'));}inspector.settle();handlers.finishTouch?.();surface.classList.remove('press-inspecting');this.touch=null;}
       });
-      on('touchcancel',()=>{this.clearTimer();this.clearTap();this.touch=null;surface.classList.remove('press-inspecting');handlers.cancel?.();});
+      on('touchcancel',()=>{this.clearTimer();this.clearTap();this.dragBatch.cancel();this.pinchBatch.cancel();pinchStart=null;this.touch=null;surface.classList.remove('press-inspecting');handlers.cancel?.();});
     }
     // A tap is committed only after the double-tap window. Hover stays immediate.
     queueTap(p,type,action){
@@ -273,8 +291,8 @@
     }
     clearTap(){clearTimeout(this.tapTimer);this.pendingTap=null;}
     clearTimer(){clearTimeout(this.timer);}
-    destroy(){this.clearTimer();this.clearTap();this.clearHover?.();this.wheelBatch?.cancel();this.abort.abort();if(inspector.owner?.surface===this.surface)inspector.hide();}
+    destroy(){this.clearTimer();this.clearTap();this.clearHover?.();this.wheelBatch?.cancel();this.dragBatch?.cancel();this.pinchBatch?.cancel();this.abort.abort();if(inspector.owner?.surface===this.surface)inspector.hide();}
   }
-  Object.assign(root,{AtlasGesture:Gesture,AtlasTimeNavigator:TimeNavigator,AtlasAxisControls:axisControls,AtlasApplyZoomAxis:applyZoomAxis,AtlasFullscreen:fullscreen,AtlasInspector:inspector,AtlasDialogDismiss:bindDismiss,AtlasZoomRange:zoomRange,AtlasWheelBatch:wheelBatch});
-  if(typeof module!=='undefined')module.exports={zoomRange,clamp,stockReadoutGroups,stockReadoutCell,touchPanAllowed};
+  Object.assign(root,{AtlasGesture:Gesture,AtlasTimeNavigator:TimeNavigator,AtlasAxisControls:axisControls,AtlasApplyZoomAxis:applyZoomAxis,AtlasFullscreen:fullscreen,AtlasInspector:inspector,AtlasDialogDismiss:bindDismiss,AtlasZoomRange:zoomRange,AtlasWheelBatch:wheelBatch,AtlasFrameLatest:frameLatest});
+  if(typeof module!=='undefined')module.exports={zoomRange,clamp,stockReadoutGroups,stockReadoutCell,touchPanAllowed,frameLatest};
 })(globalThis);

@@ -157,7 +157,7 @@
           else this.finishPan();
           this.brush=null;this.updateOverlay();
         },
-        cancel:()=>{this.brush=null;this.cancelPan();},finishTouch:()=>this.finishPan(),canPan:()=>this.canPan(),canPanY:()=>!!this.yView,zoom:(factor,p,wheel)=>this.zoom(factor,p,wheel?this.axisAt(p):this.zoomAxis),panPinch:(dx,dy)=>this.pan(dx,[...this.view],dy,[this.lo,this.hi]),reset:()=>this.reset()
+        cancel:()=>{this.brush=null;this.cancelPan();},finishTouch:()=>this.finishPan(),canPan:()=>this.canPan(),canPanY:()=>!!this.yView,zoom:(factor,p,wheel)=>this.zoom(factor,p,wheel?this.axisAt(p):this.zoomAxis),pinch:(factor,from,to)=>this.pinch(factor,from,to),reset:()=>this.reset()
       });
       this.observer=new ResizeObserver(()=>{this.draw();this.navigator?.update();});this.observer.observe(this.surface);
       window.addEventListener('resize',()=>{this.draw();this.navigator?.update();},{signal:this.abort.signal});this.draw();if(!this.compact)this.navigator=new root.AtlasTimeNavigator(host,{getRange:()=>this.view,getLength:()=>this.dates.length,getDates:()=>this.dates,onChange:(a,b)=>this.setRange(a,b,true)});
@@ -206,10 +206,10 @@
     setRange(a,b,notify=false) {
       a=clamp(a,0,this.dates.length-1);b=clamp(b,a,this.dates.length-1);
       if(b-a<1&&this.dates.length>1)return;
-      const previous=this.index;
+      const previous=this.index,changed=a!==this.view[0]||b!==this.view[1];
       if(notify){this.index=clamp(this.index,Math.ceil(a),Math.floor(b));if(this.index!==previous)this.axisValue=null;}
-      this.view=[a,b];this.sceneKey='';this.draw();this.navigator?.update();
-      if(notify){this.onRange(this.dates[Math.floor(a)],this.dates[Math.ceil(b)]);if(this.index!==previous)this.onInspect(this.index,this);}
+      this.view=[a,b];this.draw();if(changed)this.navigator?.update();
+      if(notify){if(changed)this.onRange(this.dates[Math.floor(a)],this.dates[Math.ceil(b)]);if(this.index!==previous)this.onInspect(this.index,this);}
     }
     setDateRange(start,end){const a=this.dates.indexOf(start),b=this.dates.indexOf(end);if(a>=0&&b>=a)this.setRange(a,b);}
     setYRange(range,notify=false){this.yView=range&&[...range];this.sceneKey='';this.draw();if(notify)this.onYRange(this.yView);}
@@ -220,6 +220,22 @@
       if(axis!=='y'){
         const anchor=q?clamp((q.x-(this.plotXLeft??this.g.left))/(this.plotXWidth??this.g.width),0,1):clamp((this.index-this.view[0])/(this.view[1]-this.view[0]||1),0,1);
         this.setRange(...root.AtlasZoomRange(this.view,this.dates.length,factor,anchor),true);
+      }else this.draw();
+      if(axis!=='x')this.onYRange(this.yView);
+    }
+    pinch(factor,from,to){
+      if(!this.hasData||!this.g||!finite(factor)||factor<=0)return;
+      const a=this.local(from),b=this.local(to),g=this.g,axis=this.zoomAxis;
+      const xLeft=this.plotXLeft??g.left,xWidth=this.plotXWidth??g.width;
+      if(axis!=='x'){
+        const y=clamp((g.bottom-a.y)/g.height,0,1),range=zoomDomain([this.lo,this.hi],factor,y);
+        const shift=(b.y-a.y)/g.height*(range[1]-range[0]);
+        this.yView=range.map(v=>v+shift);
+      }
+      if(axis!=='y'){
+        const anchor=clamp((a.x-xLeft)/xWidth,0,1),range=root.AtlasZoomRange(this.view,this.dates.length,factor,anchor),span=range[1]-range[0];
+        const left=clamp(range[0]-(b.x-a.x)/xWidth*span,0,Math.max(0,this.dates.length-1-span));
+        this.setRange(left,left+span,true);
       }else this.draw();
       if(axis!=='x')this.onYRange(this.yView);
     }
@@ -263,7 +279,7 @@
     // the first and second click and prevented the native dblclick reset gesture.
     select(p,pointerType='mouse'){
       if(!this.hasData)return;
-      const hit=this.hitSeries(p,pointerType==='touch'?22:12);
+      const hit=this.hitSeries(p,pointerType==='touch'?32:12);
       this.inspect(p,true);
       if(!hit){this.focus=this.pinned||null;this.updateOverlay();this.updateValues();return;}
       if(this.pinned===hit.id){this.clearInspection();return;}
@@ -404,7 +420,7 @@
         const x=this.X(i);
         if(this.series.length>6)for(const s of this.series)if(s.reference||s.id===focus)html+=`<path class="focus-trace" d="${path(s.values,this.X,this.Y,Math.max(0,Math.floor(this.view[0])-1),Math.min(this.dates.length-1,Math.ceil(this.view[1])+1))}" clip-path="url(#plotClip${this.id})" fill="none" stroke="${s.color||'var(--plot-main)'}" stroke-width="${traceWidth(!!s.reference,s.id===focus)}" stroke-dasharray="${s.dash||''}"/>`;
         html+=`<path class="crosshair" d="M${x},${g.top}V${this.stock?this.h-34:g.bottom}"/>`;
-        for(const s of this.series)if((this.series.length<=8||s.reference||s.id===focus)&&finite(s.values[i])&&this.Y(s.values[i])>=g.top&&this.Y(s.values[i])<=g.bottom)html+=`<circle cx="${x}" cy="${this.Y(s.values[i])}" r="3.2" fill="${s.color||'var(--plot-main)'}" stroke="var(--bg)" stroke-width="1.3"/>`;
+        for(const s of this.series)if((this.series.length<=8||s.reference||s.id===focus)&&finite(s.values[i])&&this.Y(s.values[i])>=g.top&&this.Y(s.values[i])<=g.bottom)html+=`<circle cx="${x}" cy="${this.Y(s.values[i])}" r="${s.id===focus?4.5:3.2}" fill="${s.color||'var(--plot-main)'}" stroke="var(--bg)" stroke-width="${s.id===focus?1.8:1.3}"/>`;
       }
       if(finite(value)&&this.Y(value)>=g.top&&this.Y(value)<=g.bottom){const y=this.Y(value),tagWidth=Math.max(g.left-5,Math.ceil(measureAxis([number(value)])+10));html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${tagWidth}" height="22" rx="2"/><text class="axis-tag-text" x="${tagWidth-5}" y="${y+4}" text-anchor="end">${number(value)}</text>`;}
       if(this.brush){const left=clamp(Math.min(...this.brush),g.left,g.right),right=clamp(Math.max(...this.brush),g.left,g.right);html+=`<rect class="zoom-brush" x="${left}" y="${g.top}" width="${right-left}" height="${g.height}"/>`;}

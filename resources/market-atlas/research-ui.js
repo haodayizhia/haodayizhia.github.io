@@ -57,8 +57,9 @@
     function queueTap(p,type,id){
       const previous=pending,radius=type==='touch'?24:8,delay=type==='touch'?280:450;
       if(previous&&previous.type===type&&Math.hypot(p.x-previous.x,p.y-previous.y)<radius){reset();return;}
-      if(previous){clearTap();if(previous.id!=null&&body.isConnected)onPoint(previous.id);}
-      pending={...p,type,id};tapTimer=setTimeout(()=>{const tap=pending;clearTap();if(tap?.id!=null&&body.isConnected)onPoint(tap.id);},delay);
+      if(previous)clearTap();
+      if(id!=null&&body.isConnected)onPoint(id);
+      pending={...p,type,id};tapTimer=setTimeout(clearTap,delay);
     }
     function pinch(){
       const [a,b]=active.values();return {x:(a.x+b.x)/2,d:Math.max(1,Math.hypot(a.x-b.x,a.y-b.y))};
@@ -135,7 +136,7 @@
   }
   // Draw the same statistics and every individual return, using CSS pixel
   // dimensions and a HiDPI backing store. Symbols keep their size while zooming.
-  function paintDistribution(ctx,width,height,points,group,market,domain,ticks,colors,hover){
+  function paintDistribution(ctx,width,height,points,group,market,domain,ticks,colors,hover,selected){
     const X=v=>distributionX(v,domain)*width/100;
     const guide=(v,color,lineWidth,alpha=1,dash=[],top=0,bottom=height)=>{
       if(!within(v,domain))return;
@@ -158,7 +159,7 @@
     guide(group.median.at(-1),colors.main,2.5,1,[],11,23);
     const sector=group.sector.at(-1);
     if(within(sector,domain)){const x=X(sector),r=3*Math.SQRT2;ctx.fillStyle=colors.gold;ctx.globalAlpha=1;ctx.beginPath();ctx.moveTo(x,4-r);ctx.lineTo(x+r,4);ctx.lineTo(x,4+r);ctx.lineTo(x-r,4);ctx.closePath();ctx.fill();}
-    if(hover&&within(hover.value,domain)){ctx.globalAlpha=1;ctx.fillStyle=colors.gold;ctx.strokeStyle=colors.ink;ctx.lineWidth=1;ctx.beginPath();ctx.arc(X(hover.value),17,2.6,0,Math.PI*2);ctx.fill();ctx.stroke();}
+    for(const p of [hover,selected])if(p&&within(p.value,domain)){ctx.globalAlpha=1;ctx.fillStyle=colors.gold;ctx.strokeStyle=colors.ink;ctx.lineWidth=p===selected?1.5:1;ctx.beginPath();ctx.arc(X(p.value),17,p===selected?4:2.6,0,Math.PI*2);ctx.fill();ctx.stroke();}
     ctx.globalAlpha=1;ctx.setLineDash([]);
   }
   // Points share a single horizontal line. Use a generous horizontal
@@ -193,12 +194,16 @@
     const colorTokens={muted:'--muted',teal:'--plot-teal',blue:'--plot-blue',range:'--plot-range',slate:'--plot-slate',main:'--plot-main',gold:'--plot-gold',ink:'--ink'};
     const pointById=new Map(points.map(p=>[String(p.i),p]));
     let frame=0,rows=null,entries=[],width=0,dpr=1,colors=null,paintedDomain=null,paintedTicks=[],revision=0,observer=null,scatterCleanup=null;
+    let selectedPoint=null;
     function selectPoint(p,scroll=false){
       const read=body.querySelector('.structure-selection');if(!p||!read)return;
-      s.structurePoint=p.code;persist();
+      const previous=selectedPoint;selectedPoint=p;s.structurePoint=p.code;persist();
+      for(const entry of entries)if(entry.group.name===p.industry||entry.group.name===previous?.industry)entry.revision=-1;
+      requestPaint();
       read.innerHTML=pointRead(p,summary)+` <button class="point-open">查看日线 ↗</button>`;
       read.querySelector('button').onclick=()=>options.openStock(p.code);
-      if(scroll)read.scrollIntoView({block:'nearest'});
+      // The selection readout is below the list; do not scroll the touched plot away.
+      if(scroll&&matchMedia('(hover:hover) and (pointer:fine)').matches)read.scrollIntoView({block:'nearest'});
     }
     function requestPaint(){if(!frame)frame=requestAnimationFrame(refreshDistribution);}
     function paintEntry(entry){
@@ -207,7 +212,7 @@
       if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph;}
       const ctx=canvas.getContext('2d');
       ctx.setTransform(pw/width,0,0,ph/28,0,0);
-      paintDistribution(ctx,width,28,entry.points,entry.group,pool,paintedDomain,paintedTicks,colors,entry.hover);
+      paintDistribution(ctx,width,28,entry.points,entry.group,pool,paintedDomain,paintedTicks,colors,entry.hover,selectedPoint?.industry===entry.group.name?selectedPoint:null);
       entry.revision=revision;
     }
     function measureDistribution(){
@@ -298,7 +303,11 @@
         const values=groupMap.get(canvas.dataset.heatGroup).excess5;
         paintHeat(canvas,values,colors);
         canvas.onpointermove=e=>{const i=column(canvas,e);canvas.title=summary.dates[i]+' · '+num(values[i])+' 个百分点';};
-        canvas.onclick=e=>{const i=column(canvas,e);body.querySelector('.structure-selection').textContent=gLabel(canvas.dataset.heatGroup,summary.dates[i],values[i]);};
+        canvas.onclick=e=>{
+          const i=column(canvas,e),old=body.querySelector('.structure-heat-marker');
+          old?.remove();const mark=document.createElement('span');mark.className='structure-heat-marker';mark.style.left=100*i/summary.dates.length+'%';mark.style.width=100/summary.dates.length+'%';canvas.parentElement.append(mark);
+          body.querySelector('.structure-selection').textContent=gLabel(canvas.dataset.heatGroup,summary.dates[i],values[i]);
+        };
       });
       const gLabel=(name,date,value)=>name+' · '+date+' · 5日超额 '+(finite(value)?num(value)+' 个百分点':'—');
       body.querySelector('.structure-rows').scrollTop=scroll;
@@ -369,10 +378,11 @@
       detail.querySelector('button').onclick=()=>openStock(p.code);
     }
     function highlight(){
-      for(const el of svg.querySelectorAll('.chosen,.point-hover'))el.classList.remove('chosen','point-hover');
-      const selected=pointMap.get(s.structurePoint);
-      if(selected)svg.querySelector('[data-dot="'+selected.i+'"]')?.classList.add('chosen');
-      if(hover)svg.querySelector('[data-dot="'+hover.i+'"]')?.classList.add('point-hover');
+      const selected=pointMap.get(s.structurePoint),layer=svg.querySelector('.point-highlight-layer');
+      if(layer){
+        const markers=[hover,selected].filter((p,i,a)=>p&&a.indexOf(p)===i).map(p=>painted.find(d=>d.p===p)).filter(Boolean);
+        layer.innerHTML=markers.map(({p,x,y})=>`<circle cx="${x}" cy="${y}" r="${p===selected?5:4.2}" class="${p===selected?'chosen':'point-hover'}"/>`).join('');
+      }
       read(hover||selected||null);
     }
     function fill(matches){
@@ -412,7 +422,7 @@
         ${xt.map(v=>`<text class="axis-label" x="${X(v)}" y="${g.bottom+18}" text-anchor="${v===xl?'start':v===xr?'end':'middle'}">${v*5}%</text>`).join('')}
         <text class="axis-label" x="${(g.left+g.right)/2}" y="${H-7}" text-anchor="middle">20日内跑赢本行业的天数占比</text>
         ${refs.map(r=>`<line x1="${g.left}" x2="${g.right}" y1="${r.y}" y2="${r.y}" class="${r.cls}"/>`).join('')}
-        <g clip-path="url(#${clip})">${painted.map(({p,x,y})=>`<circle cx="${x}" cy="${y}" r="3.2" data-dot="${p.i}"/>`).join('')}</g>
+        <g clip-path="url(#${clip})">${painted.map(({p,x,y})=>`<circle cx="${x}" cy="${y}" r="3.2" data-dot="${p.i}"/>`).join('')}<g class="point-highlight-layer" pointer-events="none"></g></g>
         ${labels.map(r=>`<g class="point-reference" style="color:${r.color}"><path d="M${g.right},${r.y}H${referenceLayout.leaderStart}L${referenceLayout.leaderBend},${r.labelY}H${referenceLayout.leaderEnd}" fill="none" stroke="currentColor"/><text x="${referenceLayout.labelX}" y="${r.labelY}" dominant-baseline="central" text-anchor="start">${esc(r.label)}</text></g>`).join('')}
         <rect class="brush-box" width="0" height="0"/>`;
       surface.classList.toggle('can-pan',isZoomed());
@@ -468,12 +478,12 @@
       const [fx,fy]=fractions(p),q=local(p),xOnly=wheel&&q.y>g.bottom,yOnly=wheel&&q.x<g.left;
       setView([...(yOnly?view.slice(0,2):scatterRange(view.slice(0,2),base.slice(0,2),factor,fx)),...(xOnly?view.slice(2):scatterRange(view.slice(2),base.slice(2),factor,fy))]);
     }
-    function panPinch(dx,dy){
-      if(!g)return;
-      setView([...scatterRange(view.slice(0,2),base.slice(0,2),1,.5,.5+dx/g.width),...scatterRange(view.slice(2),base.slice(2),1,.5,.5-dy/g.height)]);
+    function pinch(factor,from,to){
+      if(!g)return;const a=fractions(from),b=fractions(to);
+      setView([...scatterRange(view.slice(0,2),base.slice(0,2),factor,a[0],b[0]),...scatterRange(view.slice(2),base.slice(2),factor,a[1],b[1])]);
     }
     function reset(){cancel();hover=null;setView([...base]);fill();highlight();persist();}
-    const gesture=new root.AtlasGesture(surface,{inspect,dismiss,tap:pick,immediateTap:true,start:begin,drag:move,end:finish,cancel,finishTouch:finish,canPan:isZoomed,canPanY:isZoomed,zoom,panPinch,reset,startPinch:cancel});
+    const gesture=new root.AtlasGesture(surface,{inspect,dismiss,tap:pick,immediateTap:true,start:begin,drag:move,end:finish,cancel,finishTouch:finish,canPan:isZoomed,canPanY:isZoomed,zoom,pinch,reset,startPinch:cancel});
     // Suppress the browser's pointer-focus rectangle without removing
     // keyboard focus or its visible accessibility cue.
     surface.addEventListener('pointerdown',()=>svg.classList.add('pointer-focused'));

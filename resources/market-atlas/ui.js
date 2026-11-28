@@ -142,7 +142,7 @@
   function dispose(){S.researchCleanup?.();S.researchCleanup=null;AtlasFullscreen.close();AtlasInspector.hide();S.stateTimeNav?.destroy();S.stateTimeNav=null;S.charts.forEach(c=>c.destroy());S.charts=[];}
   function applyRange(start,end,origin){
     scheduleNavigation();S.ranges.set(rangeKey(),{dates:[start,end],view:[...origin.view],total:origin.dates.length});
-    for(const chart of S.charts)if(chart!==origin&&chart.setDateRange){if(chart.dates.length===origin.dates.length)chart.setRange(...origin.view);else chart.setDateRange(start,end);}S.stateTimeNav?.update();
+    for(const chart of S.charts)if(chart!==origin&&chart.setDateRange){if(chart.dates.length===origin.dates.length){if(chart.view[0]!==origin.view[0]||chart.view[1]!==origin.view[1])chart.setRange(...origin.view);}else chart.setDateRange(start,end);}S.stateTimeNav?.update();
   }
   function restoreLatestInspectionDate(){
     if(!S.market?.dates.length)return;

@@ -344,3 +344,13 @@ test('mobile chart pans vertically only when it owns a vertical viewport',()=>{
  assert.equal(touchPanAllowed(40,2,true,false),true);
  assert.equal(touchPanAllowed(40,2,false,false),false);
 });
+
+test('frame scheduler coalesces inputs, flushes final state and cancels stale work',()=>{
+ const {frameLatest}=require('../../resources/market-atlas/chart-interaction.js');
+ let seq=0;const frames=new Map(),calls=[];
+ const task=frameLatest((...args)=>calls.push(args),fn=>{frames.set(++seq,fn);return seq;},id=>frames.delete(id));
+ task.push(1);task.push(2);task.push(3);
+ assert.equal(frames.size,1);assert.deepEqual(calls,[]);
+ task.flush();assert.deepEqual(calls,[[3]]);assert.equal(frames.size,0);
+ task.push(4);task.cancel();assert.equal(frames.size,0);assert.deepEqual(calls,[[3]]);
+});
