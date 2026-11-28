@@ -23,7 +23,104 @@
     return AtlasCharts.ticks(domain[0],domain[1],4).filter(v=>within(v,domain));
   }
   function distributionAxis(domain){
-    return `<div class="dist-axis" aria-label="20日收益共享横轴">${distributionTicks(domain).map(v=>`<span style="${at(v,domain)}">${num(v,1)}%</span>`).join('')}</div>`;
+    return `<div class="dist-axis" tabindex="0" role="group" aria-label="20日收益共享横轴" title="滚轮缩放 · 拖动平移 · 双指缩放 · 双击复原；键盘 + / − / ← / → / 0">${distributionTicks(domain).map(v=>`<span style="${at(v,domain)}">${num(v,1)}%</span>`).join('')}</div>`;
+  }
+  // Transform one shared domain. The original anchor remains under the pointer,
+  // unless the requested view would extend beyond the complete data range.
+  function distributionView(view,full,factor,from=.5,to=from){
+    if(!finite(factor)||factor<=0)return [...full];
+    const total=full[1]-full[0],span=view[1]-view[0];
+    const width=Math.max(Math.min(1,total),Math.min(total,span/factor));
+    if(width>=total)return [...full];
+    const pivot=view[0]+span*from;
+    const left=Math.max(full[0],Math.min(full[1]-width,pivot-width*to));
+    return [left,left+width];
+  }
+  function distributionRank(group,pool,sort){
+    if(sort==='wins')return group.wins.at(-1);
+    if(sort==='excess')return diff(group.sector.at(-1),pool);
+    if(sort==='excess5')return group.excess5.at(-1);
+    if(sort==='breadth'){const count=group.count.at(-1);return count?group.up.at(-1)/count:null;}
+    return 0;
+  }
+  // Pointer capture is on the stable container, never on a point that is
+  // replaced while scaling. Native vertical touch scrolling remains available.
+  function bindDistributionGestures(body,{getView,full,setView,onPoint}){
+    const active=new Map();let gesture=null,pending=null,tapTimer=null;
+    const clearTap=()=>{clearTimeout(tapTimer);pending=null;};
+    const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+    const fraction=(x,r)=>clamp((x-r.left)/Math.max(1,r.width),0,1);
+    const coord=e=>({x:e.clientX,y:e.clientY});
+    const cell=e=>e.target.closest('.dist-plot,.dist-axis');
+    const transform=(view,factor,from,to)=>setView(distributionView(view,full,factor,from,to));
+    const reset=()=>{clearTap();setView([...full]);};
+    function queueTap(p,type,id){
+      const previous=pending,radius=type==='touch'?24:8,delay=type==='touch'?280:450;
+      if(previous&&previous.type===type&&Math.hypot(p.x-previous.x,p.y-previous.y)<radius){reset();return;}
+      if(previous){clearTap();if(previous.id!=null&&body.isConnected)onPoint(previous.id);}
+      pending={...p,type,id};tapTimer=setTimeout(()=>{const tap=pending;clearTap();if(tap?.id!=null&&body.isConnected)onPoint(tap.id);},delay);
+    }
+    function pinch(){
+      const [a,b]=active.values();return {x:(a.x+b.x)/2,d:Math.max(1,Math.hypot(a.x-b.x,a.y-b.y))};
+    }
+    function beginPinch(){
+      clearTap();const p=pinch();
+      gesture={...gesture,mode:'pinch',view:[...getView()],anchor:fraction(p.x,gesture.rect),distance:p.d,moved:true};
+    }
+    body.onpointerdown=e=>{
+      const target=cell(e);if(!target||e.button!==0||active.size>=2)return;
+      if(active.size&&e.pointerType!=='touch')return;
+      const p=coord(e);active.set(e.pointerId,p);
+      body.setPointerCapture(e.pointerId);
+      if(active.size===2){beginPinch();return;}
+      const rect=target.getBoundingClientRect();
+      gesture={mode:'single',type:e.pointerType,rect,view:[...getView()],start:p,anchor:fraction(p.x,rect),moved:false,id:e.target.closest('[data-point-id]')?.dataset.pointId};
+    };
+    body.onpointermove=e=>{
+      if(!active.has(e.pointerId)||!gesture)return;
+      const p=coord(e);active.set(e.pointerId,p);
+      if(gesture.mode==='pinch'&&active.size===2){
+        const now=pinch();transform(gesture.view,now.d/gesture.distance,gesture.anchor,fraction(now.x,gesture.rect));return;
+      }
+      if(gesture.mode!=='single')return;
+      const dx=p.x-gesture.start.x,dy=p.y-gesture.start.y;
+      if(!gesture.moved&&Math.hypot(dx,dy)>6){gesture.moved=true;clearTap();}
+      if(!gesture.moved)return;
+      if(gesture.type==='touch'&&Math.abs(dx)<=Math.abs(dy))return;
+      body.classList.add('dist-dragging');
+      transform(gesture.view,1,gesture.anchor,fraction(p.x,gesture.rect));
+    };
+    const end=(e,cancel=false)=>{
+      if(!active.has(e.pointerId))return;
+      active.delete(e.pointerId);
+      if(body.hasPointerCapture(e.pointerId))body.releasePointerCapture(e.pointerId);
+      if(!gesture)return;
+      if(cancel){clearTap();gesture.moved=true;}
+      if(active.size){gesture.mode='ended';return;}
+      if(!cancel&&gesture.mode==='single'&&!gesture.moved)queueTap(coord(e),gesture.type,gesture.id);
+      gesture=null;body.classList.remove('dist-dragging');
+    };
+    body.onpointerup=e=>end(e);
+    body.onpointercancel=e=>end(e,true);
+    body.onlostpointercapture=e=>end(e,true);
+    // Prevent page scroll only while the pointer is over the distribution column.
+    body.addEventListener('wheel',e=>{
+      const target=cell(e);if(!target)return;
+      e.preventDefault();clearTap();
+      const rect=target.getBoundingClientRect(),delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?Math.max(1,rect.width):1);
+      transform(getView(),Math.exp(clamp(-delta*.002,-2,2)),fraction(e.clientX,rect),fraction(e.clientX,rect));
+    },{passive:false});
+    body.ondblclick=e=>{if(cell(e)){e.preventDefault();reset();}};
+    body.onkeydown=e=>{
+      if(!e.target.closest('.dist-axis'))return;
+      const key=e.key;if(!['+','=','-','0','ArrowLeft','ArrowRight'].includes(key))return;
+      e.preventDefault();clearTap();
+      if(key==='0'){reset();return;}
+      const view=getView();
+      if(key==='ArrowLeft'||key==='ArrowRight')transform(view,1,.5,key==='ArrowLeft'?.7:.3);
+      else transform(view,key==='-'?1/1.6:1.6,.5,.5);
+    };
+    return {cancel(){clearTap();for(const id of active.keys()){active.delete(id);if(body.hasPointerCapture(id))body.releasePointerCapture(id);}gesture=null;body.classList.remove('dist-dragging');}};
   }
   function heatAxis(dates){
     const n=dates.length,indices=[...new Set([0,Math.round((n-1)/3),Math.round((n-1)*2/3),n-1])];
@@ -58,8 +155,35 @@
     const controls=host.querySelector('[data-scope-controls]'),body=host.querySelector('#structureBody');
     const fullDomain=extent(points.map(p=>p.value).concat(summary.groups.map(g=>g.sector.at(-1)),pool));let domain=[...fullDomain];
     const zoomed=()=>domain[0]!==fullDomain[0]||domain[1]!==fullDomain[1];
-    function zoomDistribution(factor,anchor){const width=fullDomain[1]-fullDomain[0],span=domain[1]-domain[0];if(factor===0||span/factor>=width){domain=[...fullDomain];}else if(span/factor>=Math.min(1,width)){let [a,b]=AtlasCharts.zoomDomain(domain,factor,anchor);if(a<fullDomain[0]){b+=fullDomain[0]-a;a=fullDomain[0];}if(b>fullDomain[1]){a-=b-fullDomain[1];b=fullDomain[1];}domain=[a,b];}draw();}
+    const groupByName=new Map(summary.groups.map(g=>[g.name,g]));
+    const pointById=new Map(points.map(p=>[String(p.i),p]));
+    let frame=0;
+    function selectPoint(p,scroll=false){
+      const read=body.querySelector('.structure-selection');if(!p||!read)return;
+      s.structurePoint=p.code;persist();
+      read.innerHTML=pointRead(p,summary)+` <button class="point-open">查看日线 ↗</button>`;
+      read.querySelector('button').onclick=()=>options.openStock(p.code);
+      if(scroll)read.scrollIntoView({block:'nearest'});
+    }
+    function refreshDistribution(){
+      frame=0;if(!body.isConnected||s.structureScope!=='industry')return;
+      const header=body.querySelector('.structure-columns .sr-dist');if(!header)return;
+      const title=header.querySelector('.structure-col-title');
+      title.textContent='20日个股收益分布（%）'+(zoomed()?' · 缩放中':'');
+      // Keep the axis node stable, including its keyboard focus.
+      const axis=header.querySelector('.dist-axis');
+      axis.innerHTML=distributionTicks(domain).map(v=>`<span style="${at(v,domain)}">${num(v,1)}%</span>`).join('');
+      body.querySelectorAll('[data-dist-group]').forEach(el=>{
+        const name=el.dataset.distGroup,g=groupByName.get(name);
+        if(g)el.innerHTML=distribution(byGroup.get(name)||[],g,pool,domain);
+      });
+    }
+    const gestures=bindDistributionGestures(body,{getView:()=>domain,full:fullDomain,setView:next=>{
+      if(next[0]===domain[0]&&next[1]===domain[1])return;
+      domain=next;if(!frame)frame=requestAnimationFrame(refreshDistribution);
+    },onPoint:id=>selectPoint(pointById.get(String(id)),true)});
     function draw(){
+      gestures.cancel();if(frame){cancelAnimationFrame(frame);frame=0;}
       const scroll=body.querySelector('.structure-rows')?.scrollTop||0;body.dataset.mobileMode=s.structureMobile;
       if(s.structureScope==='stocks'){
         controls.innerHTML=`<label><input type="checkbox" data-weak ${s.weakOnly?'checked':''}> 仅行业20日落后于池</label>`;
@@ -68,20 +192,19 @@
         scatter(body,s.weakOnly?points.filter(p=>weak.has(p.industry)):points,options);
         return;
       }
-      controls.innerHTML=`<label>行序 <select data-sort>${option('wins','20日领先天数',s.structureSort)}${option('excess','20日超额',s.structureSort)}${option('name','行业名称',s.structureSort)}</select></label>`;
+      controls.innerHTML=`<label>行序 <select data-sort>${option('wins','20日领先天数',s.structureSort)}${option('excess5','5日超额收益',s.structureSort)}${option('excess','20日超额收益',s.structureSort)}${option('breadth','20日上涨占比',s.structureSort)}${option('name','行业名称',s.structureSort)}</select></label>`;
       controls.querySelector('select').onchange=e=>{s.structureSort=e.target.value;persist();draw();};
       const known=new Set(s.market.sectors.filter(g=>g.series.price_count.some(n=>n>0)).map(g=>g.name));
-      const groups=rankLatest(summary.groups.filter(g=>known.has(g.name)),g=>s.structureSort==='wins'?g.wins.at(-1):s.structureSort==='excess'?diff(g.sector.at(-1),pool):0);
+      const groups=rankLatest(summary.groups.filter(g=>known.has(g.name)),g=>distributionRank(g,pool,s.structureSort));
       body.innerHTML=`<div class="structure-mode"><button data-mobile="dist" aria-pressed="${s.structureMobile!=='heat'}">成分分布</button><button data-mobile="heat" aria-pressed="${s.structureMobile==='heat'}">强弱历史</button></div>
         <div class="structure-legend structure-legend-inline">
           <span class="sr-heat heat-legend"><i class="heat-key"></i> 落后 / 领先</span>
           <span class="sr-dist dist-legend"><span><i class="legend-point"></i>个股</span><span><i class="legend-range"></i>中间约80%</span><span><i class="legend-median"></i>中位数</span><span><i class="legend-diamond"></i>行业收益</span><span><i class="legend-market"></i>股票池收益</span><span><i class="legend-zero"></i>零收益</span></span>
-          <details class="structure-method"><summary>统计口径</summary><div>5日超额为行业与股票池5日收益之差（百分点）；颜色饱和于 ±18。P10–P90 为第10至90百分位（中间约80%的成分股收益范围）。个股20日累计收益须有完整20个交易日数据；上涨占比为正收益家数 / 有效家数。点行业深入、点个股查值；顶部选择观察日。</div></details>
-          <span class="sr-dist dist-actions"><button data-dist-zoom="out" title="缩小收益轴" aria-label="缩小收益轴">−</button><button data-dist-zoom="in" title="放大收益轴" aria-label="放大收益轴">＋</button><button data-dist-zoom="reset" ${zoomed()?'':'disabled'} title="恢复完整收益范围">全范围</button></span>
+          <details class="structure-method"><summary>统计口径</summary><div>5日超额为行业与股票池5日收益之差（百分点）；颜色饱和于 ±18。P10–P90 为第10至90百分位（中间约80%的成分股收益范围）。个股20日累计收益须有完整20个交易日数据；上涨占比为正收益家数 / 有效家数。点行业深入、点个股查值；顶部选择观察日。成分分布：滚轮或双指横向缩放，横向拖动平移，双击复原。20日领先天数统计行业日收益超过股票池日收益的天数；20日超额为累计收益之差；各排序均基于当前观察日。</div></details>
         </div>
         <div class="structure-rows" data-mobile-mode="${esc(s.structureMobile)}"><div class="structure-row structure-columns"><span>行业</span><div class="sr-heat"><div class="structure-col-title">5日超额收益（百分点）</div>${heatAxis(summary.dates)}</div><div class="sr-dist"><div class="structure-col-title">20日个股收益分布（%）${zoomed()?' · 缩放中':''}</div>${distributionAxis(domain)}</div><span>20日上涨占比</span></div>${groups.map(g=>{
           const members=byGroup.get(g.name)||[];
-          return `<div class="structure-row"><button class="structure-name" data-group="${esc(g.name)}" title="${esc(g.name)} · 领先 ${wins(g.wins.at(-1))} 天 · 行业 ${pct(g.sector.at(-1))}">${esc(g.name)}</button><div class="sr-heat"><canvas class="structure-heat" data-heat-group="${esc(g.name)}" aria-label="5日超额历史"></canvas></div><div class="sr-dist">${distribution(members,g,pool,domain)}</div><span class="structure-up" title="近20日正收益家数 / 有效家数">${g.count.at(-1)?num(100*g.up.at(-1)/g.count.at(-1),1)+'%':'—'} <small>(${g.up.at(-1)}/${g.count.at(-1)})</small></span></div>`;
+          return `<div class="structure-row"><button class="structure-name" data-group="${esc(g.name)}" title="${esc(g.name)} · 20日领先 ${wins(g.wins.at(-1))} 天 · 5日超额 ${finite(g.excess5.at(-1))?num(g.excess5.at(-1))+' 个百分点':'—'} · 20日超额 ${finite(diff(g.sector.at(-1),pool))?num(diff(g.sector.at(-1),pool))+' 个百分点':'—'} · 行业 ${pct(g.sector.at(-1))}">${esc(g.name)}</button><div class="sr-heat"><canvas class="structure-heat" data-heat-group="${esc(g.name)}" aria-label="5日超额历史"></canvas></div><div class="sr-dist" data-dist-group="${esc(g.name)}">${distribution(members,g,pool,domain)}</div><span class="structure-up" title="近20日正收益家数 / 有效家数">${g.count.at(-1)?num(100*g.up.at(-1)/g.count.at(-1),1)+'%':'—'} <small>(${g.up.at(-1)}/${g.count.at(-1)})</small></span></div>`;
         }).join('')}</div><div class="structure-selection" aria-live="polite"></div>`;
       const style=getComputedStyle(host),colors={rise:style.getPropertyValue('--rise'),fall:style.getPropertyValue('--fall'),missing:style.getPropertyValue('--subtle')};
       const groupMap=new Map(groups.map(g=>[g.name,g]));
@@ -93,22 +216,11 @@
         canvas.onclick=e=>{const i=column(canvas,e);body.querySelector('.structure-selection').textContent=gLabel(canvas.dataset.heatGroup,summary.dates[i],values[i]);};
       });
       const gLabel=(name,date,value)=>name+' · '+date+' · 5日超额 '+(finite(value)?num(value)+' 个百分点':'—');
-      const read=body.querySelector('.structure-selection');
       body.querySelector('.structure-rows').scrollTop=scroll;
-      body.querySelector('.dist-axis')?.addEventListener('wheel',e=>{e.preventDefault();const r=e.currentTarget.getBoundingClientRect();zoomDistribution(Math.exp(-e.deltaY*.002),Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)));},{passive:false});
-      body.querySelector('.structure-rows').ondblclick=e=>{if(e.target.closest('.sr-dist')){e.preventDefault();zoomDistribution(0,.5);}};
-      function selectPoint(p){
-        if(!p)return;
-        s.structurePoint=p.code;persist();
-        read.innerHTML=pointRead(p,summary)+` <button class="point-open">查看日线 ↗</button>`;
-        read.querySelector('button').onclick=()=>options.openStock(p.code);
-      }
       selectPoint(points.find(p=>p.code===s.structurePoint));
       body.onclick=e=>{
-        const button=e.target.closest('[data-group]'),pt=e.target.closest('[data-point-id]'),mobile=e.target.closest('[data-mobile]'),zoom=e.target.closest('[data-dist-zoom]');
-        if(zoom){const action=zoom.dataset.distZoom,anchor=Math.max(0,Math.min(1,(0-domain[0])/(domain[1]-domain[0])));zoomDistribution(action==='reset'?0:action==='in'?1.6:1/1.6,anchor);return;}
+        const button=e.target.closest('[data-group]'),mobile=e.target.closest('[data-mobile]');
         if(button)openIndustry(button.dataset.group);
-        if(pt){selectPoint(points.find(p=>p.i===Number(pt.dataset.pointId)));read.scrollIntoView({block:'nearest'});}
         if(mobile){s.structureMobile=mobile.dataset.mobile;persist();draw();}
       };
     }
@@ -207,5 +319,5 @@
     host.querySelector('[data-pair-results]').innerHTML=`<p>日收益相关 <b>${num(raw.value,3)}</b>（${raw.n} 对）　减去股票池后 <b>${num(net.value,3)}</b>（${net.n} 对）</p><svg class="lag-plot" viewBox="0 0 550 120" aria-label="相对日收益滞后相关，从负5到正5个交易日"><path class="dist-zero" d="M10,52H540"/>${bars.map((p,i)=>`<g><title>${i-5}日：${num(p.value,3)}，${p.n} 对</title>${finite(p.value)?`<rect x="${18+i*48}" y="${52-Math.max(0,p.value)*42}" width="21" height="${Math.max(1,Math.abs(p.value)*42)}" fill="var(--plot-blue)"/>`:''}<text x="${28+i*48}" y="112" text-anchor="middle">${i-5}</text></g>`).join('')}</svg><p class="structure-legend">共同有效交易日 · 滞后为正表示 A 先于 B。图示样本相关；没有做显著性或预测检验。</p>`;
     for(const [key,field] of [['a','pairA'],['b','pairB']])host.querySelector('[data-'+key+']').onchange=e=>{s[field]=e.target.value;persist();linkage(host,market,s,persist);};
   }
-  root.AtlasResearch={market,industry,linkage,distributionX,distributionTicks};
+  root.AtlasResearch={market,industry,linkage,distributionX,distributionTicks,distributionView,distributionRank,bindDistributionGestures};
 })(globalThis);

@@ -231,3 +231,25 @@ test('two nearby taps reset without committing either single tap',()=>{
  gesture.queueTap({x:12,y:20},'touch',()=>calls.push('tap'));
  assert.deepEqual(calls,['reset','reset']);gesture.clearTap();
 });
+
+
+test('distribution gestures use a common bounded horizontal viewport',()=>{
+ require('../../resources/market-atlas/research-ui.js');
+ const {distributionView,distributionRank}=globalThis.AtlasResearch,full=[-60,120];
+ assert.deepEqual(distributionView(full,full,2,.5),[-15,75]);
+ assert.deepEqual(distributionView([-15,75],full,1,.5,.7),[-33,57]);
+ assert.deepEqual(distributionView([-15,75],full,1,.5,2),[-60,30]);
+ assert.deepEqual(distributionView([-15,75],full,0),full);
+ assert.deepEqual(distributionView([-15,75],full,.1),full);
+ const g={wins:[12],sector:[20],excess5:[3],up:[5],count:[8]};
+ assert.equal(distributionRank(g,4,'wins'),12);
+ assert.equal(distributionRank(g,4,'excess'),16);
+ assert.equal(distributionRank(g,4,'excess5'),3);
+ assert.equal(distributionRank(g,4,'breadth'),5/8);
+ assert.equal(distributionRank({...g,count:[0]},4,'breadth'),null);
+});
+test('individual stock price chart has one fixed daily-candle view',()=>{
+ const ui=fs.readFileSync(path.join(__dirname,'../../resources/market-atlas/ui.js'),'utf8');
+ assert.doesNotMatch(ui,/id="stockMode"|kind:S\.stockMode/);
+ assert.ok(ui.includes("kind:'candles',label:info.name+'日线'"));
+});
