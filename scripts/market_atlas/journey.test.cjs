@@ -103,7 +103,10 @@ try{for(const width of [390,1440,320]){
   assert.ok(await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return !c.inspectionActive&&!c.pinned&&!c.focus;}),'Opening a stock chart should not carry heatmap focus');assert.equal(await evaluate(()=>AtlasWorkspace.state.stock.dates[AtlasWorkspace.state.cursor]),heatBefore.date);
   assert.equal(await page.locator('#stockSpan').count(),0,'Redundant stock date presets must be absent');
   const quote=page.locator('#stockPriceChart .chart-readout');
-  assert.deepEqual(await quote.locator('.readout-primary [data-stock-metric]').evaluateAll(els=>els.map(el=>el.dataset.stockMetric)),['开盘','最高','最低','收盘','涨跌','区间涨幅']);
+  assert.deepEqual(await quote.locator('.readout-primary [data-stock-metric]').evaluateAll(els=>els.map(el=>el.dataset.stockMetric)),['开盘','最高','最低','收盘','涨跌','距今涨幅']);
+  assert.equal(await page.locator('#afterwards').count(),0,'Return to latest must not require a toggle');
+  const latestReturn=await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return {actual:c.getRows().find(r=>r.name==='距今涨幅').value,expected:AtlasCharts.returnToLatest(c.stock.close[c.index],c.latestClose),latestDate:c.latestDate,dataDate:AtlasWorkspace.state.meta.dates.at(-1)};});
+  assert.equal(latestReturn.latestDate,latestReturn.dataDate);assert.equal(latestReturn.actual,latestReturn.expected);
   await quote.locator('.readout-toggle').click();
   assert.equal(await quote.locator('.readout-all [data-stock-metric]').count(),4);
   assert.deepEqual(await quote.locator('.readout-all [data-stock-metric]').evaluateAll(els=>els.map(el=>el.dataset.stockMetric)).then(names=>names.slice(1)),['MA5','MA10','MA20']);

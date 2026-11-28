@@ -256,7 +256,7 @@
       if(this.inspectionRows)return this.inspectionRows(this.index);
       if(this.stock) {
         const s=this.stock,i=this.index,hasVolume=s.volume.some(finite);
-        return [['开盘',s.open[i],'元'],['最高',s.high[i],'元'],['最低',s.low[i],'元'],['收盘',s.close[i],'元'],['涨跌',s.daily[i],'%'],...(this.afterwards?[['距今涨幅',returnToLatest(s.close[i],this.latestClose),'%',{signed:true,title:'选中日收盘价至数据源最新交易日'+(this.latestDate?'（'+this.latestDate+'）':'')+'收盘价的涨幅'}]]:[['区间涨幅',s.path?.[i], '%',{signed:true}]]),[hasVolume?'成交量':'成交额',hasVolume?s.volume[i]:s.amount[i],hasVolume?'万股':'亿元'],...this.series.filter(s=>s.id!=='price').map(s=>[s.name,s.values[i],'元'])].map(([name,value,unit,extra])=>({name,value,unit,...extra}));
+        return [['开盘',s.open[i],'元'],['最高',s.high[i],'元'],['最低',s.low[i],'元'],['收盘',s.close[i],'元'],['涨跌',s.daily[i],'%'],['距今涨幅',returnToLatest(s.close[i],this.latestClose),'%',{signed:true,title:'选中日收盘价至数据源最新交易日'+(this.latestDate?'（'+this.latestDate+'）':'')+'收盘价的涨幅'}],[hasVolume?'成交量':'成交额',hasVolume?s.volume[i]:s.amount[i],hasVolume?'万股':'亿元'],...this.series.filter(s=>s.id!=='price').map(s=>[s.name,s.values[i],'元'])].map(([name,value,unit,extra])=>({name,value,unit,...extra}));
       }
       return this.series.map(s=>({id:s.id,name:s.name,detail:s.detail,reference:!!s.reference,canOpen:!!this.onOpenSeries&&!s.reference,openLabel:this.openLabel,value:s.values[this.index],color:s.color,dash:s.dash,unit:this.unit}));
     }
