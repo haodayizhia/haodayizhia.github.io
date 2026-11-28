@@ -237,7 +237,7 @@ test('distribution gestures use a common bounded horizontal viewport',()=>{
  require('../../resources/market-atlas/research-ui.js');
  const {distributionView,distributionRank}=globalThis.AtlasResearch,full=[-60,120];
  assert.deepEqual(distributionView(full,full,2,.5),[-15,75]);
- assert.deepEqual(distributionView([-15,75],full,1,.5,.7),[-33,57]);
+ assert.ok(distributionView([-15,75],full,1,.5,.7).every((v,i)=>Math.abs(v-[-33,57][i])<1e-9));
  assert.deepEqual(distributionView([-15,75],full,1,.5,2),[-60,30]);
  assert.deepEqual(distributionView([-15,75],full,0),full);
  assert.deepEqual(distributionView([-15,75],full,.1),full);
