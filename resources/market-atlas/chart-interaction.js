@@ -191,23 +191,23 @@
         this.mouse={...point(e),shift:e.shiftKey};surface.setPointerCapture(e.pointerId);handlers.start?.(point(e),e.shiftKey);
       });
       on('pointermove',e=>{if(e.pointerType==='touch')return;this.mouse?handlers.drag?.(point(e),this.mouse):handlers.inspect?.(point(e));});
-      on('pointerup',e=>{if(e.pointerType==='touch'||!this.mouse)return;handlers.end?.(point(e),this.mouse);this.mouse=null;});
-      on('pointercancel',()=>{this.mouse=null;handlers.cancel?.();});
+      on('pointerup',e=>{if(e.pointerType==='touch'||!this.mouse)return;const p=point(e),start=this.mouse;this.mouse=null;if(!start.shift&&handlers.tap&&Math.hypot(p.x-start.x,p.y-start.y)<7){handlers.cancel?.();this.queueTap(p,'mouse',()=>handlers.tap(p,'mouse'));}else{this.clearTap();handlers.end?.(p,start);}});
+      on('pointercancel',()=>{this.mouse=null;this.clearTap();handlers.cancel?.();});
       on('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse){handlers.dismiss?.(true);inspector.hide();}});
       const owner=handlers.owner;
       if(owner){
-        const outside=e=>{if(!owner.host.contains(e.target)&&!owner.readout?.contains(e.target))handlers.dismiss?.(false);};
+        const outside=e=>{if(!owner.host.contains(e.target)&&!owner.readout?.contains(e.target)){this.clearTap();handlers.dismiss?.(false);}};
         document.addEventListener('pointerdown',outside,{signal});
         document.addEventListener('touchstart',outside,{passive:true,signal});
         // Leaving the chart is not an explicit unpin action. Only the transient crosshair clears.
         owner.host.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse&&!owner.readout?.contains(e.relatedTarget))handlers.dismiss?.(true);},{signal});
       }
       if(handlers.wheel!==false)on('wheel',e=>{e.preventDefault();handlers.zoom?.(Math.exp(-e.deltaY*.002),point(e),true);},{passive:false});
-      on('dblclick',e=>{e.preventDefault();handlers.reset?.();});
+      on('dblclick',e=>{e.preventDefault();this.clearTap();if(performance.now()-(this.lastDouble??-Infinity)>150){handlers.cancel?.();handlers.reset?.();}});
       on('touchstart',e=>{
         this.clearTimer();
         if(e.touches.length===2) {
-          e.preventDefault();const [a,b]=e.touches;
+          this.clearTap();e.preventDefault();const [a,b]=e.touches;
           this.touch={pinch:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2};
           handlers.startPinch?.(this.touch);return;
         }
@@ -232,12 +232,20 @@
       on('touchend',e=>{
         this.clearTimer();const touch=this.touch;if(!touch)return;
         if(touch.pinch){if(!e.touches.length)this.touch=null;return;}
-        if(!e.touches.length){if(!touch.moved&&!touch.long){const now=performance.now();if(this.lastTap&&now-this.lastTap.time<280&&Math.hypot(touch.last.x-this.lastTap.x,touch.last.y-this.lastTap.y)<24){handlers.reset?.();this.lastTap=null;}else{handlers.tap?.(touch.last,'touch');this.lastTap={time:now,...touch.last};}}inspector.settle();handlers.finishTouch?.();surface.classList.remove('press-inspecting');this.touch=null;}
+        if(!e.touches.length){if(!touch.moved&&!touch.long){this.queueTap(touch.last,'touch',()=>handlers.tap?.(touch.last,'touch'));}inspector.settle();handlers.finishTouch?.();surface.classList.remove('press-inspecting');this.touch=null;}
       });
-      on('touchcancel',()=>{this.clearTimer();this.touch=null;surface.classList.remove('press-inspecting');handlers.cancel?.();});
+      on('touchcancel',()=>{this.clearTimer();this.clearTap();this.touch=null;surface.classList.remove('press-inspecting');handlers.cancel?.();});
     }
+    // A tap is committed only after the double-tap window. Hover stays immediate.
+    queueTap(p,type,action){
+      const old=this.pendingTap,near=type==='touch'?24:7;
+      if(old&&old.type===type&&Math.hypot(p.x-old.x,p.y-old.y)<near){this.clearTap();this.handlers.cancel?.();this.handlers.reset?.();this.lastDouble=performance.now();return;}
+      if(old){this.clearTap();old.action();}
+      this.pendingTap={...p,type,action};this.tapTimer=setTimeout(()=>{const pending=this.pendingTap;this.clearTap();pending?.action();},type==='touch'?280:500);
+    }
+    clearTap(){clearTimeout(this.tapTimer);this.pendingTap=null;}
     clearTimer(){clearTimeout(this.timer);}
-    destroy(){this.clearTimer();this.abort.abort();if(inspector.owner?.surface===this.surface)inspector.hide();}
+    destroy(){this.clearTimer();this.clearTap();this.abort.abort();if(inspector.owner?.surface===this.surface)inspector.hide();}
   }
   Object.assign(root,{AtlasGesture:Gesture,AtlasTimeNavigator:TimeNavigator,AtlasAxisControls:axisControls,AtlasApplyZoomAxis:applyZoomAxis,AtlasFullscreen:fullscreen,AtlasInspector:inspector,AtlasDialogDismiss:bindDismiss,AtlasZoomRange:zoomRange});
   if(typeof module!=='undefined')module.exports={zoomRange,clamp,stockReadoutGroups,stockReadoutCell};

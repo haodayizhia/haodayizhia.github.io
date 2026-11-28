@@ -256,7 +256,6 @@
       if(!this.hasData)return;
       const hit=this.hitSeries(p,pointerType==='touch'?22:12);
       this.inspect(p,true);
-      if(this.onDatePick){this.onDatePick(this.dates[this.index]);return;}
       if(!hit){this.focus=this.pinned||null;this.updateOverlay();this.updateValues();return;}
       if(this.pinned===hit.id){this.clearInspection();return;}
       this.focus=hit.id;this.pinned=hit.id;

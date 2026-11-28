@@ -213,3 +213,21 @@ test('MarketAtlas palette C remains consistent across quote and candle marks',()
  assert.ok(css.includes('--candle-rise:var(--rise);--candle-fall:var(--fall)'));
  assert.ok(!css.includes('--heat-neutral:'));
 });
+
+
+test('structure header and constituent rows share one linear return scale',()=>{
+ require('../../resources/market-atlas/research-ui.js');
+ const {distributionX,distributionTicks}=globalThis.AtlasResearch,domain=[-50,100];
+ assert.equal(distributionX(-50,domain),0);assert.equal(distributionX(100,domain),100);assert.equal(distributionX(25,domain),50);
+ assert.ok(distributionTicks(domain).every(v=>v>=-50&&v<=100));
+});
+test('two nearby taps reset without committing either single tap',()=>{
+ const gesture=Object.create(globalThis.AtlasGesture.prototype),calls=[];
+ gesture.handlers={reset:()=>calls.push('reset')};
+ gesture.queueTap({x:10,y:20},'mouse',()=>calls.push('tap'));
+ gesture.queueTap({x:12,y:20},'mouse',()=>calls.push('tap'));
+ assert.deepEqual(calls,['reset']);assert.equal(gesture.pendingTap,null);
+ gesture.queueTap({x:10,y:20},'touch',()=>calls.push('tap'));
+ gesture.queueTap({x:12,y:20},'touch',()=>calls.push('tap'));
+ assert.deepEqual(calls,['reset','reset']);gesture.clearTap();
+});
