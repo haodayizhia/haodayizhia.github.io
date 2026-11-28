@@ -75,8 +75,8 @@
       body.innerHTML=`<div class="structure-mode"><button data-mobile="dist" aria-pressed="${s.structureMobile!=='heat'}">成分分布</button><button data-mobile="heat" aria-pressed="${s.structureMobile==='heat'}">强弱历史</button></div>
         <div class="structure-legend structure-legend-inline">
           <span class="sr-heat heat-legend"><i class="heat-key"></i> 落后 / 领先</span>
-          <span class="sr-dist dist-legend"><span><i class="legend-point"></i>个股</span><span><i class="legend-range"></i>P10–P90</span><span><i class="legend-median"></i>中位数</span><span><i class="legend-diamond"></i>行业收益</span><span><i class="legend-market"></i>股票池收益</span><span><i class="legend-zero"></i>零收益</span></span>
-          <details class="structure-method"><summary>统计口径</summary><div>5日超额为行业与股票池5日收益之差（百分点）；颜色饱和于 ±18。P10–P90 为第10至90百分位。个股20日累计收益须有完整20个交易日数据；上涨占比为正收益家数 / 有效家数。点行业深入、点个股查值；顶部选择观察日。</div></details>
+          <span class="sr-dist dist-legend"><span><i class="legend-point"></i>个股</span><span><i class="legend-range"></i>中间约80%</span><span><i class="legend-median"></i>中位数</span><span><i class="legend-diamond"></i>行业收益</span><span><i class="legend-market"></i>股票池收益</span><span><i class="legend-zero"></i>零收益</span></span>
+          <details class="structure-method"><summary>统计口径</summary><div>5日超额为行业与股票池5日收益之差（百分点）；颜色饱和于 ±18。P10–P90 为第10至90百分位（中间约80%的成分股收益范围）。个股20日累计收益须有完整20个交易日数据；上涨占比为正收益家数 / 有效家数。点行业深入、点个股查值；顶部选择观察日。</div></details>
           <span class="sr-dist dist-actions"><button data-dist-zoom="out" title="缩小收益轴" aria-label="缩小收益轴">−</button><button data-dist-zoom="in" title="放大收益轴" aria-label="放大收益轴">＋</button><button data-dist-zoom="reset" ${zoomed()?'':'disabled'} title="恢复完整收益范围">全范围</button></span>
         </div>
         <div class="structure-rows" data-mobile-mode="${esc(s.structureMobile)}"><div class="structure-row structure-columns"><span>行业</span><div class="sr-heat"><div class="structure-col-title">5日超额收益（百分点）</div>${heatAxis(summary.dates)}</div><div class="sr-dist"><div class="structure-col-title">20日个股收益分布（%）${zoomed()?' · 缩放中':''}</div>${distributionAxis(domain)}</div><span>20日上涨占比</span></div>${groups.map(g=>{

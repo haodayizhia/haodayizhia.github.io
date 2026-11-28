@@ -319,12 +319,15 @@
     if(matchMedia('(max-width:600px)').matches)requestAnimationFrame(()=>{const bundle=$('marketChart').firstElementChild;if(bundle&&bundle.getBoundingClientRect().height<innerHeight-60)window.scrollBy({top:bundle.getBoundingClientRect().top-54,behavior:'smooth'});});
   }
   function rememberStocks(all=S.history?.stocks.length>0&&S.stocks.size===S.history.stocks.length){
-    if(S.industry)S.stockSelections.set(S.industry,{all:!!all,codes:[...S.stocks]});
+    if(S.industry)S.stockSelections.set(S.industry,{all:!!all,codes:[...S.stocks],initialized:true});
   }
   function prepareStocks(){
     const saved=S.stockSelections.get(S.industry),codes=S.history.stocks.map(s=>s.code),available=new Set(codes);
-    S.stocks=new Set(!saved||saved.all?codes:(saved.codes||[]).filter(code=>available.has(code)));
-    if(!saved)rememberStocks(true);
+    // Older versions saved the initial empty selection indistinguishably from a manual clear.
+    // Migrate that legacy empty state once; subsequently an explicit empty selection is retained.
+    const legacyEmpty=saved&&!saved.initialized&&!saved.all&&!saved.codes?.length;
+    S.stocks=new Set(!saved||legacyEmpty||saved.all?codes:(saved.codes||[]).filter(code=>available.has(code)));
+    if(!saved||legacyEmpty)rememberStocks(true);
   }
   function industrySeries(selectedOnly=true,key=metric()){
     const sector=S.market.sectors.find(s=>s.name===S.industry);if(!sector)return [];
