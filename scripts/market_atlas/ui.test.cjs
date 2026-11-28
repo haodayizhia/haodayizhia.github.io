@@ -382,3 +382,10 @@ test('heatmap immediate selection returns an undo restoring the preceding inspec
  const undo=heat.select({});assert.equal(heat.pinned,'A');assert.equal(heat.index,0);
  undo();assert.equal(heat.index,5);assert.equal(heat.row,undefined);assert.equal(heat.pinned,null);assert.equal(heat.inspectionActive,false);assert.deepEqual(seen,[5]);
 });
+
+test('rotation immediate selection supports rollback and empty plot clears selection',()=>{
+ const o=Object.create(globalThis.AtlasMaps.Scatter.prototype);
+ Object.assign(o,{pinned:'A',focus:'A',inspectionActive:true,nearest:()=>({name:'B'}),draw(){}});
+ const undo=o.pick({});assert.equal(o.pinned,'B');undo();assert.equal(o.pinned,'A');
+ o.nearest=()=>null;o.pick({});assert.equal(o.pinned,'');assert.equal(o.inspectionActive,false);
+});

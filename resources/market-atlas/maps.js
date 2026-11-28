@@ -98,7 +98,7 @@
       this.timeline.addEventListener('change',()=>this.timelineBatch.flush(),{signal:this.abort.signal});
       host.querySelector('.rotation-window').addEventListener('change',e=>{this.pause();this.onWindow(Number(e.target.value));},{signal:this.abort.signal});
       host.querySelector('.rotation-industry').addEventListener('change',e=>{this.pinned=e.target.value;this.focus=this.pinned;this.inspectionActive=!!this.focus;this.draw();},{signal:this.abort.signal});
-      this.gesture=new root.AtlasGesture(this.surface,{owner:this,dismiss:keep=>this.clearInspection(keep),touchInspect:true,scrub:true,batchDrag:true,start:()=>{this.dragDomain=this.domain&&[...this.domain];this.dragOffset=null;},inspect:p=>this.inspect(p),tap:p=>this.pick(p),end:()=>this.finishPan(),finishTouch:()=>this.finishPan(),cancel:()=>this.cancelPan(),drag:(p,start)=>{if(this.zoomed&&this.dragDomain)this.previewPan(p.x-start.x,p.y-start.y);else this.inspect(p);},canPan:()=>this.zoomed,zoom:(f,p,wheel)=>this.zoom(f,p,wheel?this.axisAt(p):this.zoomAxis),pinch:(f,from,to)=>this.zoom(f,from,this.zoomAxis,to),reset:()=>this.reset()});
+      this.gesture=new root.AtlasGesture(this.surface,{owner:this,dismiss:keep=>this.clearInspection(keep),touchInspect:true,scrub:true,batchDrag:true,start:()=>{this.dragDomain=this.domain&&[...this.domain];this.dragOffset=null;},inspect:p=>this.inspect(p),tap:p=>this.pick(p),immediateTap:true,end:()=>this.finishPan(),finishTouch:()=>this.finishPan(),cancel:()=>this.cancelPan(),drag:(p,start)=>{if(this.zoomed&&this.dragDomain)this.previewPan(p.x-start.x,p.y-start.y);else this.inspect(p);},canPan:()=>this.zoomed,zoom:(f,p,wheel)=>this.zoom(f,p,wheel?this.axisAt(p):this.zoomAxis),pinch:(f,from,to)=>this.zoom(f,from,this.zoomAxis,to),reset:()=>this.reset()});
       this.svg.addEventListener('keydown',e=>{if(e.key==='Escape'){this.clearInspection();return;}if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();this.pause();this.setIndex(this.index+(e.key==='ArrowLeft'?-1:1));}if(e.key==='0')this.reset();const name=e.target.closest('[data-point]')?.dataset.point;if(name&&['Enter',' '].includes(e.key)){e.preventDefault();this.pinned=name;this.focus=name;this.inspectionActive=true;this.draw();}},{signal:this.abort.signal});
       this.observer=new ResizeObserver(()=>this.draw());this.observer.observe(this.surface);window.addEventListener('resize',()=>this.draw(),{signal:this.abort.signal});this.draw();
     }
@@ -160,10 +160,11 @@
       this.draw();
     }
     pick(p){
+      const previous={pinned:this.pinned,focus:this.focus,inspectionActive:this.inspectionActive};
       const point=this.nearest(p,32);
-      if(!point){if(!this.pinned)this.clearInspection();return;}
-      if(this.pinned===point.name){this.clearInspection();return;}
-      this.pinned=point.name;this.focus=point.name;this.inspectionActive=true;this.draw();
+      if(!point||this.pinned===point.name)this.clearInspection();
+      else{this.pinned=point.name;this.focus=point.name;this.inspectionActive=true;this.draw();}
+      return ()=>{Object.assign(this,previous);this.draw();};
     }
     inspect(p){
       if(this.pinned){if(!this.inspectionActive||this.focus!==this.pinned){this.focus=this.pinned;this.inspectionActive=true;this.draw();}return;}

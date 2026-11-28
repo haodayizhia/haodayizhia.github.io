@@ -204,8 +204,10 @@
     const pointById=new Map(points.map(p=>[String(p.i),p]));
     let frame=0,rows=null,entries=[],width=0,dpr=1,colors=null,paintedDomain=null,paintedTicks=[],revision=0,observer=null,scatterCleanup=null;
     let selectedPoint=null,entryByName=new Map();
+    const selectionAbort=new AbortController();
     function selectPoint(p,scroll=false){
       const read=body.querySelector('.structure-selection');if(!p||!read)return;
+      body.querySelector('.structure-heat-marker')?.remove();
       const previous=selectedPoint;selectedPoint=p;s.structurePoint=p.code;persist();
       // Commit the visible selection synchronously; do not wait for a
       // Canvas refresh, scroll event, or hover event on a touch device.
@@ -217,6 +219,24 @@
       // The selection readout is below the list; do not scroll the touched plot away.
       if(scroll&&matchMedia('(hover:hover) and (pointer:fine)').matches)read.scrollIntoView({block:'nearest'});
     }
+    function clearStructureSelection(){
+      const read=body.querySelector('.structure-selection');if(!read)return;
+      const previous=selectedPoint,changed=!!(previous||s.structurePoint);
+      selectedPoint=null;s.structurePoint='';
+      const entry=entryByName.get(previous?.industry);if(entry)syncDistributionSelection(entry,null,paintedDomain||domain);
+      body.querySelector('.structure-heat-marker')?.remove();
+      for(const item of entries)if(item.hover){item.hover=null;item.canvas.title='';item.canvas.style.cursor='';item.revision=-1;requestPaint();}
+      if(read.firstChild)read.textContent='';
+      if(changed)persist();
+    }
+    // Use a completed click/tap rather than a touch start, so page scrolling
+    // does not inadvertently discard the selected stock.
+    document.addEventListener('click',e=>{
+      if(s.structureScope!=='industry'||!body.isConnected)return;
+      const target=e.target;
+      if(body.contains(target)&&target.closest('.dist-plot,.dist-axis,.structure-heat,.structure-selection'))return;
+      gestures.cancel();clearStructureSelection();
+    },{capture:true,signal:selectionAbort.signal});
     function requestPaint(){if(!frame)frame=requestAnimationFrame(refreshDistribution);}
     function paintEntry(entry){
       if(!width||entry.revision===revision||!paintedDomain)return;
@@ -318,8 +338,8 @@
         paintHeat(canvas,values,colors);
         canvas.onpointermove=e=>{const i=column(canvas,e);canvas.title=summary.dates[i]+' · '+num(values[i])+' 个百分点';};
         canvas.onclick=e=>{
-          const i=column(canvas,e),old=body.querySelector('.structure-heat-marker');
-          old?.remove();const mark=document.createElement('span');mark.className='structure-heat-marker';mark.style.left=100*i/summary.dates.length+'%';mark.style.width=100/summary.dates.length+'%';canvas.parentElement.append(mark);
+          const i=column(canvas,e);
+          clearStructureSelection();const mark=document.createElement('span');mark.className='structure-heat-marker';mark.style.left=100*i/summary.dates.length+'%';mark.style.width=100/summary.dates.length+'%';canvas.parentElement.append(mark);
           body.querySelector('.structure-selection').textContent=gLabel(canvas.dataset.heatGroup,summary.dates[i],values[i]);
         };
       });
@@ -334,7 +354,7 @@
       };
     }
     host.querySelector('[data-scope]').onchange=e=>{s.structureScope=e.target.value;s.pointBrush=null;body.onclick=null;persist();draw();};
-    draw();return disposeDistribution;
+    draw();return ()=>{selectionAbort.abort();disposeDistribution();};
   }
   function pointRead(p,summary){
     const sector=summary.groups.find(g=>g.name===p.industry)?.sector.at(-1),market=summary.pool.at(-1);
@@ -467,9 +487,12 @@
       const hit=nearest(p)?.p||null;if(hit===hover)return;hover=hit;
       surface.style.cursor=hit?'pointer':'';highlight();
     }
-    function dismiss(){hover=null;surface.style.cursor='';highlight();}
+    function dismiss(keep=false){
+      hover=null;surface.style.cursor='';
+      if(!keep&&s.structurePoint){select('');fill();}else highlight();
+    }
     function pick(p,type){
-      const hit=nearest(p,type==='touch'?18:12);if(!hit)return;
+      const hit=nearest(p,type==='touch'?18:12);if(!hit){dismiss(false);return;}
       const previous=s.structurePoint,previousChoices=[...choices];
       const near=painted.filter(d=>Math.hypot(d.x-hit.x,d.y-hit.y)<=7).map(d=>d.p);
       fill(near.length>1?near:null);select(hit.p.code);
@@ -511,14 +534,21 @@
       setView([...scatterRange(view.slice(0,2),base.slice(0,2),factor,a[0],b[0]),...scatterRange(view.slice(2),base.slice(2),factor,a[1],b[1])]);
     }
     function reset(){cancel();hover=null;setView([...base]);fill();highlight();persist();}
-    const gesture=new root.AtlasGesture(surface,{inspect,dismiss,tap:pick,immediateTap:true,start:begin,drag:move,end:finish,cancel,finishTouch:finish,canPan:isZoomed,canPanY:isZoomed,zoom,pinch,reset,startPinch:cancel});
+    const gesture=new root.AtlasGesture(surface,{inspect,dismiss:()=>dismiss(true),tap:pick,immediateTap:true,start:begin,drag:move,end:finish,cancel,finishTouch:finish,canPan:isZoomed,canPanY:isZoomed,zoom,pinch,reset,startPinch:cancel});
+    const selectionAbort=new AbortController();
+    document.addEventListener('click',e=>{
+      if(!host.isConnected)return;
+      const target=e.target;
+      if(host.contains(target)&&target.closest('.point-surface,.point-controls,.point-detail,.plot-actions'))return;
+      gesture.clearTap();gesture.clearHover();dismiss(false);
+    },{capture:true,signal:selectionAbort.signal});
     // Suppress the browser's pointer-focus rectangle without removing
     // keyboard focus or its visible accessibility cue.
     surface.addEventListener('pointerdown',()=>svg.classList.add('pointer-focused'));
     svg.addEventListener('blur',()=>svg.classList.remove('pointer-focused'));
     svg.addEventListener('keydown',e=>{
       svg.classList.remove('pointer-focused');
-      if(e.key==='Escape'){dismiss();return;}if(e.key==='0'){e.preventDefault();reset();return;}
+      if(e.key==='Escape'){gesture.clearTap();dismiss(false);return;}if(e.key==='0'){e.preventDefault();reset();return;}
       if(!g)return;
       const r=surface.getBoundingClientRect();
       if(['+','=','-'].includes(e.key)){e.preventDefault();zoom(e.key==='-'?1/1.6:1.6,{x:r.left+g.left+g.width/2,y:r.top+g.top+g.height/2},false);}
@@ -529,7 +559,7 @@
     const observer=new ResizeObserver(schedule);observer.observe(surface);
     window.addEventListener('resize',schedule);
     draw();fill();highlight();
-    return ()=>{dead=true;gesture.destroy();observer.disconnect();window.removeEventListener('resize',schedule);if(drawFrame)cancelAnimationFrame(drawFrame);clearTimeout(settleTimer);host.classList.remove('point-chart-host');};
+    return ()=>{dead=true;selectionAbort.abort();gesture.destroy();observer.disconnect();window.removeEventListener('resize',schedule);if(drawFrame)cancelAnimationFrame(drawFrame);clearTimeout(settleTimer);host.classList.remove('point-chart-host');};
   }
   function industry(host,options){
     const {state:s,data,graph}=options,{summary}=data,g=summary.groups.find(g=>g.name===s.industry);
