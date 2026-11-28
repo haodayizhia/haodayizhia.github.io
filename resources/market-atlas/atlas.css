@@ -257,3 +257,7 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 .readout-aux-cell span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .readout-aux-cell strong{font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums}
 @media(max-width:760px){.readout-curve-group{gap:2px 12px}.readout-aux-group{display:block;padding-top:5px}.readout-aux-label{font-size:10px}.readout-aux-values{gap:6px 10px;margin-top:3px}.readout-aux-cell{flex-direction:column;gap:2px;align-items:flex-start;font-size:11px}.readout-aux-cell span{max-width:100%}}
+
+/* Keep heatmap ordering explicit and independent of the displayed color metric. */
+.heat-sortbar{display:flex;align-items:center;flex-wrap:wrap;gap:5px 12px;margin:5px 0 3px;color:var(--muted);font-size:11px;min-width:0}.heat-sortbar label{display:flex;align-items:center;gap:6px;min-width:0}.atlas-app .heat-sortbar select{max-width:100%;min-width:0;font-size:11px;padding:5px 7px;min-height:28px}.heat-sort-note,.heat-sort-status{white-space:nowrap;font-size:10px}.heat-sort-status:empty{display:none}.heat-head canvas{transform:none}
+@media(max-width:760px){.heat-sortbar{gap:4px 9px}.atlas-app .heat-sortbar select{font-size:11px;min-height:32px}}
