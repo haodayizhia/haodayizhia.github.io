@@ -2,7 +2,7 @@
 (()=>{
   const {Chart,escape:esc,number:num,finite,rankLatest,seriesStyle}=AtlasCharts,$=id=>document.getElementById(id);
   const S={meta:null,market:null,view:'market',display:'structure',metric:'path',heatMetric:'relative',window:1,mode:'dynamic',scale:'linear',cursor:0,industry:'',code:'',selected:new Set(),stocks:new Set(),charts:[],history:null,stock:null,industryDisplay:'structure',industryMetric:'path',stockSelections:new Map(),seq:0,renderSeq:0,ranges:new Map(),yRanges:new Map(),industryStyles:new Map(),stockStyles:new Map(),busy:false,files:[],kind:'merged',dataMode:'preview',timer:null,rotationWindow:5,rotationDate:'',rotationMarket:null,
-    researchEnd:'',lockedDate:'',structureSort:'wins',structureScope:'industry',structureMobile:'dist',weakOnly:false,
+    researchEnd:'',lockedDate:'',structureSort:'excess',structureScope:'industry',structureMobile:'dist',weakOnly:false,
     pointBrush:null,structurePoint:'',showBreadth:false,pairA:'',pairB:'',afterwards:false,compareTouched:false};
   const palette=['var(--plot-blue)','var(--plot-gold)','var(--plot-teal)','var(--plot-purple)','var(--plot-red)','var(--plot-slate)'];
   const titles={path:'累计收益',momentum:'窗口收益',relative:'相对强弱',breadth:'MA20广度',drawdown:'峰值回撤',vol:'年化波动',dispersion:'个股分化'};
