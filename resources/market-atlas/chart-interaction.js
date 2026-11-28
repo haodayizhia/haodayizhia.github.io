@@ -180,32 +180,51 @@
     }
     destroy(){this.observer.disconnect();this.abort.abort();this.el.remove();}
   }
+  // Merge wheel deltas at the same pointer position and direction into a
+  // single render per display frame. Flush on an anchor or direction change
+  // so clamping and cursor-centred zoom keep their original semantics.
+  function wheelBatch(apply){
+    let pending=null,frame=0;
+    function flush(){if(frame){cancelAnimationFrame(frame);frame=0;}const next=pending;pending=null;if(next)apply(next.factor,next.point);}
+    function push(factor,point){
+      if(!Number.isFinite(factor)||factor<=0||factor===1)return;
+      if(pending&&(pending.point.x!==point.x||pending.point.y!==point.y||(pending.factor>1)!==(factor>1)))flush();
+      if(pending)pending.factor*=factor;else pending={factor,point};
+      if(!frame)frame=requestAnimationFrame(flush);
+    }
+    return {push,flush,cancel(){if(frame)cancelAnimationFrame(frame);frame=0;pending=null;}};
+  }
   class Gesture {
     constructor(surface,handlers) {
       this.surface=surface;this.handlers=handlers;this.abort=new AbortController();const signal=this.abort.signal;
       const on=(name,fn,options={})=>surface.addEventListener(name,fn,{...options,signal});
       const point=e=>({x:e.clientX,y:e.clientY});
+      this.wheelBatch=wheelBatch((factor,p)=>handlers.zoom?.(factor,p,true));
+      let hoverFrame=0,hoverPoint=null;
+      const clearHover=()=>{if(hoverFrame)cancelAnimationFrame(hoverFrame);hoverFrame=0;hoverPoint=null;};
+      this.clearHover=clearHover;
+      const hover=p=>{hoverPoint=p;if(!hoverFrame)hoverFrame=requestAnimationFrame(()=>{hoverFrame=0;const q=hoverPoint;hoverPoint=null;if(q)handlers.inspect?.(q);});};
       on('contextmenu',e=>e.preventDefault());
       on('pointerdown',e=>{
         if(e.pointerType==='touch'||e.button!==0)return;
-        this.mouse={...point(e),shift:e.shiftKey};surface.setPointerCapture(e.pointerId);handlers.start?.(point(e),e.shiftKey);
+        clearHover();this.wheelBatch.flush();this.mouse={...point(e),shift:e.shiftKey};surface.setPointerCapture(e.pointerId);handlers.start?.(point(e),e.shiftKey);
       });
-      on('pointermove',e=>{if(e.pointerType==='touch')return;this.mouse?handlers.drag?.(point(e),this.mouse):handlers.inspect?.(point(e));});
+      on('pointermove',e=>{if(e.pointerType==='touch')return;this.mouse?handlers.drag?.(point(e),this.mouse):hover(point(e));});
       on('pointerup',e=>{if(e.pointerType==='touch'||!this.mouse)return;const p=point(e),start=this.mouse;this.mouse=null;if(!start.shift&&handlers.tap&&Math.hypot(p.x-start.x,p.y-start.y)<7){handlers.cancel?.();this.queueTap(p,'mouse',()=>handlers.tap(p,'mouse'));}else{this.clearTap();handlers.end?.(p,start);}});
       on('pointercancel',()=>{this.mouse=null;this.clearTap();handlers.cancel?.();});
-      on('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse){handlers.dismiss?.(true);inspector.hide();}});
+      on('pointerleave',e=>{clearHover();if(e.pointerType!=='touch'&&!this.mouse){handlers.dismiss?.(true);inspector.hide();}});
       const owner=handlers.owner;
       if(owner){
-        const outside=e=>{if(!owner.host.contains(e.target)&&!owner.readout?.contains(e.target)){this.clearTap();handlers.dismiss?.(false);}};
+        const outside=e=>{if(!owner.host.contains(e.target)&&!owner.readout?.contains(e.target)){this.clearTap();clearHover();this.wheelBatch.flush();handlers.dismiss?.(false);}};
         document.addEventListener('pointerdown',outside,{signal});
         document.addEventListener('touchstart',outside,{passive:true,signal});
         // Leaving the chart is not an explicit unpin action. Only the transient crosshair clears.
         owner.host.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse&&!owner.readout?.contains(e.relatedTarget))handlers.dismiss?.(true);},{signal});
       }
-      if(handlers.wheel!==false)on('wheel',e=>{e.preventDefault();handlers.zoom?.(Math.exp(-e.deltaY*.002),point(e),true);},{passive:false});
-      on('dblclick',e=>{e.preventDefault();this.clearTap();if(performance.now()-(this.lastDouble??-Infinity)>150){handlers.cancel?.();handlers.reset?.();}});
+      if(handlers.wheel!==false)on('wheel',e=>{if(!e.deltaY)return;e.preventDefault();clearHover();this.wheelBatch.push(Math.exp(-e.deltaY*.002),point(e));},{passive:false});
+      on('dblclick',e=>{e.preventDefault();this.clearTap();clearHover();this.wheelBatch.cancel();if(performance.now()-(this.lastDouble??-Infinity)>150){handlers.cancel?.();handlers.reset?.();}});
       on('touchstart',e=>{
-        this.clearTimer();
+        this.clearTimer();clearHover();this.wheelBatch.flush();
         if(e.touches.length===2) {
           this.clearTap();e.preventDefault();const [a,b]=e.touches;
           this.touch={pinch:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY),x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2};
@@ -245,8 +264,8 @@
     }
     clearTap(){clearTimeout(this.tapTimer);this.pendingTap=null;}
     clearTimer(){clearTimeout(this.timer);}
-    destroy(){this.clearTimer();this.clearTap();this.abort.abort();if(inspector.owner?.surface===this.surface)inspector.hide();}
+    destroy(){this.clearTimer();this.clearTap();this.clearHover?.();this.wheelBatch?.cancel();this.abort.abort();if(inspector.owner?.surface===this.surface)inspector.hide();}
   }
-  Object.assign(root,{AtlasGesture:Gesture,AtlasTimeNavigator:TimeNavigator,AtlasAxisControls:axisControls,AtlasApplyZoomAxis:applyZoomAxis,AtlasFullscreen:fullscreen,AtlasInspector:inspector,AtlasDialogDismiss:bindDismiss,AtlasZoomRange:zoomRange});
+  Object.assign(root,{AtlasGesture:Gesture,AtlasTimeNavigator:TimeNavigator,AtlasAxisControls:axisControls,AtlasApplyZoomAxis:applyZoomAxis,AtlasFullscreen:fullscreen,AtlasInspector:inspector,AtlasDialogDismiss:bindDismiss,AtlasZoomRange:zoomRange,AtlasWheelBatch:wheelBatch});
   if(typeof module!=='undefined')module.exports={zoomRange,clamp,stockReadoutGroups,stockReadoutCell};
 })(globalThis);

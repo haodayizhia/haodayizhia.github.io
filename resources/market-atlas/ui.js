@@ -139,7 +139,7 @@
   }
   function notice(text,error=false){$('atlasNotice').textContent=text||'';$('atlasNotice').hidden=!text;$('atlasNotice').classList.toggle('is-error',error);}
   function stop(){S.charts.forEach(c=>c.pause?.());clearInterval(S.timer);S.timer=null;const b=$('atlasReplay');if(b){b.textContent='回放';b.setAttribute('aria-pressed','false');}}
-  function dispose(){AtlasFullscreen.close();AtlasInspector.hide();S.stateTimeNav?.destroy();S.stateTimeNav=null;S.charts.forEach(c=>c.destroy());S.charts=[];}
+  function dispose(){S.researchCleanup?.();S.researchCleanup=null;AtlasFullscreen.close();AtlasInspector.hide();S.stateTimeNav?.destroy();S.stateTimeNav=null;S.charts.forEach(c=>c.destroy());S.charts=[];}
   function applyRange(start,end,origin){
     scheduleNavigation();S.ranges.set(rangeKey(),{dates:[start,end],view:[...origin.view],total:origin.dates.length});
     for(const chart of S.charts)if(chart!==origin&&chart.setDateRange){if(chart.dates.length===origin.dates.length)chart.setRange(...origin.view);else chart.setDateRange(start,end);}S.stateTimeNav?.update();
@@ -172,10 +172,15 @@
     chart.setIndex(S.cursor);S.charts.push(chart);return chart;
   }
   function observeDate(date,origin){
-    if(!S.market)return;const i=S.market.dates.indexOf(date);if(i<0)return;S.cursor=i;
-    for(const chart of S.charts)if(chart!==origin&&!chart.independentDate){const j=chart.dates.indexOf(date);if(j>=0){if(S.view==='market'&&S.display==='state'&&origin instanceof Chart){chart.focus=null;chart.pinned=null;}chart.inspectionActive=origin?.inspectionActive??false;chart.setIndex(j);}}
-    updateSummary();if($('stateDate'))$('stateDate').textContent=date;
-    if($('atlasCompareDialog').open)renderComparison();
+    if(!S.market)return;const i=S.market.dates.indexOf(date);if(i<0)return;const changed=S.cursor!==i;S.cursor=i;
+    for(const chart of S.charts)if(chart!==origin&&!chart.independentDate){
+      const j=chart.dates.indexOf(date);if(j<0)continue;
+      const active=origin?.inspectionActive??false,clearFocus=S.view==='market'&&S.display==='state'&&origin instanceof Chart&&(chart.focus||chart.pinned);
+      if(clearFocus){chart.focus=null;chart.pinned=null;}
+      if(chart.index===j&&chart.inspectionActive===active&&!clearFocus)continue;
+      chart.inspectionActive=active;chart.setIndex(j);
+    }
+    if(changed){if($('stateDate'))$('stateDate').textContent=date;if($('atlasCompareDialog').open)renderComparison();}
   }
   function updateSummary(){
     if(!S.market)return;const p=S.market.pool,i=S.market.dates.length-1;
@@ -230,7 +235,7 @@
     let data;
     try{data=await S.structureCache.promise;}catch(error){if(S.structureCache?.key===key)S.structureCache=null;throw error;}
     if(ticket!==S.renderSeq)return;
-    AtlasResearch[kind](host,{state:S,data,graph,openIndustry,openStock,persist:scheduleNavigation});
+    S.researchCleanup=AtlasResearch[kind](host,{state:S,data,graph,openIndustry,openStock,persist:scheduleNavigation});
   }
   function updateControls(){
     const obs=$('observationDate'),dates=S.market.dates;

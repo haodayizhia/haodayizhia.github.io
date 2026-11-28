@@ -253,3 +253,14 @@ test('individual stock price chart has one fixed daily-candle view',()=>{
  assert.doesNotMatch(ui,/id="stockMode"|kind:S\.stockMode/);
  assert.ok(ui.includes("kind:'candles',label:info.name+'日线'"));
 });
+
+
+test('distribution point hit testing uses exact shared coordinate mapping',()=>{
+ require('../../resources/market-atlas/research-ui.js');
+ const {distributionHit}=globalThis.AtlasResearch,points=[{i:1,value:0},{i:2,value:20},{i:3,value:80}];
+ assert.equal(distributionHit(points,[-20,40],300,100,17)?.i,1);
+ assert.equal(distributionHit(points,[-20,40],300,200,17)?.i,2);
+ assert.equal(distributionHit(points,[-20,40],300,200,25),null);
+ assert.equal(distributionHit(points,[-20,40],300,299,17),null);
+ assert.equal(distributionHit(points,[10,30],300,150,17)?.i,2);
+});

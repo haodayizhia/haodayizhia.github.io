@@ -45,7 +45,7 @@
   }
   // Pointer capture is on the stable container, never on a point that is
   // replaced while scaling. Native vertical touch scrolling remains available.
-  function bindDistributionGestures(body,{getView,full,setView,onPoint}){
+  function bindDistributionGestures(body,{getView,full,setView,onPoint,pointAt}){
     const active=new Map();let gesture=null,pending=null,tapTimer=null;
     const clearTap=()=>{clearTimeout(tapTimer);pending=null;};
     const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -74,7 +74,7 @@
       body.setPointerCapture(e.pointerId);
       if(active.size===2){beginPinch();return;}
       const rect=target.getBoundingClientRect();
-      gesture={mode:'single',type:e.pointerType,rect,view:[...getView()],start:p,anchor:fraction(p.x,rect),moved:false,id:e.target.closest('[data-point-id]')?.dataset.pointId};
+      gesture={mode:'single',type:e.pointerType,rect,view:[...getView()],start:p,anchor:fraction(p.x,rect),moved:false,id:pointAt?pointAt(target,p,e.pointerType):e.target.closest('[data-point-id]')?.dataset.pointId};
     };
     body.onpointermove=e=>{
       if(!active.has(e.pointerId)||!gesture)return;
@@ -103,13 +103,17 @@
     body.onpointerup=e=>end(e);
     body.onpointercancel=e=>end(e,true);
     body.onlostpointercapture=e=>end(e,true);
-    // Prevent page scroll only while the pointer is over the distribution column.
-    body.addEventListener('wheel',e=>{
-      const target=cell(e);if(!target)return;
+    // Only the actual plotting surfaces need a non-passive wheel listener.
+    // The rest of the table can scroll natively without waiting for this handler.
+    const wheel=e=>{
+      const target=e.currentTarget;
+      if(!e.deltaY)return;
       e.preventDefault();clearTap();
       const rect=target.getBoundingClientRect(),delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?Math.max(1,rect.width):1);
-      transform(getView(),Math.exp(clamp(-delta*.002,-2,2)),fraction(e.clientX,rect),fraction(e.clientX,rect));
-    },{passive:false});
+      const anchor=fraction(e.clientX,rect);
+      transform(getView(),Math.exp(clamp(-delta*.002,-2,2)),anchor,anchor);
+    };
+    const attachWheel=target=>target.addEventListener('wheel',wheel,{passive:false});
     body.ondblclick=e=>{if(cell(e)){e.preventDefault();reset();}};
     body.onkeydown=e=>{
       if(!e.target.closest('.dist-axis'))return;
@@ -120,21 +124,48 @@
       if(key==='ArrowLeft'||key==='ArrowRight')transform(view,1,.5,key==='ArrowLeft'?.7:.3);
       else transform(view,key==='-'?1/1.6:1.6,.5,.5);
     };
-    return {cancel(){clearTap();for(const id of active.keys()){active.delete(id);if(body.hasPointerCapture(id))body.releasePointerCapture(id);}gesture=null;body.classList.remove('dist-dragging');}};
+    return {attachWheel,cancel(){clearTap();for(const id of active.keys()){active.delete(id);if(body.hasPointerCapture(id))body.releasePointerCapture(id);}gesture=null;body.classList.remove('dist-dragging');}};
   }
   function heatAxis(dates){
     const n=dates.length,indices=[...new Set([0,Math.round((n-1)/3),Math.round((n-1)*2/3),n-1])];
     return `<div class="heat-axis">${indices.map((i,j)=>`<span class="${j===0?'first':j===indices.length-1?'last':''}" style="left:${100*(i+.5)/n}%">${dates[i].slice(5)}</span>`).join('')}</div>`;
   }
-  function distribution(points,group,market,domain){
-    const guide=(v,cls)=>within(v,domain)?`<span class="dist-guide ${cls}" style="${at(v,domain)}"></span>`:'';
-    const lo=group.p10.at(-1),hi=group.p90.at(-1),sector=group.sector.at(-1),a=Math.max(lo,domain[0]),b=Math.min(hi,domain[1]);
-    return `<div class="dist-plot" role="group" aria-label="${esc(group.name)} 20日成分股收益分布">
-      ${distributionTicks(domain).map(v=>guide(v,'dist-grid')).join('')}${guide(0,'dist-zero')}${guide(market,'dist-market')}
-      ${finite(lo)&&finite(hi)&&a<b?`<span class="dist-range" style="${at(a,domain)};width:${distributionX(b,domain)-distributionX(a,domain)}%"></span>`:''}
-      ${points.filter(p=>within(p.value,domain)).map(p=>`<span class="dist-point" data-point-id="${p.i}" title="${esc(p.name)} · ${pct(p.value)}" style="${at(p.value,domain)}"></span>`).join('')}
-      ${guide(group.median.at(-1),'dist-median')}
-      ${within(sector,domain)?`<span class="dist-diamond" style="${at(sector,domain)}"></span>`:''}</div>`;
+  function distribution(group){
+    return `<canvas class="dist-plot" role="img" aria-label="${esc(group.name)} 20日成分股收益分布"></canvas>`;
+  }
+  // Draw the same statistics and every individual return, using CSS pixel
+  // dimensions and a HiDPI backing store. Symbols keep their size while zooming.
+  function paintDistribution(ctx,width,height,points,group,market,domain,ticks,colors,hover){
+    const X=v=>distributionX(v,domain)*width/100;
+    const guide=(v,color,lineWidth,alpha=1,dash=[],top=0,bottom=height)=>{
+      if(!within(v,domain))return;
+      ctx.strokeStyle=color;ctx.lineWidth=lineWidth;ctx.globalAlpha=alpha;ctx.setLineDash(dash);
+      ctx.beginPath();ctx.moveTo(X(v),top);ctx.lineTo(X(v),bottom);ctx.stroke();
+    };
+    ctx.clearRect(0,0,width,height);
+    for(const v of ticks)guide(v,colors.muted,1,.13);
+    guide(0,colors.muted,1,.65,[4,3]);
+    guide(market,colors.teal,1.5,1,[1.5,2.5]);
+    ctx.setLineDash([]);ctx.globalAlpha=.55;ctx.fillStyle=colors.blue;
+    const lo=group.p10.at(-1),hi=group.p90.at(-1);
+    if(finite(lo)&&finite(hi)){
+      const a=Math.max(lo,domain[0]),b=Math.min(hi,domain[1]);
+      if(a<b){const x=X(a),w=X(b)-x;ctx.beginPath();ctx.roundRect(x,15,w,4,Math.min(2,w/2));ctx.fill();}
+    }
+    ctx.fillStyle=colors.slate;ctx.globalAlpha=.8;
+    // Fill each circle separately, preserving the original opacity for overlaps.
+    for(const p of points)if(within(p.value,domain)){ctx.beginPath();ctx.arc(X(p.value),17,2.2,0,Math.PI*2);ctx.fill();}
+    guide(group.median.at(-1),colors.main,2.5,1,[],11,23);
+    const sector=group.sector.at(-1);
+    if(within(sector,domain)){const x=X(sector),r=3*Math.SQRT2;ctx.fillStyle=colors.gold;ctx.globalAlpha=1;ctx.beginPath();ctx.moveTo(x,4-r);ctx.lineTo(x+r,4);ctx.lineTo(x,4+r);ctx.lineTo(x-r,4);ctx.closePath();ctx.fill();}
+    if(hover&&within(hover.value,domain)){ctx.globalAlpha=1;ctx.fillStyle=colors.gold;ctx.strokeStyle=colors.ink;ctx.lineWidth=1;ctx.beginPath();ctx.arc(X(hover.value),17,2.6,0,Math.PI*2);ctx.fill();ctx.stroke();}
+    ctx.globalAlpha=1;ctx.setLineDash([]);
+  }
+  function distributionHit(points,domain,width,x,y,radius=3.5){
+    if(!width||Math.abs(y-17)>radius)return null;
+    let result=null,best=radius*radius-(y-17)**2;
+    for(const p of points){if(!within(p.value,domain))continue;const d=(distributionX(p.value,domain)*width/100-x)**2;if(d<=best){best=d;result=p;}}
+    return result;
   }
   function paintHeat(canvas,values,colors){
     canvas.width=values.length;canvas.height=1;
@@ -156,8 +187,9 @@
     const fullDomain=extent(points.map(p=>p.value).concat(summary.groups.map(g=>g.sector.at(-1)),pool));let domain=[...fullDomain];
     const zoomed=()=>domain[0]!==fullDomain[0]||domain[1]!==fullDomain[1];
     const groupByName=new Map(summary.groups.map(g=>[g.name,g]));
+    const colorTokens={muted:'--muted',teal:'--plot-teal',blue:'--plot-blue',slate:'--plot-slate',main:'--plot-main',gold:'--plot-gold',ink:'--ink'};
     const pointById=new Map(points.map(p=>[String(p.i),p]));
-    let frame=0;
+    let frame=0,rows=null,entries=[],width=0,dpr=1,colors=null,paintedDomain=null,paintedTicks=[],revision=0,observer=null;
     function selectPoint(p,scroll=false){
       const read=body.querySelector('.structure-selection');if(!p||!read)return;
       s.structurePoint=p.code;persist();
@@ -165,26 +197,77 @@
       read.querySelector('button').onclick=()=>options.openStock(p.code);
       if(scroll)read.scrollIntoView({block:'nearest'});
     }
+    function requestPaint(){if(!frame)frame=requestAnimationFrame(refreshDistribution);}
+    function paintEntry(entry){
+      if(!width||entry.revision===revision||!paintedDomain)return;
+      const {canvas}=entry,pw=Math.max(1,Math.round(width*dpr)),ph=Math.round(28*dpr);
+      if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph;}
+      const ctx=canvas.getContext('2d');
+      ctx.setTransform(pw/width,0,0,ph/28,0,0);
+      paintDistribution(ctx,width,28,entry.points,entry.group,pool,paintedDomain,paintedTicks,colors,entry.hover);
+      entry.revision=revision;
+    }
+    function measureDistribution(){
+      if(!body.isConnected||!rows)return;
+      const axis=rows.querySelector('.dist-axis'),next=axis?.clientWidth||0,ratio=Math.min(window.devicePixelRatio||1,2);
+      // Read layout before drawing; all rows have one shared grid column.
+      for(const entry of entries){entry.top=entry.row.offsetTop;entry.bottom=entry.top+entry.row.offsetHeight;}
+      if(next!==width||ratio!==dpr){width=next;dpr=ratio;revision++;}
+      requestPaint();
+    }
     function refreshDistribution(){
-      frame=0;if(!body.isConnected||s.structureScope!=='industry')return;
-      const header=body.querySelector('.structure-columns .sr-dist');if(!header)return;
-      const title=header.querySelector('.structure-col-title');
-      title.textContent='20日个股收益分布（%）'+(zoomed()?' · 缩放中':'');
-      // Keep the axis node stable, including its keyboard focus.
-      const axis=header.querySelector('.dist-axis');
-      axis.innerHTML=distributionTicks(domain).map(v=>`<span style="${at(v,domain)}">${num(v,1)}%</span>`).join('');
-      body.querySelectorAll('[data-dist-group]').forEach(el=>{
-        const name=el.dataset.distGroup,g=groupByName.get(name);
-        if(g)el.innerHTML=distribution(byGroup.get(name)||[],g,pool,domain);
-      });
+      frame=0;if(!body.isConnected||s.structureScope!=='industry'||!rows||!width)return;
+      const axis=rows.querySelector('.dist-axis');
+      if(!paintedDomain||paintedDomain[0]!==domain[0]||paintedDomain[1]!==domain[1]){
+        paintedDomain=[...domain];paintedTicks=distributionTicks(paintedDomain);revision++;
+        const title=rows.querySelector('.structure-columns .sr-dist .structure-col-title'),label='20日个股收益分布（%）'+(zoomed()?' · 缩放中':'');
+        if(title.textContent!==label)title.textContent=label;
+        // Reuse tick nodes as long as the tick values have not changed.
+        const stamp=paintedTicks.join(',');
+        if(axis.dataset.tickStamp!==stamp){axis.innerHTML=paintedTicks.map(v=>`<span style="${at(v,domain)}">${num(v,1)}%</span>`).join('');axis.dataset.tickStamp=stamp;}
+        else for(let i=0;i<paintedTicks.length;i++)axis.children[i].style.left=distributionX(paintedTicks[i],domain)+'%';
+      }
+      const top=rows.scrollTop-96,bottom=rows.scrollTop+rows.clientHeight+96;
+      // Render visible rows and a small overscan region; scrolled-in rows catch
+      // up to the current shared domain on the next frame.
+      for(const entry of entries)if(entry.bottom>=top&&entry.top<=bottom)paintEntry(entry);
+    }
+    function locate(target,p,type){
+      const entry=target._distributionEntry;
+      if(!entry||!paintedDomain)return null;
+      const r=target.getBoundingClientRect();
+      return distributionHit(entry.points,paintedDomain,r.width,p.x-r.left,p.y-r.top,type==='touch'?9:3.5);
     }
     const gestures=bindDistributionGestures(body,{getView:()=>domain,full:fullDomain,setView:next=>{
       if(next[0]===domain[0]&&next[1]===domain[1])return;
-      domain=next;if(!frame)frame=requestAnimationFrame(refreshDistribution);
-    },onPoint:id=>selectPoint(pointById.get(String(id)),true)});
-    function draw(){
+      domain=next;requestPaint();
+    },pointAt:(target,p,type)=>locate(target,p,type)?.i,onPoint:id=>selectPoint(pointById.get(String(id)),true)});
+    function setupDistribution(){
+      rows=body.querySelector('.structure-rows');if(!rows)return;
+      const style=getComputedStyle(host);colors=Object.fromEntries(Object.entries(colorTokens).map(([key,token])=>[key,style.getPropertyValue(token).trim()]));
+      entries=[...rows.querySelectorAll('[data-dist-group]')].map(el=>{
+        const name=el.dataset.distGroup,canvas=el.querySelector('canvas'),entry={canvas,row:el.parentElement,group:groupByName.get(name),points:byGroup.get(name)||[],revision:-1,hover:null};
+        canvas._distributionEntry=entry;gestures.attachWheel(canvas);
+        canvas.onpointermove=e=>{
+          if(e.buttons||e.pointerType==='touch')return;
+          const p=locate(canvas,{x:e.clientX,y:e.clientY},e.pointerType);
+          if(p===entry.hover)return;entry.hover=p;canvas.title=p?p.name+' · '+pct(p.value):'';canvas.style.cursor=p?'pointer':'';
+          entry.revision=-1;requestPaint();
+        };
+        canvas.onpointerleave=()=>{if(!entry.hover)return;entry.hover=null;canvas.title='';canvas.style.cursor='';entry.revision=-1;requestPaint();};
+        return entry;
+      });
+      gestures.attachWheel(rows.querySelector('.dist-axis'));
+      rows.addEventListener('scroll',requestPaint,{passive:true});
+      observer=new ResizeObserver(measureDistribution);observer.observe(rows);
+      paintedDomain=null;revision++;measureDistribution();
+    }
+    function disposeDistribution(){
       gestures.cancel();if(frame){cancelAnimationFrame(frame);frame=0;}
-      const scroll=body.querySelector('.structure-rows')?.scrollTop||0;body.dataset.mobileMode=s.structureMobile;
+      observer?.disconnect();observer=null;rows=null;entries=[];paintedDomain=null;
+    }
+    function draw(){
+      const scroll=body.querySelector('.structure-rows')?.scrollTop||0;disposeDistribution();body.dataset.mobileMode=s.structureMobile;
       if(s.structureScope==='stocks'){
         controls.innerHTML=`<label><input type="checkbox" data-weak ${s.weakOnly?'checked':''}> 仅行业20日落后于池</label>`;
         controls.querySelector('input').onchange=e=>{s.weakOnly=e.target.checked;s.pointBrush=null;persist();draw();};
@@ -203,8 +286,7 @@
           <details class="structure-method"><summary>统计口径</summary><div>5日超额为行业与股票池5日收益之差（百分点）；颜色饱和于 ±18。P10–P90 为第10至90百分位（中间约80%的成分股收益范围）。个股20日累计收益须有完整20个交易日数据；上涨占比为正收益家数 / 有效家数。点行业深入、点个股查值；顶部选择观察日。成分分布：滚轮或双指横向缩放，横向拖动平移，双击复原。20日领先天数统计行业日收益超过股票池日收益的天数；20日超额为累计收益之差；各排序均基于当前观察日。</div></details>
         </div>
         <div class="structure-rows" data-mobile-mode="${esc(s.structureMobile)}"><div class="structure-row structure-columns"><span>行业</span><div class="sr-heat"><div class="structure-col-title">5日超额收益（百分点）</div>${heatAxis(summary.dates)}</div><div class="sr-dist"><div class="structure-col-title">20日个股收益分布（%）${zoomed()?' · 缩放中':''}</div>${distributionAxis(domain)}</div><span>20日上涨占比</span></div>${groups.map(g=>{
-          const members=byGroup.get(g.name)||[];
-          return `<div class="structure-row"><button class="structure-name" data-group="${esc(g.name)}" title="${esc(g.name)} · 20日领先 ${wins(g.wins.at(-1))} 天 · 5日超额 ${finite(g.excess5.at(-1))?num(g.excess5.at(-1))+' 个百分点':'—'} · 20日超额 ${finite(diff(g.sector.at(-1),pool))?num(diff(g.sector.at(-1),pool))+' 个百分点':'—'} · 行业 ${pct(g.sector.at(-1))}">${esc(g.name)}</button><div class="sr-heat"><canvas class="structure-heat" data-heat-group="${esc(g.name)}" aria-label="5日超额历史"></canvas></div><div class="sr-dist" data-dist-group="${esc(g.name)}">${distribution(members,g,pool,domain)}</div><span class="structure-up" title="近20日正收益家数 / 有效家数">${g.count.at(-1)?num(100*g.up.at(-1)/g.count.at(-1),1)+'%':'—'} <small>(${g.up.at(-1)}/${g.count.at(-1)})</small></span></div>`;
+          return `<div class="structure-row"><button class="structure-name" data-group="${esc(g.name)}" title="${esc(g.name)} · 20日领先 ${wins(g.wins.at(-1))} 天 · 5日超额 ${finite(g.excess5.at(-1))?num(g.excess5.at(-1))+' 个百分点':'—'} · 20日超额 ${finite(diff(g.sector.at(-1),pool))?num(diff(g.sector.at(-1),pool))+' 个百分点':'—'} · 行业 ${pct(g.sector.at(-1))}">${esc(g.name)}</button><div class="sr-heat"><canvas class="structure-heat" data-heat-group="${esc(g.name)}" aria-label="5日超额历史"></canvas></div><div class="sr-dist" data-dist-group="${esc(g.name)}">${distribution(g)}</div><span class="structure-up" title="近20日正收益家数 / 有效家数">${g.count.at(-1)?num(100*g.up.at(-1)/g.count.at(-1),1)+'%':'—'} <small>(${g.up.at(-1)}/${g.count.at(-1)})</small></span></div>`;
         }).join('')}</div><div class="structure-selection" aria-live="polite"></div>`;
       const style=getComputedStyle(host),colors={rise:style.getPropertyValue('--rise'),fall:style.getPropertyValue('--fall'),missing:style.getPropertyValue('--subtle')};
       const groupMap=new Map(groups.map(g=>[g.name,g]));
@@ -217,6 +299,7 @@
       });
       const gLabel=(name,date,value)=>name+' · '+date+' · 5日超额 '+(finite(value)?num(value)+' 个百分点':'—');
       body.querySelector('.structure-rows').scrollTop=scroll;
+      setupDistribution();
       selectPoint(points.find(p=>p.code===s.structurePoint));
       body.onclick=e=>{
         const button=e.target.closest('[data-group]'),mobile=e.target.closest('[data-mobile]');
@@ -225,7 +308,7 @@
       };
     }
     host.querySelector('[data-scope]').onchange=e=>{s.structureScope=e.target.value;s.pointBrush=null;body.onclick=null;persist();draw();};
-    draw();
+    draw();return disposeDistribution;
   }
   function pointRead(p,summary){
     const sector=summary.groups.find(g=>g.name===p.industry)?.sector.at(-1),market=summary.pool.at(-1);
@@ -319,5 +402,5 @@
     host.querySelector('[data-pair-results]').innerHTML=`<p>日收益相关 <b>${num(raw.value,3)}</b>（${raw.n} 对）　减去股票池后 <b>${num(net.value,3)}</b>（${net.n} 对）</p><svg class="lag-plot" viewBox="0 0 550 120" aria-label="相对日收益滞后相关，从负5到正5个交易日"><path class="dist-zero" d="M10,52H540"/>${bars.map((p,i)=>`<g><title>${i-5}日：${num(p.value,3)}，${p.n} 对</title>${finite(p.value)?`<rect x="${18+i*48}" y="${52-Math.max(0,p.value)*42}" width="21" height="${Math.max(1,Math.abs(p.value)*42)}" fill="var(--plot-blue)"/>`:''}<text x="${28+i*48}" y="112" text-anchor="middle">${i-5}</text></g>`).join('')}</svg><p class="structure-legend">共同有效交易日 · 滞后为正表示 A 先于 B。图示样本相关；没有做显著性或预测检验。</p>`;
     for(const [key,field] of [['a','pairA'],['b','pairB']])host.querySelector('[data-'+key+']').onchange=e=>{s[field]=e.target.value;persist();linkage(host,market,s,persist);};
   }
-  root.AtlasResearch={market,industry,linkage,distributionX,distributionTicks,distributionView,distributionRank,bindDistributionGestures};
+  root.AtlasResearch={market,industry,linkage,distributionX,distributionTicks,distributionView,distributionRank,bindDistributionGestures,distributionHit,paintDistribution};
 })(globalThis);
