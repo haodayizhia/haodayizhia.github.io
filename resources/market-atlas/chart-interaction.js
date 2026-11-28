@@ -91,9 +91,11 @@
            r.canOpen?'<a class="readout-open" href="'+esc(owner.linkFor(r.id))+'" data-open-series="'+esc(r.id)+'" aria-label="'+esc(r.openLabel||owner.openLabel||'查看详情')+'：'+esc(r.name)+'">'+label+' ↗</a>':'<span title="'+esc(r.title||r.name)+'">'+label+'</span>';
          return '<div class="readout-row'+(focus===r.id?' is-focused':'')+'"><i style="color:'+(r.color||'var(--plot-main)')+';border-top:2px '+(r.dash?'dashed':'solid')+' currentColor;background:transparent"></i>'+identity+'<strong'+(r.signed&&finite(r.value)&&r.value!==0?' class="'+(r.value>0?'readout-rise':'readout-fall')+'"':'')+'>'+(finite(r.value)?(r.signed&&r.value>0?'+':'')+num(r.value,r.digits??2):'—')+'<small class="readout-unit'+(r.unit==='%'?' is-percent':'')+'">'+(finite(r.value)?esc(r.unit||''):'')+'</small></strong></div>';
        };
+      const auxiliary=primary.filter(r=>r.auxiliary);
+      const auxiliaryCell=r=>'<div class="readout-aux-cell"><span title="'+esc(r.name)+'">'+esc(r.name)+'</span><strong>'+(finite(r.value)?num(r.value,r.digits??2)+esc(r.unit||''):'—')+'</strong></div>';
       el.querySelector('.readout-primary').innerHTML=stockGroups?
         '<div class="stock-readout-prices">'+stockGroups.prices.map(stockReadoutCell).join('')+'</div><div class="stock-readout-changes">'+stockGroups.changes.map(stockReadoutCell).join('')+'</div>':
-        primary.map(row).join('')+(rows.length>6&&!focused?'<span class="readout-hint">展开全部列表可选择密集曲线</span>':'');
+        (auxiliary.length?'<div class="readout-curve-group">'+primary.filter(r=>!r.auxiliary).map(row).join('')+'</div><div class="readout-aux-group"><span class="readout-aux-label">区间累计收益</span><div class="readout-aux-values">'+auxiliary.map(auxiliaryCell).join('')+'</div></div>':primary.map(row).join(''))+(rows.length>6&&!focused?'<span class="readout-hint">展开全部列表可选择密集曲线</span>':'');
       el.renderAll=()=>{
          const container=el.querySelector('.readout-all');
          const stamp=date+'|'+(owner.revision||0)+'|'+rows.length+'|'+(owner.index??-1)+'|'+(owner.row??-1)+(stockGroups?'|'+JSON.stringify(stockGroups.more):'');

@@ -431,8 +431,8 @@
       const sector=S.market.sectors.find(g=>g.name===info.industry)?.series.path||[],pool=S.market.pool.path;
       const delta=(a,b)=>a.map((v,i)=>finite(v)&&finite(b[i])?v-b[i]:null);
       const comparisons=[{id:'stock-industry',name:'个股 − 行业',values:delta(stock.path,sector),color:palette[0]},{id:'industry-pool',name:'行业 − 股票池',values:delta(sector,pool),color:palette[1]}];
-      const relative=graph('stockRelative',{dates:stock.dates,series:comparisons,unit:'个百分点',label:'自区间首日收盘 · 相对表现',zeroGuide:true,
-        inspectionRows:i=>[...comparisons.map(c=>({...c,value:c.values[i],unit:'个百分点'})),...[[info.name,stock.path],['行业等权',sector],['股票池等权',pool]].map(([name,values])=>({name,value:values[i],unit:'%'}))]});
+      const relative=graph('stockRelative',{dates:stock.dates,series:comparisons,unit:'个百分点',label:'自区间首日收盘 · 相对表现',zeroGuide:true,keepSeriesVisible:true,
+        inspectionRows:i=>[...comparisons.map(c=>({...c,value:c.values[i],unit:'个百分点'})),...[[info.name,stock.path],['行业等权',sector],['股票池等权',pool]].map(([name,values])=>({name,value:values[i],unit:'%',auxiliary:true}))]});
       relative.resetView=[...chart.resetView];relative.setRange(...chart.view);relative.setIndex(stockIndex);
     }catch(error){notice(error.message,true);}
   }

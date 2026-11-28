@@ -246,3 +246,14 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 /* Persistent selected constituent: overlay the exact point without moving data. */
 .structure-row [data-dist-group]{position:relative;min-width:0;isolation:isolate}.dist-selected-marker{position:absolute;top:17px;z-index:2;box-sizing:border-box;width:10px;height:10px;transform:translate(-50%,-50%);border-radius:50%;background:var(--plot-gold);border:1.5px solid var(--ink);box-shadow:0 0 0 2px var(--bg);pointer-events:none}.dist-selected-marker[hidden]{display:none!important}.atlas-app .dist-row-selected .structure-name{color:var(--plot-blue);font-weight:650}
 @media(pointer:coarse){.dist-selected-marker{width:12px;height:12px}}
+
+/* Relative-return chart: actual curves above, supporting cumulative returns below. */
+#stockRelative .readout-primary{grid-template-columns:minmax(0,1fr);gap:6px}
+.readout-curve-group{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 24px}
+.readout-aux-group{display:flex;align-items:baseline;gap:18px;border-top:1px solid var(--line);padding-top:6px}
+.readout-aux-label{color:var(--muted);font-size:11px;flex:none}
+.readout-aux-values{flex:1;min-width:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px 20px}
+.readout-aux-cell{display:flex;align-items:baseline;justify-content:space-between;gap:6px;min-width:0;font-size:12px}
+.readout-aux-cell span{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.readout-aux-cell strong{font-weight:500;white-space:nowrap;font-variant-numeric:tabular-nums}
+@media(max-width:760px){.readout-curve-group{gap:2px 12px}.readout-aux-group{display:block;padding-top:5px}.readout-aux-label{font-size:10px}.readout-aux-values{gap:6px 10px;margin-top:3px}.readout-aux-cell{flex-direction:column;gap:2px;align-items:flex-start;font-size:11px}.readout-aux-cell span{max-width:100%}}

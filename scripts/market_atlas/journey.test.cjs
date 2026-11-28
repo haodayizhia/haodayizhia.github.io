@@ -29,6 +29,11 @@ try{for(const width of [390,1440,320]){
  await page.locator('.point-controls select').selectOption(example);await page.locator('.point-detail button').click();await stockReady();
  assert.equal(await page.locator('#observationDate').inputValue(),locked);assert.equal(await evaluate(()=>AtlasWorkspace.state.stock.dates.at(-1)),locked);
  assert.equal(await page.locator('#stockRelative svg').count(),1);
+ assert.equal(await page.locator('#stockRelative .readout-curve-group .readout-row i').count(),2,'Only plotted curves may have line keys');
+ assert.equal(await page.locator('#stockRelative .readout-aux-values .readout-aux-cell').count(),3,'All three supporting returns must remain visible');
+ assert.equal(await page.locator('#stockRelative .readout-aux-group i,#stockRelative .readout-aux-group [data-focus-series]').count(),0,'Supporting values must not mimic interactive curve legends');
+ assert.equal(await page.locator('#stockRelative .readout-primary .readout-row').count(),2);
+ assert.ok(await evaluate(()=>AtlasWorkspace.state.charts.find(c=>c.host.id==='stockRelative').keepSeriesVisible));
  await back();await page.waitForSelector('.point-controls select');
  assert.equal(await page.locator('[data-weak]').isChecked(),true);assert.equal(await page.locator('.point-controls select').inputValue(),example);
  await page.selectOption('[data-scope]','industry');await page.locator('#observationLatest').click();await page.waitForFunction(d=>document.querySelector('#observationDate').value===d&&document.querySelector('.structure-rows'),endDate);
