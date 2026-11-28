@@ -161,10 +161,13 @@
     if(hover&&within(hover.value,domain)){ctx.globalAlpha=1;ctx.fillStyle=colors.gold;ctx.strokeStyle=colors.ink;ctx.lineWidth=1;ctx.beginPath();ctx.arc(X(hover.value),17,2.6,0,Math.PI*2);ctx.fill();ctx.stroke();}
     ctx.globalAlpha=1;ctx.setLineDash([]);
   }
-  function distributionHit(points,domain,width,x,y,radius=3.5){
-    if(!width||Math.abs(y-17)>radius)return null;
-    let result=null,best=radius*radius-(y-17)**2;
-    for(const p of points){if(!within(p.value,domain))continue;const d=(distributionX(p.value,domain)*width/100-x)**2;if(d<=best){best=d;result=p;}}
+  // Points share a single horizontal line. Use a generous horizontal
+  // snap radius and the entire plotting row as the vertical target, rather
+  // than requiring the pointer to land on a tiny painted circle.
+  function distributionHit(points,domain,width,x,y,radius=12){
+    if(!width||x<0||x>width||y<0||y>28)return null;
+    let result=null,best=radius;
+    for(const p of points){if(!within(p.value,domain))continue;const d=Math.abs(distributionX(p.value,domain)*width/100-x);if(d<=best){best=d;result=p;}}
     return result;
   }
   function paintHeat(canvas,values,colors){
@@ -236,7 +239,7 @@
       const entry=target._distributionEntry;
       if(!entry||!paintedDomain)return null;
       const r=target.getBoundingClientRect();
-      return distributionHit(entry.points,paintedDomain,r.width,p.x-r.left,p.y-r.top,type==='touch'?9:3.5);
+      return distributionHit(entry.points,paintedDomain,r.width,p.x-r.left,p.y-r.top,type==='touch'?18:12);
     }
     const gestures=bindDistributionGestures(body,{getView:()=>domain,full:fullDomain,setView:next=>{
       if(next[0]===domain[0]&&next[1]===domain[1])return;

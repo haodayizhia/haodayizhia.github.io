@@ -260,7 +260,13 @@ test('distribution point hit testing uses exact shared coordinate mapping',()=>{
  const {distributionHit}=globalThis.AtlasResearch,points=[{i:1,value:0},{i:2,value:20},{i:3,value:80}];
  assert.equal(distributionHit(points,[-20,40],300,100,17)?.i,1);
  assert.equal(distributionHit(points,[-20,40],300,200,17)?.i,2);
- assert.equal(distributionHit(points,[-20,40],300,200,25),null);
+ assert.equal(distributionHit(points,[-20,40],300,200,25)?.i,2);
+ assert.equal(distributionHit(points,[-20,40],300,211,2)?.i,2);
+ assert.equal(distributionHit(points,[-20,40],300,213,17),null);
+ assert.equal(distributionHit(points,[-20,40],300,200,29),null);
+ assert.equal(distributionHit(points,[-20,40],300,216,17,18)?.i,2);
+ assert.equal(distributionHit([{i:4,value:20},{i:5,value:22}],[-20,40],300,207,17)?.i,5);
+ assert.equal(distributionHit([{i:4,value:20},{i:5,value:22}],[-20,40],300,203,17)?.i,4);
  assert.equal(distributionHit(points,[-20,40],300,299,17),null);
  assert.equal(distributionHit(points,[10,30],300,150,17)?.i,2);
 });
