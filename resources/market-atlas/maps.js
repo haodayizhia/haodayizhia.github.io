@@ -15,7 +15,7 @@
        this.wheelBatch=root.AtlasWheelBatch((factor,p)=>this.zoom(factor,p));
        host.querySelector('.heat-head').addEventListener('wheel',e=>{if(!e.deltaY)return;e.preventDefault();this.wheelBatch.push(Math.exp(-e.deltaY*.002),{x:e.clientX,y:e.clientY});},{passive:false,signal:this.abort.signal});
        this.surface.addEventListener('wheel',e=>{if((!e.ctrlKey&&!e.metaKey)||!e.deltaY)return;e.preventDefault();this.wheelBatch.push(Math.exp(-e.deltaY*.002),{x:e.clientX,y:e.clientY});},{passive:false,signal:this.abort.signal});
-      this.gesture=new root.AtlasGesture(this.surface,{owner:this,dismiss:keep=>this.clearInspection(keep),wheel:false,inspect:p=>this.inspect(p),tap:p=>this.select(p),end:(p,start)=>{if(start&&Math.hypot(p.x-start.x,p.y-start.y)<7)this.select(p);},zoom:(f,p)=>this.zoom(f,p),reset:()=>this.reset(),canPan:()=>false});
+      this.gesture=new root.AtlasGesture(this.surface,{owner:this,dismiss:keep=>this.clearInspection(keep),wheel:false,inspect:p=>this.inspect(p),tap:p=>this.select(p),immediateTap:true,end:(p,start)=>{if(start&&Math.hypot(p.x-start.x,p.y-start.y)<7)this.select(p);},zoom:(f,p)=>this.zoom(f,p),reset:()=>this.reset(),canPan:()=>false});
       this.canvas.addEventListener('keydown',e=>{if(e.key==='Escape'){this.clearInspection();return;}if(e.key==='Enter'&&this.rows[this.row]){e.preventDefault();this.onOpenSeries?.(this.rows[this.row].id||this.rows[this.row].name);return;}if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();this.inspectionActive=true;if(e.key==='ArrowUp'||e.key==='ArrowDown')this.pinned=null;this.index=clamp(this.index+(e.key==='ArrowLeft'?-1:e.key==='ArrowRight'?1:0),0,this.dates.length-1);this.row=clamp((this.row??0)+(e.key==='ArrowUp'?-1:e.key==='ArrowDown'?1:0),0,this.rows.length-1);this.onInspect?.(this.index,this);this.updateCursor();const r=this.surface.getBoundingClientRect();this.show({x:r.left+r.width/2,y:r.top+50});},{signal:this.abort.signal});
       this.observer=new ResizeObserver(()=>{this.draw();this.navigator?.update();});this.observer.observe(this.surface);window.addEventListener('resize',()=>{this.draw();this.navigator?.update();},{signal:this.abort.signal});this.draw();this.navigator=new root.AtlasTimeNavigator(host,{getRange:()=>this.visibleRange(),getLength:()=>this.dates.length,getDates:()=>this.dates,onChange:(a,b,mode)=>this.navigate(a,b,mode)});
     }
@@ -70,9 +70,11 @@
       this.updateCursor();
     }
     select(p){
+      const previous={index:this.index,row:this.row,focus:this.focus,pinned:this.pinned,inspectionActive:this.inspectionActive};
       this.inspect(p,true);
-      if(this.pinned&&this.pinned===this.focus){this.clearInspection();return;}
-      this.pinned=this.focus||null;this.updateCursor();
+      if(this.pinned&&this.pinned===this.focus)this.clearInspection();
+      else{this.pinned=this.focus||null;this.updateCursor();}
+      return ()=>{Object.assign(this,previous);this.onInspect?.(this.index,this);this.updateCursor();};
     }
     inspect(p,force=false){this.inspectionActive=true;const r=this.surface.getBoundingClientRect();this.index=clamp(Math.floor((p.x-r.left+this.surface.scrollLeft)/this.cellWidth),0,this.dates.length-1);this.row=!force&&this.pinned?this.rows.findIndex(row=>(row.id||row.name)===this.pinned):clamp(Math.floor((p.y-r.top+this.surface.scrollTop)/this.rowHeight),0,this.rows.length-1);this.onInspect?.(this.index,this);this.updateCursor();this.show(p);}
     show(p){root.AtlasInspector.show(this,{date:this.dates[this.index],rows:this.inspectionRows(this.index,this.row),x:p.x,y:p.y});}

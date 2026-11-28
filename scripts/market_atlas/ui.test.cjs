@@ -375,3 +375,10 @@ test('distribution selection overlay updates immediately without canvas or hover
  const next={industry:'银行',value:10};syncDistributionSelection(a,next,[0,100]);syncDistributionSelection(b,next,[0,100]);
  assert.equal(a.marker.hidden,true);assert.equal(a.classes.has('dist-row-selected'),false);assert.equal(b.marker.hidden,false);assert.equal(b.marker.style.left,'10%');
 });
+
+test('heatmap immediate selection returns an undo restoring the preceding inspection',()=>{
+ const heat=Object.create(globalThis.AtlasMaps.Heatmap.prototype),seen=[];
+ Object.assign(heat,{index:5,row:undefined,focus:null,pinned:null,inspectionActive:false,onInspect:i=>seen.push(i),updateCursor(){},inspect(){Object.assign(this,{index:0,row:2,focus:'A',inspectionActive:true});}});
+ const undo=heat.select({});assert.equal(heat.pinned,'A');assert.equal(heat.index,0);
+ undo();assert.equal(heat.index,5);assert.equal(heat.row,undefined);assert.equal(heat.pinned,null);assert.equal(heat.inspectionActive,false);assert.deepEqual(seen,[5]);
+});

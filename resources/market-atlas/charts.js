@@ -206,7 +206,7 @@
     setRange(a,b,notify=false) {
       a=clamp(a,0,this.dates.length-1);b=clamp(b,a,this.dates.length-1);
       if(b-a<1&&this.dates.length>1)return;
-      const previous=this.index,changed=a!==this.view[0]||b!==this.view[1];
+      const previous=this.index,changed=!this.view||a!==this.view[0]||b!==this.view[1];
       if(notify){this.index=clamp(this.index,Math.ceil(a),Math.floor(b));if(this.index!==previous)this.axisValue=null;}
       this.view=[a,b];this.draw();if(changed)this.navigator?.update();
       if(notify){if(changed)this.onRange(this.dates[Math.floor(a)],this.dates[Math.ceil(b)]);if(this.index!==previous)this.onInspect(this.index,this);}
