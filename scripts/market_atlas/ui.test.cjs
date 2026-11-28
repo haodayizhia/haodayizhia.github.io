@@ -399,3 +399,16 @@ test('stock return to latest is always present, regardless of historical researc
  assert.ok(!read().some(r=>r.name==='区间涨幅'));
  chart.latestClose=12;assert.equal(read().find(r=>r.name==='距今涨幅').value,0);
 });
+
+test('line and candle selection commits synchronously, supports a new date and undoes a double tap',()=>{
+ const c=Object.create(Chart.prototype),calls=[];
+ Object.assign(c,{hasData:true,index:1,axisValue:10,pinned:null,focus:null,inspectionActive:false,
+  local:p=>p,indexAt:x=>x,hitSeries:()=>({id:'steep'}),onInspect(i){calls.push(i);},
+  inspect(p,force,selection){assert.equal(selection,true);this.index=p.x;this.focus=this.pinned;this.inspectionActive=true;this.onInspect(this.index,this);},
+  updateOverlay(){},updateValues(){},clearInspection(){this.pinned=null;this.focus=null;this.inspectionActive=false;}});
+ const undo=c.select({x:4,y:20},'mouse');
+ assert.equal(c.index,4);assert.equal(c.pinned,'steep');assert.deepEqual(calls,[4]);
+ undo();assert.equal(c.index,1);assert.equal(c.pinned,null);assert.equal(c.inspectionActive,false);assert.deepEqual(calls,[4,1]);
+ c.select({x:4,y:20},'touch');c.select({x:5,y:20},'touch');assert.equal(c.index,5);assert.equal(c.pinned,'steep');
+ c.hitSeries=()=>null;c.pinned=null;c.select({x:6,y:20},'touch');assert.equal(c.index,6);assert.equal(c.inspectionActive,true);
+});

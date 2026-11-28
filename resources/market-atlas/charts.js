@@ -148,7 +148,7 @@
       host.addEventListener('click',e=>{const mode=e.target.closest('[data-zoom-axis]');if(mode){this.zoomAxis=mode.dataset.zoomAxis;root.AtlasApplyZoomAxis(host,this.zoomAxis);return;}const action=e.target.closest('[data-chart-action]')?.dataset.chartAction;if(action==='in')this.zoom(1.7,null,this.zoomAxis);if(action==='out')this.zoom(1/1.7,null,this.zoomAxis);if(action==='reset')this.reset();if(action==='expand')root.AtlasFullscreen.open(this.host,this.label);const remove=e.target.closest('[data-remove-series]');if(remove)this.onRemove?.(remove.dataset.removeSeries);},{signal:this.abort.signal});
       this.svg.addEventListener('keydown',e=>this.key(e),{signal:this.abort.signal});
       this.gesture=new root.AtlasGesture(this.surface,{
-        owner:this,dismiss:keep=>{this.clearInspection(keep);this.onDismiss?.(keep,this);},inspect:p=>this.inspect(p),tap:(p,pointerType)=>this.select(p,pointerType),
+        owner:this,dismiss:keep=>{this.clearInspection(keep);this.onDismiss?.(keep,this);},inspect:p=>this.inspect(p),tap:(p,pointerType)=>this.select(p,pointerType),immediateTap:true,
         start:()=>{this.dragView=[...this.view];this.dragY=[this.lo,this.hi];this.panMove=null;},
         drag:(p,start)=>{if(start.shift){this.brush=[this.local(start).x,this.local(p).x];this.updateOverlay();}else if(this.canPan())this.previewPan(p.x-start.x,p.y-start.y);else this.inspect(p);},
         end:(p,start)=>{const distance=start?Math.hypot(p.x-start.x,p.y-start.y):0;
@@ -279,12 +279,18 @@
     // the first and second click and prevented the native dblclick reset gesture.
     select(p,pointerType='mouse'){
       if(!this.hasData)return;
+      const previous={index:this.index,axisValue:this.axisValue,focus:this.focus,pinned:this.pinned,inspectionActive:this.inspectionActive};
+      const undo=()=>{Object.assign(this,previous);this.onInspect(this.index,this);this.updateOverlay();this.updateValues();};
       const hit=this.hitSeries(p,pointerType==='touch'?32:12);
-      this.inspect(p,true);
-      if(!hit){this.focus=this.pinned||null;this.updateOverlay();this.updateValues();return;}
-      if(this.pinned===hit.id){this.clearInspection();return;}
-      this.focus=hit.id;this.pinned=hit.id;
-      this.updateOverlay();this.updateValues();
+      const index=this.indexAt(this.local(p).x);
+      // Clicking another day on a pinned curve moves the inspection, rather
+      // than clearing the newly requested date.
+      if(hit&&this.pinned===hit.id&&previous.index===index){this.clearInspection();return undo;}
+      if(hit)this.pinned=hit.id;
+      // Commit the pin before inspection: linked charts and the readout are
+      // updated once, without the transient hover-only render.
+      this.inspect(p,true,true);
+      return undo;
     }
     hitSeries(p,radius=12){
       if(!this.g||!this.hasData)return null;
@@ -302,14 +308,14 @@
       const value=series.values[this.index];this.axisValue=finite(value)?value:null;
       this.updateOverlay();this.updateValues();
     }
-    inspect(p,force=false) {
+    inspect(p,force=false,selection=false) {
       if(!this.hasData||!this.g)return;this.inspectionActive=true;const q=this.local(p);
       if(q.x<0||q.x>this.w||q.y<0||q.y>this.h)return;
       this.index=this.indexAt(q.x);const t=clamp((this.g.bottom-q.y)/this.g.height,0,1);this.axisValue=this.inverse(this.lo+t*(this.hi-this.lo));
-      const segment=this.hitSeries(p,13);
+      const segment=selection?null:this.hitSeries(p,13);
       // Keep the original nearest-day fallback for readouts away from a line; when
       // near a visible segment, the interpolated geometric hit always takes priority.
-      this.focus=!force&&this.pinned?this.pinned:segment?.id||(this.strictHit?null:
+      this.focus=selection?(this.pinned||null):!force&&this.pinned?this.pinned:segment?.id||(this.strictHit?null:
         this.series.filter(s=>!s.reference&&finite(s.values[this.index])&&this.Y(s.values[this.index])>=this.g.top&&this.Y(s.values[this.index])<=this.g.bottom)
           .sort((a,b)=>Math.abs(this.Y(a.values[this.index])-q.y)-Math.abs(this.Y(b.values[this.index])-q.y))[0]?.id);
       this.onInspect(this.index,this);this.updateOverlay();this.updateValues();
