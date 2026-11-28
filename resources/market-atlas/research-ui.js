@@ -56,7 +56,7 @@
     const reset=()=>{clearTap();setView([...full]);};
     function queueTap(p,type,id){
       const previous=pending,radius=type==='touch'?24:8,delay=type==='touch'?280:450;
-      if(previous&&previous.type===type&&Math.hypot(p.x-previous.x,p.y-previous.y)<radius){reset();return;}
+      if(previous&&previous.type===type&&previous.id===id&&Math.hypot(p.x-previous.x,p.y-previous.y)<radius){reset();return;}
       if(previous)clearTap();
       if(id!=null&&body.isConnected)onPoint(id);
       pending={...p,type,id};tapTimer=setTimeout(clearTap,delay);
@@ -132,11 +132,20 @@
     return `<div class="heat-axis">${indices.map((i,j)=>`<span class="${j===0?'first':j===indices.length-1?'last':''}" style="left:${100*(i+.5)/n}%">${dates[i].slice(5)}</span>`).join('')}</div>`;
   }
   function distribution(group){
-    return `<canvas class="dist-plot" role="img" aria-label="${esc(group.name)} 20日成分股收益分布"></canvas>`;
+    return `<canvas class="dist-plot" role="img" aria-label="${esc(group.name)} 20日成分股收益分布"></canvas><span class="dist-selected-marker" hidden aria-hidden="true"></span>`;
   }
   // Draw the same statistics and every individual return, using CSS pixel
   // dimensions and a HiDPI backing store. Symbols keep their size while zooming.
-  function paintDistribution(ctx,width,height,points,group,market,domain,ticks,colors,hover,selected){
+  // Selection is a separate DOM overlay, independent of Canvas repaint and
+  // visibility culling. Its center uses exactly the same return mapping.
+  function syncDistributionSelection(entry,selected,domain){
+    const chosen=selected?.industry===entry.group.name;
+    entry.row.classList.toggle('dist-row-selected',chosen);
+    const visible=chosen&&within(selected.value,domain);
+    entry.marker.hidden=!visible;
+    if(visible)entry.marker.style.left=distributionX(selected.value,domain)+'%';
+  }
+  function paintDistribution(ctx,width,height,points,group,market,domain,ticks,colors,hover){
     const X=v=>distributionX(v,domain)*width/100;
     const guide=(v,color,lineWidth,alpha=1,dash=[],top=0,bottom=height)=>{
       if(!within(v,domain))return;
@@ -159,7 +168,7 @@
     guide(group.median.at(-1),colors.main,2.5,1,[],11,23);
     const sector=group.sector.at(-1);
     if(within(sector,domain)){const x=X(sector),r=3*Math.SQRT2;ctx.fillStyle=colors.gold;ctx.globalAlpha=1;ctx.beginPath();ctx.moveTo(x,4-r);ctx.lineTo(x+r,4);ctx.lineTo(x,4+r);ctx.lineTo(x-r,4);ctx.closePath();ctx.fill();}
-    for(const p of [hover,selected])if(p&&within(p.value,domain)){ctx.globalAlpha=1;ctx.fillStyle=colors.gold;ctx.strokeStyle=colors.ink;ctx.lineWidth=p===selected?1.5:1;ctx.beginPath();ctx.arc(X(p.value),17,p===selected?4:2.6,0,Math.PI*2);ctx.fill();ctx.stroke();}
+    if(hover&&within(hover.value,domain)){ctx.globalAlpha=1;ctx.fillStyle=colors.gold;ctx.strokeStyle=colors.ink;ctx.lineWidth=1;ctx.beginPath();ctx.arc(X(hover.value),17,2.6,0,Math.PI*2);ctx.fill();ctx.stroke();}
     ctx.globalAlpha=1;ctx.setLineDash([]);
   }
   // Points share a single horizontal line. Use a generous horizontal
@@ -194,12 +203,15 @@
     const colorTokens={muted:'--muted',teal:'--plot-teal',blue:'--plot-blue',range:'--plot-range',slate:'--plot-slate',main:'--plot-main',gold:'--plot-gold',ink:'--ink'};
     const pointById=new Map(points.map(p=>[String(p.i),p]));
     let frame=0,rows=null,entries=[],width=0,dpr=1,colors=null,paintedDomain=null,paintedTicks=[],revision=0,observer=null,scatterCleanup=null;
-    let selectedPoint=null;
+    let selectedPoint=null,entryByName=new Map();
     function selectPoint(p,scroll=false){
       const read=body.querySelector('.structure-selection');if(!p||!read)return;
       const previous=selectedPoint;selectedPoint=p;s.structurePoint=p.code;persist();
-      for(const entry of entries)if(entry.group.name===p.industry||entry.group.name===previous?.industry)entry.revision=-1;
-      requestPaint();
+      // Commit the visible selection synchronously; do not wait for a
+      // Canvas refresh, scroll event, or hover event on a touch device.
+      for(const name of new Set([previous?.industry,p.industry])){
+        const entry=entryByName.get(name);if(entry)syncDistributionSelection(entry,selectedPoint,paintedDomain||domain);
+      }
       read.innerHTML=pointRead(p,summary)+` <button class="point-open">查看日线 ↗</button>`;
       read.querySelector('button').onclick=()=>options.openStock(p.code);
       // The selection readout is below the list; do not scroll the touched plot away.
@@ -212,7 +224,7 @@
       if(canvas.width!==pw||canvas.height!==ph){canvas.width=pw;canvas.height=ph;}
       const ctx=canvas.getContext('2d');
       ctx.setTransform(pw/width,0,0,ph/28,0,0);
-      paintDistribution(ctx,width,28,entry.points,entry.group,pool,paintedDomain,paintedTicks,colors,entry.hover,selectedPoint?.industry===entry.group.name?selectedPoint:null);
+      paintDistribution(ctx,width,28,entry.points,entry.group,pool,paintedDomain,paintedTicks,colors,entry.hover);
       entry.revision=revision;
     }
     function measureDistribution(){
@@ -228,6 +240,7 @@
       const axis=rows.querySelector('.dist-axis');
       if(!paintedDomain||paintedDomain[0]!==domain[0]||paintedDomain[1]!==domain[1]){
         paintedDomain=[...domain];paintedTicks=distributionTicks(paintedDomain);revision++;
+        const chosen=entryByName.get(selectedPoint?.industry);if(chosen)syncDistributionSelection(chosen,selectedPoint,paintedDomain);
         const title=rows.querySelector('.structure-columns .sr-dist .structure-col-title'),label='20日个股收益分布（%）'+(zoomed()?' · 缩放中':'');
         if(title.textContent!==label)title.textContent=label;
         // Reuse tick nodes as long as the tick values have not changed.
@@ -254,7 +267,7 @@
       rows=body.querySelector('.structure-rows');if(!rows)return;
       const style=getComputedStyle(host);colors=Object.fromEntries(Object.entries(colorTokens).map(([key,token])=>[key,style.getPropertyValue(token).trim()]));
       entries=[...rows.querySelectorAll('[data-dist-group]')].map(el=>{
-        const name=el.dataset.distGroup,canvas=el.querySelector('canvas'),entry={canvas,row:el.parentElement,group:groupByName.get(name),points:byGroup.get(name)||[],revision:-1,hover:null};
+        const name=el.dataset.distGroup,canvas=el.querySelector('canvas'),entry={canvas,marker:el.querySelector('.dist-selected-marker'),row:el.parentElement,group:groupByName.get(name),points:byGroup.get(name)||[],revision:-1,hover:null};
         canvas._distributionEntry=entry;gestures.attachWheel(canvas);
         canvas.onpointermove=e=>{
           if(e.buttons||e.pointerType==='touch')return;
@@ -265,6 +278,7 @@
         canvas.onpointerleave=()=>{if(!entry.hover)return;entry.hover=null;canvas.title='';canvas.style.cursor='';entry.revision=-1;requestPaint();};
         return entry;
       });
+      entryByName=new Map(entries.map(entry=>[entry.group.name,entry]));
       gestures.attachWheel(rows.querySelector('.dist-axis'));
       rows.addEventListener('scroll',requestPaint,{passive:true});
       observer=new ResizeObserver(measureDistribution);observer.observe(rows);
@@ -272,7 +286,7 @@
     }
     function disposeDistribution(){
       scatterCleanup?.();scatterCleanup=null;gestures.cancel();if(frame){cancelAnimationFrame(frame);frame=0;}
-      observer?.disconnect();observer=null;rows=null;entries=[];paintedDomain=null;
+      observer?.disconnect();observer=null;rows=null;entries=[];entryByName.clear();paintedDomain=null;
     }
     function draw(){
       const scroll=body.querySelector('.structure-rows')?.scrollTop||0;disposeDistribution();body.dataset.mobileMode=s.structureMobile;
@@ -544,5 +558,5 @@
     host.querySelector('[data-pair-results]').innerHTML=`<p>日收益相关 <b>${num(raw.value,3)}</b>（${raw.n} 对）　减去股票池后 <b>${num(net.value,3)}</b>（${net.n} 对）</p><svg class="lag-plot" viewBox="0 0 550 120" aria-label="相对日收益滞后相关，从负5到正5个交易日"><path class="dist-zero" d="M10,52H540"/>${bars.map((p,i)=>`<g><title>${i-5}日：${num(p.value,3)}，${p.n} 对</title>${finite(p.value)?`<rect x="${18+i*48}" y="${52-Math.max(0,p.value)*42}" width="21" height="${Math.max(1,Math.abs(p.value)*42)}" fill="var(--plot-blue)"/>`:''}<text x="${28+i*48}" y="112" text-anchor="middle">${i-5}</text></g>`).join('')}</svg><p class="structure-legend">共同有效交易日 · 滞后为正表示 A 先于 B。图示样本相关；没有做显著性或预测检验。</p>`;
     for(const [key,field] of [['a','pairA'],['b','pairB']])host.querySelector('[data-'+key+']').onchange=e=>{s[field]=e.target.value;persist();linkage(host,market,s,persist);};
   }
-  root.AtlasResearch={market,industry,linkage,distributionX,distributionTicks,distributionView,distributionRank,bindDistributionGestures,distributionHit,paintDistribution,scatterRange,scatterLabels,scatterReferenceLayout};
+  root.AtlasResearch={market,industry,linkage,distributionX,distributionTicks,distributionView,distributionRank,bindDistributionGestures,distributionHit,paintDistribution,syncDistributionSelection,scatterRange,scatterLabels,scatterReferenceLayout};
 })(globalThis);

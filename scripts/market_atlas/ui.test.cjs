@@ -363,11 +363,15 @@ test('rotation drag moves the existing layer and commits exact domain on release
  assert.deepEqual(obj.domain,[-10,10,-5,5]);
  obj.finishPan();assert.deepEqual(obj.domain,[-12,8,-4,6]);assert.equal(obj.draws,1);assert.equal(attr.has('transform'),false);
 });
-test('distribution selected marker survives a missing hover target',()=>{
+test('distribution selection overlay updates immediately without canvas or hover',()=>{
  require('../../resources/market-atlas/research-ui.js');
- const {paintDistribution}=globalThis.AtlasResearch,arcs=[];
- const ctx={clearRect(){},setLineDash(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},fill(){},roundRect(){},arc(x,y,r){arcs.push([x,y,r]);},closePath(){}};
- const p={value:10};
- paintDistribution(ctx,100,28,[p],{p10:[0],p90:[20],median:[10],sector:[12]},0,[0,20],[0,10,20],{muted:'#aaa',teal:'#999',blue:'#123',slate:'#888',main:'#222',gold:'#fb0',ink:'#111'},null,p);
- assert.deepEqual(arcs.at(-1),[50,17,4]);
+ const {syncDistributionSelection}=globalThis.AtlasResearch;
+ const make=name=>{const classes=new Set();return {group:{name},marker:{hidden:true,style:{}},row:{classList:{toggle:(key,on)=>on?classes.add(key):classes.delete(key)}},classes};};
+ const a=make('IT服务'),b=make('银行'),p={industry:'IT服务',value:48.09};
+ syncDistributionSelection(a,p,[-50,150]);syncDistributionSelection(b,p,[-50,150]);
+ assert.equal(a.marker.hidden,false);assert.equal(a.marker.style.left,'49.045%');assert.ok(a.classes.has('dist-row-selected'));assert.equal(b.marker.hidden,true);
+ syncDistributionSelection(a,p,[0,100]);assert.equal(a.marker.style.left,'48.09%');
+ syncDistributionSelection(a,p,[-20,20]);assert.equal(a.marker.hidden,true);assert.ok(a.classes.has('dist-row-selected'));
+ const next={industry:'银行',value:10};syncDistributionSelection(a,next,[0,100]);syncDistributionSelection(b,next,[0,100]);
+ assert.equal(a.marker.hidden,true);assert.equal(a.classes.has('dist-row-selected'),false);assert.equal(b.marker.hidden,false);assert.equal(b.marker.style.left,'10%');
 });

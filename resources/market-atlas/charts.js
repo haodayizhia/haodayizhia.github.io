@@ -420,7 +420,9 @@
         const x=this.X(i);
         if(this.series.length>6)for(const s of this.series)if(s.reference||s.id===focus)html+=`<path class="focus-trace" d="${path(s.values,this.X,this.Y,Math.max(0,Math.floor(this.view[0])-1),Math.min(this.dates.length-1,Math.ceil(this.view[1])+1))}" clip-path="url(#plotClip${this.id})" fill="none" stroke="${s.color||'var(--plot-main)'}" stroke-width="${traceWidth(!!s.reference,s.id===focus)}" stroke-dasharray="${s.dash||''}"/>`;
         html+=`<path class="crosshair" d="M${x},${g.top}V${this.stock?this.h-34:g.bottom}"/>`;
-        for(const s of this.series)if((this.series.length<=8||s.reference||s.id===focus)&&finite(s.values[i])&&this.Y(s.values[i])>=g.top&&this.Y(s.values[i])<=g.bottom)html+=`<circle cx="${x}" cy="${this.Y(s.values[i])}" r="${s.id===focus?4.5:3.2}" fill="${s.color||'var(--plot-main)'}" stroke="var(--bg)" stroke-width="${s.id===focus?1.8:1.3}"/>`;
+        const marks=this.series.filter(s=>(this.series.length<=8||s.reference||s.id===focus)&&finite(s.values[i])&&this.Y(s.values[i])>=g.top&&this.Y(s.values[i])<=g.bottom);
+        // Draw the focused observation last, even when several values coincide.
+        for(const s of [...marks.filter(s=>s.id!==focus),...marks.filter(s=>s.id===focus)])html+=`<circle cx="${x}" cy="${this.Y(s.values[i])}" r="${s.id===focus?4.5:3.2}" fill="${s.color||'var(--plot-main)'}" stroke="var(--bg)" stroke-width="${s.id===focus?1.8:1.3}"${s.id===focus?' class="selected-observation"':''}/>`;
       }
       if(finite(value)&&this.Y(value)>=g.top&&this.Y(value)<=g.bottom){const y=this.Y(value),tagWidth=Math.max(g.left-5,Math.ceil(measureAxis([number(value)])+10));html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${tagWidth}" height="22" rx="2"/><text class="axis-tag-text" x="${tagWidth-5}" y="${y+4}" text-anchor="end">${number(value)}</text>`;}
       if(this.brush){const left=clamp(Math.min(...this.brush),g.left,g.right),right=clamp(Math.max(...this.brush),g.left,g.right);html+=`<rect class="zoom-brush" x="${left}" y="${g.top}" width="${right-left}" height="${g.height}"/>`;}
