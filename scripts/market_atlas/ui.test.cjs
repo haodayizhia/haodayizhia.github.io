@@ -354,3 +354,20 @@ test('frame scheduler coalesces inputs, flushes final state and cancels stale wo
  task.flush();assert.deepEqual(calls,[[3]]);assert.equal(frames.size,0);
  task.push(4);task.cancel();assert.equal(frames.size,0);assert.deepEqual(calls,[[3]]);
 });
+
+test('rotation drag moves the existing layer and commits exact domain on release',()=>{
+ const obj=Object.create(globalThis.AtlasMaps.Scatter.prototype);
+ const attr=new Map(),layer={setAttribute:(k,v)=>attr.set(k,v),removeAttribute:k=>attr.delete(k)},label={style:{}};
+ Object.assign(obj,{g:{width:200,height:100},domain:[-10,10,-5,5],dragDomain:[-10,10,-5,5],zoomedAxes:{x:true,y:true},svg:{querySelector:s=>s==='.rotation-data'?layer:label},draw(){this.draws=(this.draws||0)+1;}});
+ obj.previewPan(20,10);assert.equal(attr.get('transform'),'translate(20 10)');assert.equal(obj.draws,undefined);
+ assert.deepEqual(obj.domain,[-10,10,-5,5]);
+ obj.finishPan();assert.deepEqual(obj.domain,[-12,8,-4,6]);assert.equal(obj.draws,1);assert.equal(attr.has('transform'),false);
+});
+test('distribution selected marker survives a missing hover target',()=>{
+ require('../../resources/market-atlas/research-ui.js');
+ const {paintDistribution}=globalThis.AtlasResearch,arcs=[];
+ const ctx={clearRect(){},setLineDash(){},beginPath(){},moveTo(){},lineTo(){},stroke(){},fill(){},roundRect(){},arc(x,y,r){arcs.push([x,y,r]);},closePath(){}};
+ const p={value:10};
+ paintDistribution(ctx,100,28,[p],{p10:[0],p90:[20],median:[10],sector:[12]},0,[0,20],[0,10,20],{muted:'#aaa',teal:'#999',blue:'#123',slate:'#888',main:'#222',gold:'#fb0',ink:'#111'},null,p);
+ assert.deepEqual(arcs.at(-1),[50,17,4]);
+});

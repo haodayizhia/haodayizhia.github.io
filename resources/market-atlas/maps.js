@@ -96,7 +96,7 @@
       this.timeline.addEventListener('change',()=>this.timelineBatch.flush(),{signal:this.abort.signal});
       host.querySelector('.rotation-window').addEventListener('change',e=>{this.pause();this.onWindow(Number(e.target.value));},{signal:this.abort.signal});
       host.querySelector('.rotation-industry').addEventListener('change',e=>{this.pinned=e.target.value;this.focus=this.pinned;this.inspectionActive=!!this.focus;this.draw();},{signal:this.abort.signal});
-      this.gesture=new root.AtlasGesture(this.surface,{owner:this,dismiss:keep=>this.clearInspection(keep),touchInspect:true,scrub:true,batchDrag:true,start:()=>this.dragDomain=this.domain&&[...this.domain],inspect:p=>this.inspect(p),tap:p=>this.pick(p),end:(p,start)=>{if(start&&Math.hypot(p.x-start.x,p.y-start.y)<7)this.pick(p);},drag:(p,start)=>{if(this.zoomed&&this.dragDomain){const dx=(p.x-start.x)/this.g.width*(this.dragDomain[1]-this.dragDomain[0]),dy=(p.y-start.y)/this.g.height*(this.dragDomain[3]-this.dragDomain[2]);this.domain=[this.dragDomain[0]-(this.zoomedAxes?.x?dx:0),this.dragDomain[1]-(this.zoomedAxes?.x?dx:0),this.dragDomain[2]+(this.zoomedAxes?.y?dy:0),this.dragDomain[3]+(this.zoomedAxes?.y?dy:0)];this.draw();}else this.inspect(p);},canPan:()=>this.zoomed,zoom:(f,p,wheel)=>this.zoom(f,p,wheel?this.axisAt(p):this.zoomAxis),pinch:(f,from,to)=>this.zoom(f,from,this.zoomAxis,to),reset:()=>this.reset()});
+      this.gesture=new root.AtlasGesture(this.surface,{owner:this,dismiss:keep=>this.clearInspection(keep),touchInspect:true,scrub:true,batchDrag:true,start:()=>{this.dragDomain=this.domain&&[...this.domain];this.dragOffset=null;},inspect:p=>this.inspect(p),tap:p=>this.pick(p),end:()=>this.finishPan(),finishTouch:()=>this.finishPan(),cancel:()=>this.cancelPan(),drag:(p,start)=>{if(this.zoomed&&this.dragDomain)this.previewPan(p.x-start.x,p.y-start.y);else this.inspect(p);},canPan:()=>this.zoomed,zoom:(f,p,wheel)=>this.zoom(f,p,wheel?this.axisAt(p):this.zoomAxis),pinch:(f,from,to)=>this.zoom(f,from,this.zoomAxis,to),reset:()=>this.reset()});
       this.svg.addEventListener('keydown',e=>{if(e.key==='Escape'){this.clearInspection();return;}if(['ArrowLeft','ArrowRight'].includes(e.key)){e.preventDefault();this.pause();this.setIndex(this.index+(e.key==='ArrowLeft'?-1:1));}if(e.key==='0')this.reset();const name=e.target.closest('[data-point]')?.dataset.point;if(name&&['Enter',' '].includes(e.key)){e.preventDefault();this.pinned=name;this.focus=name;this.inspectionActive=true;this.draw();}},{signal:this.abort.signal});
       this.observer=new ResizeObserver(()=>this.draw());this.observer.observe(this.surface);window.addEventListener('resize',()=>this.draw(),{signal:this.abort.signal});this.draw();
     }
@@ -106,7 +106,21 @@
     setIndex(i){this.index=clamp(i,0,this.dates.length-1);this.timeline.value=this.index;this.timeline.setAttribute('aria-valuetext',this.dates[this.index]);this.onDate?.(this.dates[this.index]);this.fillIndustryPicker();if(!this.zoomed)this.domain=null;this.draw();}
     fillIndustryPicker(){const el=this.host.querySelector('.rotation-industry');el.innerHTML='<option value="">指向行业查看轨迹</option>'+root.AtlasCharts.rankLatest(this.rows.filter(r=>this.selected.has(r.name)&&r.first>=0&&r.first<=this.index),r=>r.x[this.index]).map(r=>`<option value="${esc(r.name)}">${esc(r.name)}</option>`).join('');el.value=this.pinned||'';}
     setSelection(selected){this.selected=selected;if(!selected.has(this.focus)){this.focus='';this.pinned='';}this.domain=null;this.zoomed=false;this.zoomedAxes={x:false,y:false};this.fillIndustryPicker();this.draw();}
-    reset(){this.zoomed=false;this.zoomedAxes={x:false,y:false};this.domain=null;this.draw();}
+    previewPan(dx,dy){
+      if(!this.g||!this.dragDomain)return;
+      const x=this.zoomedAxes?.x?dx:0,y=this.zoomedAxes?.y?dy:0;
+      this.dragOffset=[x,y];
+      this.svg.querySelector('.rotation-data')?.setAttribute('transform',`translate(${x} ${y})`);
+      const label=this.svg.querySelector('.point-label');if(label)label.style.opacity='0';
+    }
+    cancelPan(){this.dragOffset=null;this.svg.querySelector('.rotation-data')?.removeAttribute('transform');const label=this.svg.querySelector('.point-label');if(label)label.style.opacity='';}
+    finishPan(){
+      const offset=this.dragOffset,start=this.dragDomain;this.cancelPan();
+      if(!offset||!start||!this.g||!offset.some(Boolean))return;
+      const dx=offset[0]/this.g.width*(start[1]-start[0]),dy=offset[1]/this.g.height*(start[3]-start[2]);
+      this.domain=[start[0]-dx,start[1]-dx,start[2]+dy,start[3]+dy];this.draw();
+    }
+    reset(){this.cancelPan();this.zoomed=false;this.zoomedAxes={x:false,y:false};this.domain=null;this.draw();}
     axisAt(p){if(!p||!this.g)return this.zoomAxis;const r=this.surface.getBoundingClientRect(),x=p.x-r.left,y=p.y-r.top;if(x<this.g.left)return 'y';if(y>this.g.bottom)return 'x';return this.zoomAxis;}
     zoom(factor,p,axis='both',to=p){if(!this.domain||!finite(factor)||factor<=0)return;const r=this.surface.getBoundingClientRect(),fx=p?clamp((p.x-r.left-this.g.left)/this.g.width,0,1):.5,fy=p?clamp((this.g.bottom-(p.y-r.top))/this.g.height,0,1):.5,[a,b,c,d]=this.domain,x=a+(b-a)*fx,y=c+(d-c)*fy,w=axis==='y'?b-a:(b-a)/factor,h=axis==='x'?d-c:(d-c)/factor;if(w<.001||h<.001||w>1e5||h>1e5)return;const dx=p&&to&&axis!=='y'?(to.x-p.x)/this.g.width*w:0,dy=p&&to&&axis!=='x'?(to.y-p.y)/this.g.height*h:0;this.domain=[x-w*fx-dx,x+w*(1-fx)-dx,y-h*fy+dy,y+h*(1-fy)+dy];this.zoomed=true;this.zoomedAxes=this.zoomedAxes||{x:false,y:false};if(axis!=='y')this.zoomedAxes.x=true;if(axis!=='x')this.zoomedAxes.y=true;this.draw();}
     draw(){
@@ -126,11 +140,11 @@
       html+=`<text class="axis-unit" x="${g.left}" y="13">超额改善 / 百分点</text><text class="axis-unit" x="${g.right}" y="${this.h-26}" text-anchor="end">${this.lookback}日超额 / 百分点</text>`;
       const quadrant=(x,y,text)=>`<text class="quadrant-label" x="${x}" y="${y}">${text}</text>`;
       html+=quadrant(g.left+8,g.top+18,'落后改善')+quadrant(g.right-70,g.top+18,'领先增强')+quadrant(g.left+8,g.bottom-13,'落后走弱')+quadrant(g.right-70,g.bottom-13,'领先减弱');
-      html+=`<g clip-path="url(#${clip})">`;
+      html+=`<g clip-path="url(#${clip})"><g class="rotation-data">`;
       const row=this.inspectionActive&&visible.find(r=>r.name===this.focus);this.trail=row?rotationTrail(row,this.index,this.trailStep):[];
       if(row){let trail='',open=false;for(const p of this.trail){if(!finite(p.x)||!finite(p.y)){open=false;continue;}trail+=(open?'L':'M')+this.X(p.x)+','+this.Y(p.y);open=true;}html+=`<path class="rotation-trail" d="${trail}" fill="none" stroke="var(--plot-gold)" stroke-width="1.8" marker-end="url(#${arrow})"/>`;for(const p of this.trail)if(finite(p.x)&&finite(p.y))html+=`<circle class="trail-sample" cx="${this.X(p.x)}" cy="${this.Y(p.y)}" r="2.8" fill="var(--plot-gold)"/>`;}
       for(const p of [...this.points.filter(p=>p.name!==this.focus),...this.points.filter(p=>p.name===this.focus)]){const x=this.X(p.x),y=this.Y(p.y),chosen=this.inspectionActive&&p.name===this.focus;html+=`<g data-point="${esc(p.name)}" role="button" tabindex="0" aria-label="${esc(p.name)}，超额${num(p.x)}，改善${num(p.y)}" aria-pressed="${chosen}"><circle cx="${x}" cy="${y}" r="${chosen?6:3.5}" fill="${chosen?'var(--plot-gold)':'var(--plot-blue)'}" opacity="${chosen?1:.55}"/></g>`;}
-      html+='</g>';
+      html+='</g></g>';
       const point=this.points.find(p=>p.name===this.focus);if(point&&this.inspectionActive)html+=`<text class="point-label" x="${clamp(this.X(point.x)+10,g.left,g.right-95)}" y="${clamp(this.Y(point.y)-10,g.top+32,g.bottom-28)}">${esc(point.name)}</text>`;
       if(!this.points.length)html+=`<text class="axis-label" x="${(g.left+g.right)/2}" y="${(g.top+g.bottom)/2}" text-anchor="middle">${visible.length?'历史不足，向后选择交易日':'请在行业对比中选择行业'}</text>`;
       this.svg.innerHTML=html;this.svg.dataset.date=this.dates[this.index];this.svg.dataset.focus=this.inspectionActive?this.focus||'':'';this.svg.setAttribute('aria-label','行业轮动：右侧跑赢，上方改善；移动查看行业，点按固定，时间轴独立于其他图表。');

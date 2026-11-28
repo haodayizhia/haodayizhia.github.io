@@ -239,3 +239,6 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 
 /* Persistent touch selection in compact heat history, without covering the cell. */
 .structure-row .sr-heat{position:relative}.structure-heat-marker{position:absolute;top:0;bottom:0;min-width:2px;box-shadow:inset 0 0 0 1px var(--ink),0 0 0 1px var(--bg);pointer-events:none}.point-highlight-layer circle.chosen{stroke-width:1.5;opacity:1}
+
+/* Dense scatter marks use Canvas; axes, labels and selected marks remain vector. */
+.point-dots{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.point-surface>.point-plot{position:relative}

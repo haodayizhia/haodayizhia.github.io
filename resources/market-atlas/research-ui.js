@@ -364,6 +364,9 @@
     host.classList.add('point-chart-host');
     host.innerHTML=`<div class="plot-toolbar point-toolbar"><div><span class="chart-label">成分股 · 20日收益与领先比例</span><span class="point-date">${esc(data.summary.dates.at(-1))}</span></div><div class="plot-actions"><button data-expand aria-label="全屏成分股图">⛶ 全屏</button></div></div><div class="point-surface"><svg class="point-plot" tabindex="0" role="img" aria-label="20日累计收益与跑赢本行业天数占比" aria-description="滚轮缩放；拖动平移；Shift 加拖动框选；双击或按 0 复原"></svg></div><div class="point-controls"><label>查找 <input type="search" placeholder="股票名称或代码" aria-label="查找散点股票"></label><select aria-label="选择散点股票"></select></div><div class="point-detail" aria-live="polite"></div>`;
     const surface=host.querySelector('.point-surface'),svg=surface.querySelector('svg'),search=host.querySelector('input'),list=host.querySelector('select'),detail=host.querySelector('.point-detail');
+    // Dense plots need thousands of marks, not thousands of DOM nodes.
+    const rasterDots=rows.length>256?document.createElement('canvas'):null;
+    if(rasterDots){rasterDots.className='point-dots';rasterDots.setAttribute('aria-hidden','true');surface.insertBefore(rasterDots,svg);}
     let W=0,H=0,g=null,drawFrame=0,settleTimer=0,searchText='',choices=[],hover=null,drag=null,brushBox=null,painted=[],lastRead=null,lastList='',dead=false;
     const X=v=>g.left+(v-view[0])*g.width/(view[1]-view[0]),Y=v=>g.bottom-(v-view[2])*g.height/(view[3]-view[2]);
     const visible=p=>finite(p.groupWins)&&p.groupWins>=view[0]&&p.groupWins<=view[1]&&p.value>=view[2]&&p.value<=view[3];
@@ -398,6 +401,16 @@
       view=next;hover=null;s.pointBrush=isZoomed()?[...view]:null;schedule();
       clearTimeout(settleTimer);settleTimer=setTimeout(()=>{if(!dead){fill();persist();}},100);
     }
+    function paintDots(){
+      if(!rasterDots)return;
+      const dpr=Math.min(window.devicePixelRatio||1,2),w=Math.max(1,Math.round(W*dpr)),h=Math.max(1,Math.round(H*dpr));
+      if(rasterDots.width!==w||rasterDots.height!==h){rasterDots.width=w;rasterDots.height=h;}
+      const ctx=rasterDots.getContext('2d');if(!ctx)return;
+      ctx.setTransform(w/W,0,0,h/H,0,0);ctx.clearRect(0,0,W,H);
+      ctx.fillStyle=getComputedStyle(host).getPropertyValue('--plot-blue').trim();ctx.globalAlpha=.82;
+      for(const {x,y} of painted){ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);ctx.fill();}
+      ctx.globalAlpha=1;
+    }
     function draw(){
       if(dead||!host.isConnected)return;
       W=Math.round(surface.clientWidth);if(W<100)return;
@@ -422,9 +435,10 @@
         ${xt.map(v=>`<text class="axis-label" x="${X(v)}" y="${g.bottom+18}" text-anchor="${v===xl?'start':v===xr?'end':'middle'}">${v*5}%</text>`).join('')}
         <text class="axis-label" x="${(g.left+g.right)/2}" y="${H-7}" text-anchor="middle">20日内跑赢本行业的天数占比</text>
         ${refs.map(r=>`<line x1="${g.left}" x2="${g.right}" y1="${r.y}" y2="${r.y}" class="${r.cls}"/>`).join('')}
-        <g clip-path="url(#${clip})">${painted.map(({p,x,y})=>`<circle cx="${x}" cy="${y}" r="3.2" data-dot="${p.i}"/>`).join('')}<g class="point-highlight-layer" pointer-events="none"></g></g>
+        <g clip-path="url(#${clip})">${rasterDots?'':painted.map(({p,x,y})=>`<circle cx="${x}" cy="${y}" r="3.2" data-dot="${p.i}"/>`).join('')}<g class="point-highlight-layer" pointer-events="none"></g></g>
         ${labels.map(r=>`<g class="point-reference" style="color:${r.color}"><path d="M${g.right},${r.y}H${referenceLayout.leaderStart}L${referenceLayout.leaderBend},${r.labelY}H${referenceLayout.leaderEnd}" fill="none" stroke="currentColor"/><text x="${referenceLayout.labelX}" y="${r.labelY}" dominant-baseline="central" text-anchor="start">${esc(r.label)}</text></g>`).join('')}
         <rect class="brush-box" width="0" height="0"/>`;
+      paintDots();
       surface.classList.toggle('can-pan',isZoomed());
       highlight();
     }
