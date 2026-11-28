@@ -146,7 +146,7 @@
     for(const v of ticks)guide(v,colors.muted,1,.13);
     guide(0,colors.muted,1,.65,[4,3]);
     guide(market,colors.teal,1.5,1,[1.5,2.5]);
-    ctx.setLineDash([]);ctx.globalAlpha=.55;ctx.fillStyle=colors.blue;
+    ctx.setLineDash([]);ctx.globalAlpha=.55;ctx.fillStyle=colors.range||colors.blue;
     const lo=group.p10.at(-1),hi=group.p90.at(-1);
     if(finite(lo)&&finite(hi)){
       const a=Math.max(lo,domain[0]),b=Math.min(hi,domain[1]);
@@ -190,7 +190,7 @@
     const fullDomain=extent(points.map(p=>p.value).concat(summary.groups.map(g=>g.sector.at(-1)),pool));let domain=[...fullDomain];
     const zoomed=()=>domain[0]!==fullDomain[0]||domain[1]!==fullDomain[1];
     const groupByName=new Map(summary.groups.map(g=>[g.name,g]));
-    const colorTokens={muted:'--muted',teal:'--plot-teal',blue:'--plot-blue',slate:'--plot-slate',main:'--plot-main',gold:'--plot-gold',ink:'--ink'};
+    const colorTokens={muted:'--muted',teal:'--plot-teal',blue:'--plot-blue',range:'--plot-range',slate:'--plot-slate',main:'--plot-main',gold:'--plot-gold',ink:'--ink'};
     const pointById=new Map(points.map(p=>[String(p.i),p]));
     let frame=0,rows=null,entries=[],width=0,dpr=1,colors=null,paintedDomain=null,paintedTicks=[],revision=0,observer=null,scatterCleanup=null;
     function selectPoint(p,scroll=false){
@@ -497,7 +497,7 @@
     const {state:s,data,graph}=options,{summary}=data,g=summary.groups.find(g=>g.name===s.industry);
     if(!g)return;
     host.innerHTML=`<div class="structure-legend">浅带 P10–P90（第10至90百分位） · 中位数、行业等权、股票池等权 · 20日上涨 ${g.up.at(-1)} / ${g.count.at(-1)} 只</div><div id="industryBand"></div><details class="breadth-details"><summary>上涨家数历史</summary><p class="structure-legend">较前一交易日，共同样本转为正收益 ${g.gained.at(-1)??'—'} 只，转为非正 ${g.lost.at(-1)??'—'} 只；窗口样本新增 ${g.joined.at(-1)??'—'} 只、退出 ${g.left.at(-1)??'—'} 只。</p><div id="industryParticipation"></div></details><div id="industryPoints"></div>`;
-    const series=[['median','成分中位数','blue'],['sector','行业等权','gold'],['pool','股票池等权','main']].map(([id,name,color])=>({id,name,color:'var(--plot-'+color+')',values:id==='pool'?summary.pool:g[id]}));
+    const series=[['median','成分中位数','blue',''],['sector','行业等权','gold',''],['pool','股票池等权','benchmark','6 4']].map(([id,name,color,dash])=>({id,name,color:'var(--plot-'+color+')',dash,values:id==='pool'?summary.pool:g[id]}));
     graph('industryBand',{dates:summary.dates,series,band:[g.p10,g.p90],unit:'%',label:s.industry+' · 20日收益分布',keepSeriesVisible:true});
     const details=host.querySelector('details');
     details.open=!!s.showBreadth;

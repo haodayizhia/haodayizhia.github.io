@@ -206,3 +206,13 @@ body.page-atlas,.page-atlas .site-header,.page-atlas .site-footer{transition:non
 
 /* Keep keyboard focus visible, but never outline the whole plot on mouse/touch selection. */
 .point-plot:focus{outline:none}.point-plot:focus-visible:not(.pointer-focused){outline:2px solid var(--plot-blue);outline-offset:3px}
+
+/* Semantic chart colors: keep the established series palette and theme intact. */
+.atlas-app{--plot-benchmark:#414951;--plot-range:#8897a3;--plot-range-alpha:.17}
+:root[data-theme=dark] .atlas-app{--plot-benchmark:var(--plot-main);--plot-range:var(--plot-blue);--plot-range-alpha:.17}
+.quantile-band{fill:var(--plot-range);fill-opacity:var(--plot-range-alpha)}
+.legend-range{background:var(--plot-range);opacity:.55}
+/* In the light theme, distinguish benchmark paths from ordinary series without
+   making dense comparison charts uniformly darker. Inline focus width still wins. */
+:root:not([data-theme=dark]) .data-line[data-reference="true"]{stroke-width:1.9px}
+:root:not([data-theme=dark]) #industryBand .data-line{stroke-width:1.6px}

@@ -261,7 +261,7 @@
   function allIndustrySelection(){return new Set((S.market?.sectors||[]).filter(g=>g.series.price_count.some(n=>n>0)).map(g=>g.name));}
   function marketSeries(){
     const sectors=orderedSectors(S.market,S.metric).filter(s=>S.selected.has(s.name)).map(s=>({id:s.name,name:s.name,values:s.series[S.metric],...style(s.name),removable:true}));
-    return S.metric==='relative'?sectors:[{id:'pool',name:'股票池等权',values:S.market.pool[S.metric],reference:true,color:'var(--plot-main)'},...sectors];
+    return S.metric==='relative'?sectors:[{id:'pool',name:'股票池等权',values:S.market.pool[S.metric],reference:true,color:'var(--plot-benchmark)',dash:'6 4'},...sectors];
   }
   async function renderMarket(ticket){
     const modes={structure:'行业结构',lines:'走势',heat:'热力',rotation:'轮动',state:'状态'};
@@ -286,7 +286,7 @@
     const key=S.heatMetric,sectors=orderedSectors(S.market,key);
     const heat=new AtlasMaps.Heatmap($('marketChart'),{dates:S.market.dates,rows:sectors.map(s=>({name:s.name,values:s.series[key]})),metric:key,window:S.window,onInspect:(i,origin)=>observeDate(S.market.dates[i],origin),onOpenSeries:openIndustry,linkFor:name=>routeURL('industry',name),openLabel:'进入行业',inspectionRows:(i,row)=>{
       const hovered=sectors[row]?.name,names=new Set([hovered,...S.selected].filter(Boolean));
-      return [...(key==='relative'?[]:[{name:'股票池等权',value:S.market.pool[key][i],unit:unit(key),color:'var(--plot-main)',reference:true}]),...orderedSectors(S.market,key).filter(s=>names.has(s.name)).map(({name})=>({id:name,name,canOpen:true,openLabel:'进入行业',value:S.market.sectors.find(s=>s.name===name).series[key][i],unit:unit(key),color:color(name)}))];
+      return [...(key==='relative'?[]:[{name:'股票池等权',value:S.market.pool[key][i],unit:unit(key),color:'var(--plot-benchmark)',dash:'6 4',reference:true}]),...orderedSectors(S.market,key).filter(s=>names.has(s.name)).map(({name})=>({id:name,name,canOpen:true,openLabel:'进入行业',value:S.market.sectors.find(s=>s.name===name).series[key][i],unit:unit(key),color:color(name)}))];
     }});heat.setIndex(S.cursor);S.charts.push(heat);
   }
   async function renderRotation(ticket){
@@ -340,10 +340,10 @@
     // Fixed relative strength: constituents vs this industry; industry vs stock pool.
     const diff=(values,base)=>values.map((v,i)=>finite(v)&&finite(base[i])?v-base[i]:null);
     const series=relative?
-      [{id:'sector',name:'本行业等权 · 相对股票池',values:diff(sectorMom,poolMom),...style(S.industry),reference:true}]:
+      [{id:'sector',name:'本行业等权 · 相对股票池',values:diff(sectorMom,poolMom),...style(S.industry),dash:'14 4 2 4',reference:true}]:
       [
-        {id:'pool',name:'股票池等权',values:S.market.pool[key],color:'var(--plot-main)',dash:'5 4',reference:true},
-        {id:'sector',name:'本行业等权',values:sector.series[key],...style(S.industry),reference:true}
+        {id:'pool',name:'股票池等权',values:S.market.pool[key],color:'var(--plot-benchmark)',dash:'6 4',reference:true},
+        {id:'sector',name:'本行业等权',values:sector.series[key],...style(S.industry),dash:'14 4 2 4',reference:true}
       ];
     if(S.history){
       const source=relative?'momentum':key,last=S.market.dates.length-1;

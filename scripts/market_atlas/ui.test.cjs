@@ -316,3 +316,22 @@ test('scatter baseline labels remain outside all plotted lines, at desktop and m
  assert.ok(labels[2].labelY-labels[1].labelY>=18);
  assert.deepEqual(labels.map(r=>r.y),[100,100,101]);
 });
+
+test('light theme benchmark clarity does not alter dark mode or ordinary series opacity',()=>{
+ const {chartTraceOpacity}=require('../../resources/market-atlas/charts.js');
+ assert.equal(chartTraceOpacity({count:91,reference:true}),1);
+ assert.equal(chartTraceOpacity({count:91,reference:true,dark:true}),.48);
+ assert.equal(chartTraceOpacity({count:91}),.48);
+ assert.equal(chartTraceOpacity({count:91,focus:true}),.16);
+ assert.equal(chartTraceOpacity({keepSeriesVisible:true}),1);
+ assert.equal(chartTraceOpacity({keepSeriesVisible:true,dark:true}),.88);
+});
+test('semantic range and stock-pool colors are separate from the original industry palette',()=>{
+ const css=fs.readFileSync(path.join(__dirname,'../../resources/market-atlas/atlas.css'),'utf8');
+ const ui=fs.readFileSync(path.join(__dirname,'../../resources/market-atlas/ui.js'),'utf8');
+ const research=fs.readFileSync(path.join(__dirname,'../../resources/market-atlas/research-ui.js'),'utf8');
+ assert.match(css,/--plot-benchmark:#414951;--plot-range:#8897a3/);
+ assert.match(css,/--plot-benchmark:var\(--plot-main\);--plot-range:var\(--plot-blue\)/);
+ assert.match(ui,/color:'var\(--plot-benchmark\)',dash:'6 4'/);
+ assert.match(research,/\['pool','股票池等权','benchmark','6 4'\]/);
+});

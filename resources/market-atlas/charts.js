@@ -85,6 +85,15 @@
     if(!focus)return count<=1?1:0.48;
     return reference?1:0.16;
   }
+  // Use full-opacity semantic benchmarks in the light theme, while leaving
+  // ordinary series and the established dark theme rendering unchanged.
+  function chartTraceOpacity({stock=false,keepSeriesVisible=false,compact=false,count=0,focus=false,reference=false,active=false,dark=false}){
+    if(stock)return 1;
+    if(keepSeriesVisible)return active||!dark?1:.88;
+    if(compact)return focus&&!active?.2:1;
+    if(reference&&!dark)return 1;
+    return traceOpacity(count,focus,reference,active);
+  }
   function rankLatest(items,value){return [...items].sort((a,b)=>{const x=value(a),y=value(b);return(finite(y)?1:0)-(finite(x)?1:0)||(finite(x)&&finite(y)?y-x:0)||String(a.name||a.code||'').localeCompare(String(b.name||b.code||''),'zh-CN');});}
   function zoomDomain(range,factor,anchor=.5){
     if(!range?.every(finite)||range[1]<=range[0]||!finite(factor)||factor<=0)return range&&[...range];
@@ -354,7 +363,7 @@
           }else if(finite(c))html+=`<circle cx="${this.X(i)}" cy="${this.Y(c)}" r="1.6" fill="var(--plot-main)"/>`;
         }
       }
-      for(const s of this.series){if(this.kind==='candles'&&s.id==='price')continue;html+=`<path class="data-line" d="${path(s.values,this.X,this.Y,Math.max(0,a-1),Math.min(this.dates.length-1,b+1))}" data-series="${escape(s.id)}" stroke-dasharray="${s.dash||''}" stroke="${s.color||'var(--plot-main)'}" stroke-width="${traceWidth(!!s.reference)}"/>`;}
+      for(const s of this.series){if(this.kind==='candles'&&s.id==='price')continue;html+=`<path class="data-line" d="${path(s.values,this.X,this.Y,Math.max(0,a-1),Math.min(this.dates.length-1,b+1))}" data-series="${escape(s.id)}" data-reference="${!!s.reference}" stroke-dasharray="${s.dash||''}" stroke="${s.color||'var(--plot-main)'}" stroke-width="${traceWidth(!!s.reference)}"/>`;}
       if(this.kind==='candles'&&this.stock){
         const s=this.stock,cw=Math.max(1,Math.min(38,this.plotXWidth/Math.max(1,this.view[1]-this.view[0]+1)*.75));
         const {high,low}=visibleExtremes(s,Math.max(0,Math.ceil(this.view[0])),Math.min(this.dates.length-1,Math.floor(this.view[1])),i=>completeBar(i,cw)&&[s.open[i],s.close[i],s.high[i],s.low[i]].every(finite));
@@ -399,7 +408,7 @@
       }
       if(finite(value)&&this.Y(value)>=g.top&&this.Y(value)<=g.bottom){const y=this.Y(value),tagWidth=Math.max(g.left-5,Math.ceil(measureAxis([number(value)])+10));html+=`<path class="crosshair" d="M${g.left},${y}H${g.right}"/><rect class="axis-tag" x="0" y="${y-11}" width="${tagWidth}" height="22" rx="2"/><text class="axis-tag-text" x="${tagWidth-5}" y="${y+4}" text-anchor="end">${number(value)}</text>`;}
       if(this.brush){const left=clamp(Math.min(...this.brush),g.left,g.right),right=clamp(Math.max(...this.brush),g.left,g.right);html+=`<rect class="zoom-brush" x="${left}" y="${g.top}" width="${right-left}" height="${g.height}"/>`;}
-      layer.innerHTML=html;const styleKey=this.revision+'|'+focus;if(this.lastStyleKey!==styleKey){const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===focus,reference=references.has(line.dataset.series);line.style.opacity=String(this.stock?1:this.keepSeriesVisible?(active?1:.88):this.compact?(focus&&!active?0.2:1):traceOpacity(this.series.length,!!focus,reference,active));line.style.strokeWidth=active?String(traceWidth(reference,true)):'';}this.lastStyleKey=styleKey;}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
+      layer.innerHTML=html;const dark=document.documentElement.dataset.theme==='dark',styleKey=this.revision+'|'+focus+'|'+dark;if(this.lastStyleKey!==styleKey){const references=new Set(this.series.filter(s=>s.reference).map(s=>s.id));for(const line of this.svg.querySelectorAll('[data-series]')){const active=line.dataset.series===focus,reference=references.has(line.dataset.series);line.style.opacity=String(chartTraceOpacity({stock:!!this.stock,keepSeriesVisible:this.keepSeriesVisible,compact:this.compact,count:this.series.length,focus:!!focus,reference,active,dark}));line.style.strokeWidth=active?String(traceWidth(reference,true)):'';}this.lastStyleKey=styleKey;}this.svg.dataset.date=this.dates[i];this.svg.dataset.axisValue=finite(value)?String(value):'';
     }
     updateValues() {
       const i=this.index,time=this.host.querySelector('.chart-date');if(time)time.textContent=this.dates[i];
@@ -409,6 +418,6 @@
       this.values.innerHTML=this.series.map(s=>`<div><dt><i style="background:${s.color||'var(--plot-main)'}"></i>${escape(s.name)}</dt><dd>${number(s.values[i])}<small>${finite(s.values[i])?escape(this.unit):''}</small></dd>${s.removable?`<button data-remove-series="${escape(s.id)}" aria-label="移除${escape(s.name)}">×</button>`:''}</div>`).join('');
     }
   }
-  root.AtlasCharts={Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes,extremeLabel,returnToLatest};
-  if(typeof module!=='undefined')module.exports={Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes,extremeLabel,returnToLatest};
+  root.AtlasCharts={chartTraceOpacity,Chart,geometry,axisNumber,measureAxis,bounds,ticks,path,escape,number,finite,clamp,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes,extremeLabel,returnToLatest};
+  if(typeof module!=='undefined')module.exports={chartTraceOpacity,Chart,geometry,axisNumber,bounds,ticks,path,rankLatest,seriesStyle,traceWidth,traceOpacity,zoomDomain,nearestPolylineSegment,autoVisibleRange,chartHeight,volumeReserve,visibleExtremes,extremeLabel,returnToLatest};
 })(globalThis);
