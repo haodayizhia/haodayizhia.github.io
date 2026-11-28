@@ -335,3 +335,12 @@ test('semantic range and stock-pool colors are separate from the original indust
  assert.match(ui,/color:'var\(--plot-benchmark\)',dash:'6 4'/);
  assert.match(research,/\['pool','股票池等权','benchmark','6 4'\]/);
 });
+
+test('mobile chart pans vertically only when it owns a vertical viewport',()=>{
+ const {touchPanAllowed}=require('../../resources/market-atlas/chart-interaction.js');
+ assert.equal(touchPanAllowed(2,40,true,true),true);
+ assert.equal(touchPanAllowed(40,2,true,true),true);
+ assert.equal(touchPanAllowed(2,40,true,false),false);
+ assert.equal(touchPanAllowed(40,2,true,false),true);
+ assert.equal(touchPanAllowed(40,2,false,false),false);
+});

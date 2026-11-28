@@ -157,7 +157,7 @@
           else this.finishPan();
           this.brush=null;this.updateOverlay();
         },
-        cancel:()=>{this.brush=null;this.cancelPan();},finishTouch:()=>this.finishPan(),canPan:()=>this.canPan(),zoom:(factor,p,wheel)=>this.zoom(factor,p,wheel?this.axisAt(p):this.zoomAxis),panPinch:(dx,dy)=>this.pan(dx,[...this.view],dy,[this.lo,this.hi]),reset:()=>this.reset()
+        cancel:()=>{this.brush=null;this.cancelPan();},finishTouch:()=>this.finishPan(),canPan:()=>this.canPan(),canPanY:()=>!!this.yView,zoom:(factor,p,wheel)=>this.zoom(factor,p,wheel?this.axisAt(p):this.zoomAxis),panPinch:(dx,dy)=>this.pan(dx,[...this.view],dy,[this.lo,this.hi]),reset:()=>this.reset()
       });
       this.observer=new ResizeObserver(()=>{this.draw();this.navigator?.update();});this.observer.observe(this.surface);
       window.addEventListener('resize',()=>{this.draw();this.navigator?.update();},{signal:this.abort.signal});this.draw();if(!this.compact)this.navigator=new root.AtlasTimeNavigator(host,{getRange:()=>this.view,getLength:()=>this.dates.length,getDates:()=>this.dates,onChange:(a,b)=>this.setRange(a,b,true)});
@@ -394,7 +394,7 @@
         html+=`<text class="axis-unit" x="${g.left}" y="${top+10}">${unit==='万股'?'成交量':'成交额'} / ${unit}</text>`;
         html+='<g class="plot-volume">';for(let i=a;i<=b;i++)if(finite(volume[i])&&max>0){const h=volume[i]/max*Math.max(0,bottom-top-14),cw=Math.max(1,Math.min(34,this.plotXWidth/Math.max(1,this.view[1]-this.view[0]+1)*.70));if(!completeBar(i,cw))continue;html+=`<rect x="${this.X(i)-cw/2}" y="${bottom-h}" width="${cw}" height="${h}" fill="${this.stock.daily[i]>=0?'var(--candle-rise)':'var(--candle-fall)'}" opacity=".45"/>`;}html+='</g>';
       }
-      this.lastStyleKey=null;this.svg.innerHTML=html+'<g class="plot-overlay"></g>';this.surface.classList.toggle('can-pan',this.canPan());this.svg.setAttribute('aria-label',this.label+'；点按或长按查值，双指或滚轮缩放，双击复原。');
+      this.lastStyleKey=null;this.svg.innerHTML=html+'<g class="plot-overlay"></g>';this.surface.classList.toggle('can-pan',this.canPan());this.surface.classList.toggle('can-pan-y',!!this.yView);this.svg.setAttribute('aria-label',this.label+'；点按或长按查值，双指或滚轮缩放，双击复原。');
       this.svg.dataset.start=String(this.view[0]);this.svg.dataset.end=String(this.view[1]);this.updateOverlay();this.updateValues();
     }
     updateOverlay() {

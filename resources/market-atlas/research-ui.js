@@ -473,7 +473,7 @@
       setView([...scatterRange(view.slice(0,2),base.slice(0,2),1,.5,.5+dx/g.width),...scatterRange(view.slice(2),base.slice(2),1,.5,.5-dy/g.height)]);
     }
     function reset(){cancel();hover=null;setView([...base]);fill();highlight();persist();}
-    const gesture=new root.AtlasGesture(surface,{inspect,dismiss,tap:pick,immediateTap:true,start:begin,drag:move,end:finish,cancel,finishTouch:finish,canPan:isZoomed,zoom,panPinch,reset,startPinch:cancel});
+    const gesture=new root.AtlasGesture(surface,{inspect,dismiss,tap:pick,immediateTap:true,start:begin,drag:move,end:finish,cancel,finishTouch:finish,canPan:isZoomed,canPanY:isZoomed,zoom,panPinch,reset,startPinch:cancel});
     // Suppress the browser's pointer-focus rectangle without removing
     // keyboard focus or its visible accessibility cue.
     surface.addEventListener('pointerdown',()=>svg.classList.add('pointer-focused'));

@@ -194,6 +194,9 @@
     }
     return {push,flush,cancel(){if(frame)cancelAnimationFrame(frame);frame=0;pending=null;}};
   }
+  function touchPanAllowed(dx,dy,canPan,canPanY){
+    return !!canPan&&(!!canPanY||Math.abs(dx)>Math.abs(dy));
+  }
   class Gesture {
     constructor(surface,handlers) {
       this.surface=surface;this.handlers=handlers;this.abort=new AbortController();const signal=this.abort.signal;
@@ -246,7 +249,9 @@
         if(this.touch.long){e.preventDefault();handlers.inspect?.(p);return;}
         if(handlers.scrub){e.preventDefault();this.touch.moved=true;this.clearTimer();handlers.drag?.(p,this.touch);return;}
         if(Math.hypot(dx,dy)>8){this.touch.moved=true;this.clearTimer();}
-        if(this.touch.moved&&Math.abs(dx)>Math.abs(dy)&&(handlers.canPan?.()||handlers.scrub)) {e.preventDefault();handlers.drag?.(p,this.touch);}
+        if(this.touch.moved&&touchPanAllowed(dx,dy,handlers.canPan?.(),handlers.canPanY?.())) {
+          if(e.cancelable)e.preventDefault();handlers.drag?.(p,this.touch);
+        }
       },{passive:false});
       on('touchend',e=>{
         this.clearTimer();const touch=this.touch;if(!touch)return;
@@ -271,5 +276,5 @@
     destroy(){this.clearTimer();this.clearTap();this.clearHover?.();this.wheelBatch?.cancel();this.abort.abort();if(inspector.owner?.surface===this.surface)inspector.hide();}
   }
   Object.assign(root,{AtlasGesture:Gesture,AtlasTimeNavigator:TimeNavigator,AtlasAxisControls:axisControls,AtlasApplyZoomAxis:applyZoomAxis,AtlasFullscreen:fullscreen,AtlasInspector:inspector,AtlasDialogDismiss:bindDismiss,AtlasZoomRange:zoomRange,AtlasWheelBatch:wheelBatch});
-  if(typeof module!=='undefined')module.exports={zoomRange,clamp,stockReadoutGroups,stockReadoutCell};
+  if(typeof module!=='undefined')module.exports={zoomRange,clamp,stockReadoutGroups,stockReadoutCell,touchPanAllowed};
 })(globalThis);
