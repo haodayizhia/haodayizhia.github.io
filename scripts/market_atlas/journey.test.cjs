@@ -108,11 +108,21 @@ try{for(const width of [390,1440,320]){
   await page.selectOption('#atlasMetric','relative');await industryReady();
  await page.locator('[data-industry-display=heat]').click();await page.waitForSelector('.heatmap-host');
   assert.ok(await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return !c.inspectionActive&&!c.pinned&&c.row===undefined&&!c.focus;}),'Industry heatmap should open without highlighted rows');assert.equal(await page.locator('.heatmap-host').getAttribute('data-rows'),String(count));assert.equal(await page.locator('.heatmap-host').getAttribute('data-columns'),'63');assert.equal(await page.locator('.heat-names button').count(),count);assert.match(await page.locator('.heat-corner').textContent(),/股票/);await fit();await shot('industry-complete-heat');
- const order=await evaluate(()=>AtlasCharts.rankLatest(AtlasWorkspace.state.history.stocks,s=>s.tracks.momentum.at(-1)).map(s=>s.code));assert.deepEqual(await evaluate(()=>AtlasWorkspace.state.charts[0].rows.map(r=>r.id)),order);
+ assert.equal(await page.locator('[data-heat-sort]').inputValue(),'20');
+ const expectedOrder=sort=>page.evaluate(async sort=>{
+   const s=AtlasWorkspace.state,q={start:s.market.dates[0],end:s.market.dates.at(-1),window:sort==='path'?s.window:Number(sort),mode:s.mode},[m,h]=await Promise.all([AtlasData.request('/api/market',q),AtlasData.request('/api/industry-history',{...q,name:s.industry})]),field=sort==='path'?'path':'momentum',base=m.sectors.find(g=>g.name===s.industry).series[field].at(-1);
+   return AtlasCharts.rankLatest(h.stocks.filter(r=>s.history.stocks.some(x=>x.code===r.code)),r=>Number.isFinite(r.tracks[field].at(-1))&&Number.isFinite(base)?r.tracks[field].at(-1)-base:null).map(r=>r.code);
+ },sort);
+ for(const sort of ['20','5','1','path','20']){
+   if(await page.locator('[data-heat-sort]').inputValue()!==sort){await page.locator('[data-heat-sort]').selectOption(sort);await page.waitForFunction(v=>AtlasWorkspace.state.charts[0].sort===v,sort);}
+   assert.deepEqual(await evaluate(()=>AtlasWorkspace.state.charts[0].rows.map(r=>r.id)),await expectedOrder(sort));
+   assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].window),await evaluate(()=>AtlasWorkspace.state.window),'Ranking must not change color window');
+ }
+ const order=await expectedOrder('20');
  await page.locator('[data-map-action=in]').click();await page.locator('.heat-layout').scrollIntoViewIfNeeded();await page.locator('.heat-scroll').evaluate(el=>{el.scrollLeft=0;el.scrollTop=el.scrollHeight;});await page.waitForTimeout(30);
  const hit=await evaluate(()=>{const c=AtlasWorkspace.state.charts[0],r=c.surface.getBoundingClientRect(),row=c.rows.length-3,col=20;return{x:r.left+(col+.5)*c.cellWidth-c.surface.scrollLeft,y:r.top+(row+.5)*c.rowHeight-c.surface.scrollTop,row,col,code:c.rows[row].id};});
  if(width<600){await touch('touchStart',[hit]);await touch('touchEnd',[]);}else await page.mouse.click(hit.x,hit.y);
- assert.equal(await evaluate(()=>AtlasWorkspace.state.cursor),20);assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].focus),hit.code);assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].pinned),hit.code,'Tap or desktop click must pin the historical heatmap cell before drilling');
+ assert.equal(await evaluate(()=>AtlasWorkspace.state.cursor),20);assert.deepEqual(await evaluate(()=>AtlasWorkspace.state.charts[0].rows.map(r=>r.id)),order,'Historical inspection must not reorder rows');assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].focus),hit.code);assert.equal(await evaluate(()=>AtlasWorkspace.state.charts[0].pinned),hit.code,'Tap or desktop click must pin the historical heatmap cell before drilling');
  const heatBefore=await evaluate(()=>{const s=AtlasWorkspace.state,c=s.charts[0];return{date:s.market.dates[s.cursor],row:c.row,cellWidth:c.cellWidth,scrollLeft:c.surface.scrollLeft,scrollTop:c.surface.scrollTop,selected:[...s.stocks].sort()};});
  await page.locator('.readout-drill').click();await stockReady();assert.equal(await evaluate(()=>AtlasWorkspace.state.code),hit.code);assert.equal(await evaluate(()=>AtlasWorkspace.state.stock.dates.at(-1)),heatBefore.date);
   assert.ok(await evaluate(()=>{const c=AtlasWorkspace.state.charts[0];return !c.inspectionActive&&!c.pinned&&!c.focus;}),'Opening a stock chart should not carry heatmap focus');assert.equal(await evaluate(()=>AtlasWorkspace.state.stock.dates[AtlasWorkspace.state.cursor]),heatBefore.date);

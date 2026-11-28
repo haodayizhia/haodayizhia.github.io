@@ -412,3 +412,24 @@ test('line and candle selection commits synchronously, supports a new date and u
  c.select({x:4,y:20},'touch');c.select({x:5,y:20},'touch');assert.equal(c.index,5);assert.equal(c.pinned,'steep');
  c.hitSeries=()=>null;c.pinned=null;c.select({x:6,y:20},'touch');assert.equal(c.index,6);assert.equal(c.inspectionActive,true);
 });
+
+test('heatmap sorts by independent window and cumulative relative returns, missing last',()=>{
+ const {heatSortValues,rankHeatRows}=require('../../resources/market-atlas/maps.js');
+ const market={pool:{momentum:[4],path:[10]},sectors:[{name:'A',series:{momentum:[7],path:[12]}},{name:'B',series:{momentum:[2],path:[20]}}]};
+ const rows=[{name:'B',values:[8]},{name:'A',values:[-2]},{name:'C',values:[99]}];
+ assert.deepEqual(rankHeatRows(rows,heatSortValues(market,null,'','20')).map(r=>r.name),['A','B','C']);
+ assert.deepEqual(rankHeatRows(rows,heatSortValues(market,null,'','path')).map(r=>r.name),['B','A','C']);
+ const history={stocks:[{code:'x',tracks:{momentum:[9],path:[10]}},{code:'y',tracks:{momentum:[4],path:[20]}},{code:'z',tracks:{momentum:[null],path:[null]}}]};
+ const scores=heatSortValues(market,history,'A','20');assert.deepEqual([...scores],[['x',2],['y',-3],['z',null]]);
+ assert.equal(heatSortValues(market,history,'A','path').get('y'),8);
+});
+test('heatmap viewport date labels stay complete, spaced and tied to cells',()=>{
+ const {heatAxisLabels}=require('../../resources/market-atlas/maps.js'),dates=Array.from({length:63},(_,i)=>'2026-01-'+String(i+1).padStart(2,'0'));
+ for(const width of [160,260,390,1000])for(const cell of [5,8,18,40]){
+  const left=Math.max(0,cell*dates.length-width),labels=heatAxisLabels(dates,cell,left,width,()=>48);
+  assert.equal(labels.at(-1).i,62);
+  for(const l of labels){assert.ok(l.x-l.w/2>=0&&l.x+l.w/2<=width);assert.equal(l.tick,Math.max(0,Math.min(width,(l.i+.5)*cell-left)));}
+  for(let i=1;i<labels.length;i++)assert.ok(labels[i].x-labels[i].w/2>=labels[i-1].x+labels[i-1].w/2+8);
+ }
+ const labels=heatAxisLabels(dates,10,103,170,()=>48);assert.equal(labels[0].i,10);assert.equal(labels.at(-1).i,26);
+});
