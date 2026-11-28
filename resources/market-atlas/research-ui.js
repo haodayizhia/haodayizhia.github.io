@@ -346,7 +346,7 @@
     // Persist only a valid view of this chart's data.
     let view=Array.isArray(s.pointBrush)&&s.pointBrush.length===4&&s.pointBrush.every(finite)&&s.pointBrush[0]<s.pointBrush[1]&&s.pointBrush[2]<s.pointBrush[3]&&s.pointBrush[0]>=0&&s.pointBrush[1]<=20&&s.pointBrush[2]>=base[2]&&s.pointBrush[3]<=base[3]?[...s.pointBrush]:[...base];
     host.classList.add('point-chart-host');
-    host.innerHTML=`<div class="plot-toolbar point-toolbar"><div><span class="chart-label">成分股 · 20日收益与领先比例</span><span class="point-date">${esc(data.summary.dates.at(-1))}</span></div><div class="plot-actions"><button data-expand aria-label="全屏成分股图">⛶ 全屏</button></div></div><div class="point-surface" title="滚轮缩放 · 拖动平移 · Shift+拖动框选 · 双击复原"><svg class="point-plot" tabindex="0" role="img" aria-label="20日累计收益与跑赢本行业天数占比"></svg></div><div class="point-controls"><label>查找 <input type="search" placeholder="股票名称或代码" aria-label="查找散点股票"></label><select aria-label="选择散点股票"></select></div><div class="point-detail" aria-live="polite"></div>`;
+    host.innerHTML=`<div class="plot-toolbar point-toolbar"><div><span class="chart-label">成分股 · 20日收益与领先比例</span><span class="point-date">${esc(data.summary.dates.at(-1))}</span></div><div class="plot-actions"><button data-expand aria-label="全屏成分股图">⛶ 全屏</button></div></div><div class="point-surface"><svg class="point-plot" tabindex="0" role="img" aria-label="20日累计收益与跑赢本行业天数占比" aria-description="滚轮缩放；拖动平移；Shift 加拖动框选；双击或按 0 复原"></svg></div><div class="point-controls"><label>查找 <input type="search" placeholder="股票名称或代码" aria-label="查找散点股票"></label><select aria-label="选择散点股票"></select></div><div class="point-detail" aria-live="polite"></div>`;
     const surface=host.querySelector('.point-surface'),svg=surface.querySelector('svg'),search=host.querySelector('input'),list=host.querySelector('select'),detail=host.querySelector('.point-detail');
     let W=0,H=0,g=null,drawFrame=0,settleTimer=0,searchText='',choices=[],hover=null,drag=null,brushBox=null,painted=[],lastRead=null,lastList='',dead=false;
     const X=v=>g.left+(v-view[0])*g.width/(view[1]-view[0]),Y=v=>g.bottom-(v-view[2])*g.height/(view[3]-view[2]);
@@ -421,8 +421,10 @@
     function dismiss(){hover=null;surface.style.cursor='';highlight();}
     function pick(p,type){
       const hit=nearest(p,type==='touch'?18:12);if(!hit)return;
+      const previous=s.structurePoint,previousChoices=[...choices];
       const near=painted.filter(d=>Math.hypot(d.x-hit.x,d.y-hit.y)<=7).map(d=>d.p);
       fill(near.length>1?near:null);select(hit.p.code);
+      return ()=>{fill(previousChoices);select(previous);};
     }
     function begin(p,shift){if(!g)return;drag={view:[...view],anchor:fractions(p),start:local(p),shift};hover=null;}
     function move(p,start){
@@ -460,8 +462,13 @@
       setView([...scatterRange(view.slice(0,2),base.slice(0,2),1,.5,.5+dx/g.width),...scatterRange(view.slice(2),base.slice(2),1,.5,.5-dy/g.height)]);
     }
     function reset(){cancel();hover=null;setView([...base]);fill();highlight();persist();}
-    const gesture=new root.AtlasGesture(surface,{inspect,dismiss,tap:pick,start:begin,drag:move,end:finish,cancel,finishTouch:finish,canPan:isZoomed,zoom,panPinch,reset,startPinch:cancel});
+    const gesture=new root.AtlasGesture(surface,{inspect,dismiss,tap:pick,immediateTap:true,start:begin,drag:move,end:finish,cancel,finishTouch:finish,canPan:isZoomed,zoom,panPinch,reset,startPinch:cancel});
+    // Suppress the browser's pointer-focus rectangle without removing
+    // keyboard focus or its visible accessibility cue.
+    surface.addEventListener('pointerdown',()=>svg.classList.add('pointer-focused'));
+    svg.addEventListener('blur',()=>svg.classList.remove('pointer-focused'));
     svg.addEventListener('keydown',e=>{
+      svg.classList.remove('pointer-focused');
       if(e.key==='Escape'){dismiss();return;}if(e.key==='0'){e.preventDefault();reset();return;}
       if(!g)return;
       const r=surface.getBoundingClientRect();

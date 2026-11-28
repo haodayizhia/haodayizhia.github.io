@@ -285,3 +285,17 @@ test('scatter reference labels avoid overlaps and respect plot boundaries',()=>{
  assert.deepEqual(labels.map(r=>r.labelY),[66,83,100]);
  assert.deepEqual(labels.map(r=>r.y),[95,96,97]);
 });
+
+test('scatter tap selects immediately and double tap restores prior selection before reset',()=>{
+ const gesture=Object.create(globalThis.AtlasGesture.prototype),calls=[];
+ gesture.handlers={immediateTap:true,reset:()=>calls.push('reset')};
+ const pick=()=>{calls.push('pick');return ()=>calls.push('undo');};
+ gesture.queueTap({x:10,y:20},'mouse',pick);
+ assert.deepEqual(calls,['pick']);
+ gesture.queueTap({x:12,y:20},'mouse',pick);
+ assert.deepEqual(calls,['pick','undo','reset']);
+ gesture.queueTap({x:10,y:20},'mouse',pick);
+ gesture.queueTap({x:50,y:20},'mouse',pick);
+ assert.deepEqual(calls,['pick','undo','reset','pick','pick']);
+ gesture.clearTap();
+});

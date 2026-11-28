@@ -222,7 +222,7 @@
         owner.host.addEventListener('pointerleave',e=>{if(e.pointerType!=='touch'&&!this.mouse&&!owner.readout?.contains(e.relatedTarget))handlers.dismiss?.(true);},{signal});
       }
       if(handlers.wheel!==false)on('wheel',e=>{if(!e.deltaY)return;e.preventDefault();clearHover();this.wheelBatch.push(Math.exp(-e.deltaY*.002),point(e));},{passive:false});
-      on('dblclick',e=>{e.preventDefault();this.clearTap();clearHover();this.wheelBatch.cancel();if(performance.now()-(this.lastDouble??-Infinity)>150){handlers.cancel?.();handlers.reset?.();}});
+      on('dblclick',e=>{e.preventDefault();const pending=this.pendingTap;this.clearTap();clearHover();this.wheelBatch.cancel();if(performance.now()-(this.lastDouble??-Infinity)>150){pending?.undo?.();handlers.cancel?.();handlers.reset?.();}});
       on('touchstart',e=>{
         this.clearTimer();clearHover();this.wheelBatch.flush();
         if(e.touches.length===2) {
@@ -258,9 +258,13 @@
     // A tap is committed only after the double-tap window. Hover stays immediate.
     queueTap(p,type,action){
       const old=this.pendingTap,near=type==='touch'?24:7;
-      if(old&&old.type===type&&Math.hypot(p.x-old.x,p.y-old.y)<near){this.clearTap();this.handlers.cancel?.();this.handlers.reset?.();this.lastDouble=performance.now();return;}
-      if(old){this.clearTap();old.action();}
-      this.pendingTap={...p,type,action};this.tapTimer=setTimeout(()=>{const pending=this.pendingTap;this.clearTap();pending?.action();},type==='touch'?280:500);
+      if(old&&old.type===type&&Math.hypot(p.x-old.x,p.y-old.y)<near){this.clearTap();old.undo?.();this.handlers.cancel?.();this.handlers.reset?.();this.lastDouble=performance.now();return;}
+      if(old){this.clearTap();if(!old.immediate)old.action();}
+      // Opt-in charts whose selection has no date/navigation side effects can
+      // respond instantly and undo the first tap if it becomes a double tap.
+      const immediate=!!this.handlers.immediateTap;
+      this.pendingTap={...p,type,action,immediate,undo:immediate?action():null};
+      this.tapTimer=setTimeout(()=>{const pending=this.pendingTap;this.clearTap();if(pending&&!pending.immediate)pending.action();},type==='touch'?280:500);
     }
     clearTap(){clearTimeout(this.tapTimer);this.pendingTap=null;}
     clearTimer(){clearTimeout(this.timer);}
