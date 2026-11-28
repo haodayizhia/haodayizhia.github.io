@@ -337,6 +337,13 @@
     }
     return sorted;
   }
+  // Keep labels in a dedicated right gutter, outside all data and grid lines.
+  // Reserve space for the longest label even if a reference is outside the
+  // current zoom range, so the plot geometry is stable while zooming.
+  function scatterReferenceLayout(width,left,labelWidth){
+    const right=Math.max(left+1,width-6-Math.ceil(labelWidth)-24);
+    return {right,labelX:right+22,leaderStart:right+4,leaderBend:right+10,leaderEnd:right+17};
+  }
   let pointChartId=0;
   function scatter(host,points,{state:s,data,openStock,persist},group){
     host.onclick=null;
@@ -389,11 +396,15 @@
       // Match the actual CSS pixel dimensions. No fixed-ratio letterboxing.
       surface.style.height=H+'px';svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
       const [xl,xr,yl,yr]=view,yt=AtlasCharts.ticks(yl,yr,W<500?5:6).filter(v=>v>=yl&&v<=yr);
-      g=AtlasCharts.geometry(W,H,AtlasCharts.measureAxis(yt.map(v=>axisNum(v)+'%')));g.top=24;g.bottom=H-46;g.height=Math.max(1,g.bottom-g.top);
+      const referenceSpecs=[{v:0,label:'零收益',cls:'dist-zero',color:'var(--muted)'},{v:market,label:'股票池 '+pct(market),cls:'dist-market',color:'var(--plot-teal)'},{v:sector,label:'行业 '+pct(sector),cls:'point-sector',color:'var(--plot-gold)'}].filter(r=>finite(r.v));
+      g=AtlasCharts.geometry(W,H,AtlasCharts.measureAxis(yt.map(v=>axisNum(v)+'%')));
+      const referenceLayout=scatterReferenceLayout(W,g.left,AtlasCharts.measureAxis(referenceSpecs.map(r=>r.label)));
+      g.right=referenceLayout.right;g.width=Math.max(1,g.right-g.left);
+      g.top=24;g.bottom=H-46;g.height=Math.max(1,g.bottom-g.top);
       const span=xr-xl,step=span>12?5:span>5?2:1,xt=[];
       for(let v=Math.ceil(xl/step)*step;v<=xr+1e-8;v+=step)xt.push(v);
-      const refs=[{v:0,label:'零收益',cls:'dist-zero',color:'var(--muted)'},{v:market,label:'股票池 '+pct(market),cls:'dist-market',color:'var(--plot-teal)'},{v:sector,label:'行业 '+pct(sector),cls:'point-sector',color:'var(--plot-gold)'}].filter(r=>finite(r.v)&&r.v>=yl&&r.v<=yr).map(r=>({...r,y:Y(r.v)}));
-      const labels=scatterLabels(refs,g.top+9,g.bottom-9);
+      const refs=referenceSpecs.filter(r=>r.v>=yl&&r.v<=yr).map(r=>({...r,y:Y(r.v)}));
+      const labels=scatterLabels(refs,g.top+9,g.bottom-9,18);
       painted=rows.filter(visible).map(p=>({p,x:X(p.groupWins),y:Y(p.value)}));
       svg.innerHTML=`<defs><clipPath id="${clip}"><rect x="${g.left-5}" y="${g.top-5}" width="${g.width+10}" height="${g.height+10}"/></clipPath></defs>
         <text class="axis-unit" x="${g.left}" y="13">20日累计收益率</text>
@@ -402,7 +413,7 @@
         <text class="axis-label" x="${(g.left+g.right)/2}" y="${H-7}" text-anchor="middle">20日内跑赢本行业的天数占比</text>
         ${refs.map(r=>`<line x1="${g.left}" x2="${g.right}" y1="${r.y}" y2="${r.y}" class="${r.cls}"/>`).join('')}
         <g clip-path="url(#${clip})">${painted.map(({p,x,y})=>`<circle cx="${x}" cy="${y}" r="3.2" data-dot="${p.i}"/>`).join('')}</g>
-        ${labels.map(r=>`<g class="point-reference" style="color:${r.color}"><path d="M${g.right-5},${r.y}h-4L${g.right-15},${r.labelY}" fill="none" stroke="currentColor"/><text x="${g.right-18}" y="${r.labelY-3}" text-anchor="end">${esc(r.label)}</text></g>`).join('')}
+        ${labels.map(r=>`<g class="point-reference" style="color:${r.color}"><path d="M${g.right},${r.y}H${referenceLayout.leaderStart}L${referenceLayout.leaderBend},${r.labelY}H${referenceLayout.leaderEnd}" fill="none" stroke="currentColor"/><text x="${referenceLayout.labelX}" y="${r.labelY}" dominant-baseline="central" text-anchor="start">${esc(r.label)}</text></g>`).join('')}
         <rect class="brush-box" width="0" height="0"/>`;
       surface.classList.toggle('can-pan',isZoomed());
       highlight();
@@ -509,5 +520,5 @@
     host.querySelector('[data-pair-results]').innerHTML=`<p>日收益相关 <b>${num(raw.value,3)}</b>（${raw.n} 对）　减去股票池后 <b>${num(net.value,3)}</b>（${net.n} 对）</p><svg class="lag-plot" viewBox="0 0 550 120" aria-label="相对日收益滞后相关，从负5到正5个交易日"><path class="dist-zero" d="M10,52H540"/>${bars.map((p,i)=>`<g><title>${i-5}日：${num(p.value,3)}，${p.n} 对</title>${finite(p.value)?`<rect x="${18+i*48}" y="${52-Math.max(0,p.value)*42}" width="21" height="${Math.max(1,Math.abs(p.value)*42)}" fill="var(--plot-blue)"/>`:''}<text x="${28+i*48}" y="112" text-anchor="middle">${i-5}</text></g>`).join('')}</svg><p class="structure-legend">共同有效交易日 · 滞后为正表示 A 先于 B。图示样本相关；没有做显著性或预测检验。</p>`;
     for(const [key,field] of [['a','pairA'],['b','pairB']])host.querySelector('[data-'+key+']').onchange=e=>{s[field]=e.target.value;persist();linkage(host,market,s,persist);};
   }
-  root.AtlasResearch={market,industry,linkage,distributionX,distributionTicks,distributionView,distributionRank,bindDistributionGestures,distributionHit,paintDistribution,scatterRange,scatterLabels};
+  root.AtlasResearch={market,industry,linkage,distributionX,distributionTicks,distributionView,distributionRank,bindDistributionGestures,distributionHit,paintDistribution,scatterRange,scatterLabels,scatterReferenceLayout};
 })(globalThis);

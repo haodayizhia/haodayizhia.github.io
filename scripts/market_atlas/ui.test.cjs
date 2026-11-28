@@ -299,3 +299,20 @@ test('scatter tap selects immediately and double tap restores prior selection be
  assert.deepEqual(calls,['pick','undo','reset','pick','pick']);
  gesture.clearTap();
 });
+
+test('scatter baseline labels remain outside all plotted lines, at desktop and mobile widths',()=>{
+ require('../../resources/market-atlas/research-ui.js');
+ const {scatterReferenceLayout,scatterLabels}=globalThis.AtlasResearch;
+ for(const width of [264,320,768,1440]){
+  const left=42,labelWidth=88;
+  const g=scatterReferenceLayout(width,left,labelWidth);
+  assert.ok(g.right>left);
+  assert.ok(g.leaderStart>g.right&&g.leaderEnd<g.labelX);
+  assert.ok(g.labelX+labelWidth<=width-6);
+  assert.ok(g.right===width-6-labelWidth-24);
+ }
+ const labels=scatterLabels([{y:100},{y:100},{y:101}],20,200,18);
+ assert.ok(labels[1].labelY-labels[0].labelY>=18);
+ assert.ok(labels[2].labelY-labels[1].labelY>=18);
+ assert.deepEqual(labels.map(r=>r.y),[100,100,101]);
+});
