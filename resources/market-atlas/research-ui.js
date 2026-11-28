@@ -233,7 +233,9 @@
     // does not inadvertently discard the selected stock.
     document.addEventListener('click',e=>{
       if(s.structureScope!=='industry'||!body.isConnected)return;
-      const target=e.target;
+      // Pointer capture can retarget the synthesized click to the container.
+      // Hit-test its actual screen position before deciding it was outside.
+      const target=(e.detail>0?document.elementFromPoint(e.clientX,e.clientY):null)||e.target;
       if(body.contains(target)&&target.closest('.dist-plot,.dist-axis,.structure-heat,.structure-selection'))return;
       gestures.cancel();clearStructureSelection();
     },{capture:true,signal:selectionAbort.signal});
